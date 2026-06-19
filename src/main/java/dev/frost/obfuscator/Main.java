@@ -16,26 +16,26 @@ import java.util.concurrent.Callable;
         name = "frostfuscator",
         mixinStandardHelpOptions = true,
         version = "Frostfuscator 1.0.0",
-        description = "Professional-grade Java bytecode obfuscator"
+        description = "Java obfuscation toolkit"
 )
 public class Main implements Callable<Integer> {
 
-    @CommandLine.Option(names = {"-i", "--input"}, description = "Path to input JAR file")
+    @CommandLine.Option(names = {"-i", "--input"}, description = "Input JAR")
     private String input;
 
-    @CommandLine.Option(names = {"-o", "--output"}, description = "Path to output JAR file")
+    @CommandLine.Option(names = {"-o", "--output"}, description = "Output JAR")
     private String output;
 
-    @CommandLine.Option(names = {"-c", "--config"}, description = "Path to config.yml file")
+    @CommandLine.Option(names = {"-c", "--config"}, description = "YAML config file")
     private String configPath;
 
-    @CommandLine.Option(names = {"-t", "--transformers"}, description = "Comma-separated list of transformers to enable (overrides config)")
+    @CommandLine.Option(names = {"-t", "--transforms", "--transformers"}, description = "Comma-separated transform names; overrides config")
     private String transformersList;
 
-    @CommandLine.Option(names = {"-l", "--libs"}, description = "Path to a folder containing library JARs for hierarchy resolution")
+    @CommandLine.Option(names = {"-l", "--libs"}, description = "Folder containing dependency JARs")
     private String libs;
 
-    @CommandLine.Option(names = {"--list-transformers"}, description = "List all available transformers and exit")
+    @CommandLine.Option(names = {"--list-transforms", "--list-transformers"}, description = "List transforms and exit")
     private boolean listTransformers;
 
     @Override
@@ -44,7 +44,7 @@ public class Main implements Callable<Integer> {
             Logger.printBanner();
 
             if (listTransformers) {
-                Logger.info("Available transformers:");
+                Logger.info("Available transforms:");
                 for (String name : TransformerRegistry.getAllNames()) {
                     Logger.info("  - {}", name);
                 }
@@ -66,7 +66,7 @@ public class Main implements Callable<Integer> {
                 cliTransformers = Arrays.stream(transformersList.split(","))
                         .map(String::trim)
                         .toList();
-                Logger.info("CLI transformer override: {}", cliTransformers);
+                Logger.info("CLI transform override: {}", cliTransformers);
             }
 
             ObfuscationEngine engine = new ObfuscationEngine(config, cliTransformers);

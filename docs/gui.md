@@ -1,28 +1,27 @@
-# GUI Usage Guide
+# GUI Usage
 
-Frostfuscator includes a full graphical interface built with JavaFX, making it incredibly easy to configure your obfuscation parameters without writing YAML by hand.
-
-## Launching the GUI
-
-The GUI application is packaged in `Frostfuscator-gui.jar`.
+The GUI is packaged as `Frostfuscator-gui.jar`.
 
 ```bash
 java -jar Frostfuscator-gui.jar
 ```
 
-## Features of the GUI
+## Layout
 
-1. **Visual Transformer Selection**: A list of all available transformers is displayed on the screen. You can simply check the boxes next to the ones you wish to enable.
-2. **File Pickers**: Easily browse your file system to select the Input JAR, Output JAR, and Library Directory.
-3. **Dictionary Selection**: A dropdown menu allows you to select between `alphabet`, `numeric`, `unicode`, or a custom file.
-4. **Configuration Export**: Once you have visually configured everything to your liking, you can export the setup directly to a `config.yml` file for future CLI use.
-5. **One-Click Obfuscation**: Hit the "Start Obfuscation" button to execute the obfuscation engine directly from the GUI. Console logs and progress will be shown in the UI.
+- **Project:** input/output JARs, libraries, mapping path, launch profile, and rule editor.
+- **Obfuscation:** renaming, encryption, flow, call hiding, debug cleanup, and metadata passes.
+- **Protection:** watermarking, integrity, anti-debug, and anti-decompiler passes.
+- **Resources:** resource compression settings.
+- **Optimize:** bytecode cleanup and shrinking.
+- **Reports:** JSON/HTML statistics export.
+- **Console:** live run output.
 
-## Typical Workflow
+The app uses a custom OLED frame, compact top navigation, and category pages. The Project page is kept short enough to fit the default window; long pass and settings lists scroll inside their own panels.
 
-1. Open `Frostfuscator-gui.jar`.
-2. Click **Browse** next to Input File and select your application JAR.
-3. Select your desired naming dictionary from the dropdown.
-4. Go through the Transformer list and check `StringEncryptionTransformer`, `RemoveDebugTransformer`, and `FlowObfuscationTransformer`.
-5. Click **Start Obfuscation**.
-6. (Optional) Click **Export Config** to save your settings to `my-config.yml` so you can use it in your build scripts later.
+## Workflow
+
+1. Pick the input JAR and output path.
+2. Choose **No Passes**, **Basic**, **Balanced**, **Strong**, or **Maximum** on the Project page.
+3. Open category pages and adjust individual passes.
+4. Click **Run Build**.
+5. Test the output JAR before keeping the config.

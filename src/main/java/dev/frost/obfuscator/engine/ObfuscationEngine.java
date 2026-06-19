@@ -4,6 +4,7 @@ import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.remapper.FrostRemapper;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
+import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
@@ -26,10 +27,13 @@ public class ObfuscationEngine {
 
     public void run() throws IOException {
         long startTime = System.currentTimeMillis();
+        Path inputPath = Path.of(config.getInput());
+        Path outputPath = Path.of(config.getOutput());
+        ProtectionStats stats = new ProtectionStats();
 
-        Logger.info("═══════════════════════════════════════════════════");
-        Logger.info("  Frostfuscator — Java Bytecode Obfuscator");
-        Logger.info("═══════════════════════════════════════════════════");
+        Logger.info("===================================================");
+        Logger.info("  Frostfuscator - Java obfuscation toolkit");
+        Logger.info("===================================================");
         Logger.info("Input:  {}", config.getInput());
         Logger.info("Output: {}", config.getOutput());
         Logger.info("Dictionary: {}", config.getDictionary());
@@ -43,7 +47,8 @@ public class ObfuscationEngine {
         Logger.info("");
 
         JarProcessor processor = new JarProcessor();
-        ClassPool pool = processor.loadJar(Path.of(config.getInput()));
+        ClassPool pool = processor.loadJar(inputPath);
+        stats.set("classes", pool.size());
 
         if (config.getLibs() != null && !config.getLibs().isEmpty()) {
             processor.loadLibraries(pool, Path.of(config.getLibs()));
@@ -89,15 +94,15 @@ public class ObfuscationEngine {
         Logger.info("Active transformers: {}", allTransformers.stream().map(Transformer::getName).toList());
         Logger.info("");
 
-        Logger.info("══════════ Pass 1: Collecting Mappings ══════════");
+        Logger.info("Pass 1: Collecting mappings");
         for (Transformer transformer : pass1) {
             TransformerConfig tc = resolveConfig(transformer);
             Logger.info("Running transformer: {}", transformer.getName());
-            transformer.transform(pool, mappings, tc);
+            transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
         }
 
         Logger.info("");
-        Logger.info("══════════ Pass 2: Applying Remapping ══════════");
+        Logger.info("Pass 2: Applying remapping");
         Logger.info("Total mappings collected: {}", mappings.totalMappings());
 
         applyRemapping(pool, mappings);
@@ -119,12 +124,12 @@ public class ObfuscationEngine {
 
         if (!postRemap.isEmpty()) {
             Logger.info("");
-            Logger.info("══════════ Pass 3: Post-Remap Transforms ══════════");
+            Logger.info("Pass 3: Post-remap transforms");
 
             for (Transformer transformer : postRemap) {
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
-                transformer.transform(pool, mappings, tc);
+                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
             }
         }
 
@@ -132,14 +137,19 @@ public class ObfuscationEngine {
             mappings.exportMappings(Path.of(config.getMapping().getOutput()));
         }
 
-        processor.writeJar(pool, Path.of(config.getOutput()));
+        stats.set("classMappings", mappings.getClassMappings().size());
+        stats.set("fieldMappings", mappings.getFieldMappings().size());
+        stats.set("methodMappings", mappings.getMethodMappings().size());
+        stats.set("totalMappings", mappings.totalMappings());
+
+        processor.writeJar(pool, outputPath);
 
         long elapsed = System.currentTimeMillis() - startTime;
         Logger.info("");
-        Logger.info("═══════════════════════════════════════════════════");
-        Logger.info("  Obfuscation completed in {}ms", elapsed);
+        Logger.info("===================================================");
+        Logger.info("  Protection run completed in {}ms", elapsed);
         Logger.info("  Classes: {} | Mappings: {}", pool.size(), mappings.totalMappings());
-        Logger.info("═══════════════════════════════════════════════════");
+        Logger.info("===================================================");
     }
 
     private TransformerConfig resolveConfig(Transformer transformer) {

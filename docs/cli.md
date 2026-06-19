@@ -1,41 +1,42 @@
-# CLI Usage Guide
+# CLI Usage
 
-The Command Line Interface (CLI) allows you to automate Frostfuscator and integrate it seamlessly into your CI/CD pipelines.
-
-## Executing the CLI
-
-The main CLI application is packaged in `Frostfuscator.jar`. 
+The CLI is packaged as `Frostfuscator.jar`.
 
 ```bash
 java -jar Frostfuscator.jar [options]
 ```
 
-## Available Options
+## Options
 
-| Option | Long Option | Description |
+| Option | Long option | Description |
 |---|---|---|
-| `-c=<path>` | `--config=<path>` | The path to your YAML configuration file (`config.yml`). |
-| `-i=<path>` | `--input=<path>` | The path to the JAR file you wish to obfuscate. |
-| `-o=<path>` | `--output=<path>` | The destination path for the obfuscated JAR. |
-| `-l=<path>` | `--libs=<path>` | A directory containing dependency JAR files required for hierarchy resolution. |
-| `-t=<list>` | `--transformers=<list>` | A comma-separated list of transformer names to enable. This overrides the configuration file. |
-| | `--list-transformers` | Prints out every available transformer name in the engine and exits. |
-| `-h` | `--help` | Displays the help menu. |
-| `-V` | `--version` | Displays the current version of Frostfuscator. |
+| `-c=<path>` | `--config=<path>` | YAML config file to load. |
+| `-i=<path>` | `--input=<path>` | Input JAR. Overrides the config value. |
+| `-o=<path>` | `--output=<path>` | Output JAR. Overrides the config value. |
+| `-l=<path>` | `--libs=<path>` | Folder containing dependency JARs for hierarchy checks. |
+| `-t=<list>` | `--transforms=<list>` | Comma-separated pass names. Overrides the config pass list. |
+| `-t=<list>` | `--transformers=<list>` | Backward-compatible alias for `--transforms`. |
+| | `--list-transforms` | Prints pass names and exits. |
+| | `--list-transformers` | Backward-compatible alias for `--list-transforms`. |
+| `-h` | `--help` | Prints help. |
+| `-V` | `--version` | Prints the version. |
 
 ## Examples
 
-**Basic Obfuscation via Config File:**
+Run with a config:
+
 ```bash
 java -jar Frostfuscator.jar -c config.yml
 ```
 
-**Overriding Config File Paths:**
+Override input and output:
+
 ```bash
-java -jar Frostfuscator.jar -c base-config.yml -i my-game-v1.jar -o release/my-game-obf.jar
+java -jar Frostfuscator.jar -c base-config.yml -i app.jar -o release/app-protected.jar
 ```
 
-**CLI-Only Obfuscation (No Config):**
+Run only selected obfuscation passes:
+
 ```bash
-java -jar Frostfuscator.jar -i src.jar -o out.jar -t StringEncryptionTransformer,FlowObfuscationTransformer
+java -jar Frostfuscator.jar -i app.jar -o out.jar -t class-rename,string-encryption,remove-debug
 ```

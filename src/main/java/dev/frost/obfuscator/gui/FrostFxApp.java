@@ -7,8 +7,10 @@ import dev.frost.obfuscator.engine.ObfuscationEngine;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
+import javafx.animation.Animation;
 import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
+import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.TranslateTransition;
 import javafx.application.Application;
@@ -48,9 +50,12 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.awt.Desktop;
@@ -68,14 +73,14 @@ public final class FrostFxApp extends Application {
 
     private static final Map<String, TransformerMeta> META = Map.ofEntries(
             meta("class-rename", "Class Rename", "Renaming", "Renames classes with package-aware naming."),
-            meta("field-rename", "Field Rename", "Renaming", "Renames fields and preserves configured names."),
+            meta("field-rename", "Field Rename", "Renaming", "Renames fields, except configured names."),
             meta("method-rename", "Method Rename", "Renaming", "Hierarchy-aware method renaming."),
             meta("local-variable-rename", "Local Variables", "Cleanup", "Renames local variables and parameters."),
             meta("remove-debug", "Remove Debug", "Cleanup", "Strips debug tables and source metadata."),
             meta("string-encryption", "String Encryption", "Constants", "Encrypts string constants."),
             meta("number-obfuscation", "Number Obfuscation", "Constants", "Mutates numeric constants."),
             meta("parameter-encryption", "Parameter Encryption", "Calls", "Encodes eligible method parameters."),
-            meta("flow-obfuscation", "Control Flow", "Flow", "Opaque predicates and flattening."),
+            meta("flow-obfuscation", "Control Flow", "Flow", "Adds opaque predicates and flattening."),
             meta("flow-outliner", "Flow Outliner", "Flow", "Extracts safe blocks into private methods."),
             meta("flow-range", "Try Range Flow", "Flow", "Wraps code regions in synthetic handlers."),
             meta("flow-condition", "Condition Guards", "Flow", "Adds opaque guards around branches."),
@@ -85,7 +90,15 @@ public final class FrostFxApp extends Application {
             meta("invoke-dynamic", "InvokeDynamic", "Calls", "Converts calls to dynamic call sites."),
             meta("reference-hiding", "Reference Hiding", "Calls", "Routes calls through generated proxies."),
             meta("access-modifier", "Access Noise", "Metadata", "Adds safe access metadata noise."),
-            meta("metadata-noise", "Metadata Noise", "Metadata", "Adds bounded metadata noise.")
+            meta("metadata-noise", "Metadata Noise", "Metadata", "Adds bounded metadata noise."),
+            meta("watermark", "Watermark", "Ownership", "Embeds ownership markers into classes and resources."),
+            meta("integrity", "Integrity Index", "Protection", "Writes SHA-256 metadata for classes and resources."),
+            meta("anti-debug", "Anti-Debug", "Protection", "Injects a JDWP check into application entry points."),
+            meta("anti-decompiler", "Anti-Decompiler", "Protection", "Adds verifier-safe bytecode traps aimed at decompilers."),
+            meta("resource-compression", "Resource Compression", "Resources", "Stores compressed resource copies and an index."),
+            meta("bytecode-optimizer", "Bytecode Optimizer", "Optimization", "Removes simple no-op bytecode."),
+            meta("jar-shrinker", "JAR Shrinker", "Optimization", "Removes debug tables and source metadata."),
+            meta("statistics-report", "Statistics Report", "Reporting", "Writes JSON or HTML run statistics.")
     );
 
     private static final Map<String, List<OptionSpec>> OPTION_SPECS = buildOptionSpecs();
@@ -95,17 +108,18 @@ public final class FrostFxApp extends Application {
     private boolean applyingPreset;
     private boolean refreshingControls;
     private String currentPage = "project";
-    private String activePreset = "balanced";
+    private String activePreset = "none";
+    private String currentCategory = "obfuscation";
     private String selectedTransformer;
     private Node projectNode;
-    private Node transformersNode;
     private Node consoleNode;
+    private Stage rulesStage;
 
     private final StackPane contentHost = new StackPane();
     private final Label pageTitle = new Label("Project");
     private final Label pageSubtitle = new Label("Input, output, mappings, and launch profile.");
     private final Label statusLabel = new Label("Ready");
-    private final Label topPresetLabel = new Label("Balanced");
+    private final Label topPresetLabel = new Label("No Passes");
     private final Label topEnabledLabel = new Label("0 / 0 passes");
     private final ProgressBar runProgress = new ProgressBar(0);
     private final Label toast = new Label();
@@ -126,17 +140,17 @@ public final class FrostFxApp extends Application {
 
     private final ObservableList<String> transformerItems = FXCollections.observableArrayList();
     private final ListView<String> transformerList = new ListView<>(transformerItems);
-    private final TextField transformerSearch = textField("Search transformers");
+    private final TextField transformerSearch = textField("Search passes");
     private final CheckBox selectedEnabledBox = checkBox("Enabled");
-    private final Label selectedTitle = new Label("Select a transformer");
+    private final Label selectedTitle = new Label("Select a pass");
     private final Label selectedSummary = new Label("Settings appear here.");
-    private final Label selectedCategory = new Label("Transformer");
+    private final Label selectedCategory = new Label("Pass");
     private final VBox settingsBox = new VBox(14);
     private final TextArea logArea = textArea("");
 
-    private Label sidebarPresetName;
-    private Label sidebarPresetStats;
     private ProgressBar presetStrengthBar;
+    private double dragOffsetX;
+    private double dragOffsetY;
 
     public static void launchApp(String[] args) {
         launch(args);
@@ -145,17 +159,22 @@ public final class FrostFxApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
+        primaryStage.initStyle(StageStyle.TRANSPARENT);
         config = ConfigLoader.loadDefault();
         ensureAllTransformers(config);
+        applyNoPassPreset();
 
-        HBox shell = new HBox();
-        shell.getStyleClass().add("app-root");
-        VBox sidebar = sidebar();
+        VBox shell = new VBox();
+        shell.getStyleClass().addAll("app-root", "app-shell");
+        VBox header = navigationBar();
         VBox main = mainArea();
-        HBox.setHgrow(main, Priority.ALWAYS);
-        shell.getChildren().addAll(sidebar, main);
+        VBox.setVgrow(main, Priority.ALWAYS);
+        shell.getChildren().addAll(header, main);
+        shell.setOpacity(0);
 
-        StackPane root = new StackPane(shell, toast);
+        StackPane welcome = welcomeScreen();
+        StackPane root = new StackPane(shell, welcome, toast);
+        root.getStyleClass().add("window-frame");
         StackPane.setAlignment(toast, Pos.BOTTOM_CENTER);
         StackPane.setMargin(toast, new Insets(0, 0, 26, 0));
         toast.getStyleClass().add("toast");
@@ -163,12 +182,13 @@ public final class FrostFxApp extends Application {
         toast.setVisible(false);
 
         Scene scene = new Scene(root, 1360, 850);
+        scene.setFill(Color.TRANSPARENT);
         String css = getClass().getResource("/frost-gui.css").toExternalForm();
         scene.getStylesheets().add(css);
 
         primaryStage.setTitle("Frostfuscator");
-        primaryStage.setMinWidth(1180);
-        primaryStage.setMinHeight(760);
+        primaryStage.setMinWidth(1120);
+        primaryStage.setMinHeight(720);
         primaryStage.setScene(scene);
 
         bindProjectControls();
@@ -176,70 +196,175 @@ public final class FrostFxApp extends Application {
         showPage("project", false);
         updatePresetVisuals();
         primaryStage.show();
+        playWelcome(welcome, shell);
     }
 
-    private VBox sidebar() {
-        VBox side = new VBox(18);
-        side.getStyleClass().add("sidebar");
-        side.setPrefWidth(278);
-        side.setMinWidth(278);
-        side.setMaxWidth(278);
+    private StackPane welcomeScreen() {
+        StackPane screen = new StackPane();
+        screen.getStyleClass().add("welcome-screen");
 
+        Region gradientA = new Region();
+        gradientA.getStyleClass().addAll("welcome-gradient", "welcome-gradient-a");
+        Region gradientB = new Region();
+        gradientB.getStyleClass().addAll("welcome-gradient", "welcome-gradient-b");
+
+        VBox copy = new VBox(10);
+        copy.setAlignment(Pos.CENTER);
+        Label mark = new Label("\u2744");
+        mark.getStyleClass().add("welcome-mark");
+        Label title = new Label("Welcome to Frostfuscator");
+        title.getStyleClass().add("welcome-title");
+        Label subtitle = new Label("Java protection, obfuscation, and release hardening.");
+        subtitle.getStyleClass().add("welcome-subtitle");
+        copy.getChildren().addAll(mark, title, subtitle);
+
+        screen.getChildren().addAll(gradientA, gradientB, copy);
+        enableWindowDrag(screen);
+        moveWelcomeGradient(gradientA, -520, 520, 3.8);
+        moveWelcomeGradient(gradientB, 460, -460, 5.2);
+        breathe(mark);
+        return screen;
+    }
+
+    private void playWelcome(StackPane welcome, Node shell) {
+        PauseTransition hold = new PauseTransition(Duration.millis(1250));
+        hold.setOnFinished(e -> {
+            FadeTransition out = new FadeTransition(Duration.millis(420), welcome);
+            out.setToValue(0);
+            FadeTransition in = new FadeTransition(Duration.millis(520), shell);
+            in.setToValue(1);
+            out.setOnFinished(done -> {
+                welcome.setVisible(false);
+                welcome.setManaged(false);
+            });
+            new ParallelTransition(out, in).play();
+        });
+        hold.play();
+    }
+
+    private void moveWelcomeGradient(Node node, double fromX, double toX, double seconds) {
+        TranslateTransition motion = new TranslateTransition(Duration.seconds(seconds), node);
+        motion.setFromX(fromX);
+        motion.setToX(toX);
+        motion.setAutoReverse(true);
+        motion.setCycleCount(Animation.INDEFINITE);
+        motion.play();
+    }
+
+    private Button titleButton(String styleClass) {
+        Button button = new Button();
+        button.getStyleClass().addAll("titlebar-button", styleClass);
+        installHoverMotion(button);
+        return button;
+    }
+
+    private VBox navigationBar() {
+        VBox bar = new VBox(10);
+        bar.getStyleClass().add("app-header");
+
+        HBox topRow = new HBox(14);
+        topRow.setAlignment(Pos.CENTER_LEFT);
         HBox brand = new HBox(12);
         brand.setAlignment(Pos.CENTER_LEFT);
-        Label mark = new Label("F");
+        Label mark = new Label("\u2744");
         mark.getStyleClass().add("brand-mark");
         VBox brandText = new VBox(2);
         Label name = new Label("Frostfuscator");
         name.getStyleClass().add("brand-title");
-        Label subtitle = new Label("Java Bytecode Obfuscation.");
+        Label subtitle = new Label("Obfuscation toolkit");
         subtitle.getStyleClass().add("muted-label");
         brandText.getChildren().addAll(name, subtitle);
         brand.getChildren().addAll(mark, brandText);
 
-        VBox nav = new VBox(8);
+        FlowPane nav = new FlowPane(8, 8);
+        nav.getStyleClass().add("nav-row");
         nav.getChildren().addAll(
-                navButton("Project", "Input, output, mapping", "project"),
-                navButton("Transformers", "Per-pass settings", "transformers"),
-                navButton("Console", "Live run output", "console")
+                navButton("Project", "", "project"),
+                navButton("Obfuscation", "", "obfuscation"),
+                navButton("Protection", "", "protection"),
+                navButton("Resources", "", "resources"),
+                navButton("Optimize", "", "optimization"),
+                navButton("Reports", "", "reporting"),
+                navButton("Console", "", "console")
         );
-
-        Label presetTitle = sectionTitle("Preset");
-        VBox presets = new VBox(8);
-        presets.getChildren().addAll(
-                presetButton("Compatibility", "compatibility"),
-                presetButton("Balanced", "balanced"),
-                presetButton("Strong", "strong"),
-                presetButton("Maximum", "maximum")
-        );
-
-        VBox profileCard = new VBox(10);
-        profileCard.getStyleClass().add("profile-card");
-        Label active = new Label("Active profile");
-        active.getStyleClass().add("micro-label");
-        sidebarPresetName = new Label("Balanced");
-        sidebarPresetName.getStyleClass().add("profile-name");
-        sidebarPresetStats = new Label("0 / 0 passes enabled");
-        sidebarPresetStats.getStyleClass().add("muted-label");
-        presetStrengthBar = new ProgressBar(0.5);
-        presetStrengthBar.getStyleClass().add("strength-bar");
-        profileCard.getChildren().addAll(active, sidebarPresetName, sidebarPresetStats, presetStrengthBar);
 
         Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Button load = secondaryButton("Load Config");
         load.setOnAction(e -> loadConfigFile());
         Button save = secondaryButton("Save Config");
         save.setOnAction(e -> saveConfigFile());
-        VBox configButtons = new VBox(8, load, save);
+        HBox configButtons = new HBox(8, load, save);
+        configButtons.setAlignment(Pos.CENTER_RIGHT);
 
-        side.getChildren().addAll(brand, nav, presetTitle, presets, profileCard, spacer, configButtons);
-        return side;
+        Button minimize = titleButton("title-minimize");
+        minimize.setOnAction(e -> stage.setIconified(true));
+        Button maximize = titleButton("title-maximize");
+        maximize.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+        Button close = titleButton("title-close");
+        close.setOnAction(e -> stage.close());
+        HBox windowButtons = new HBox(10, minimize, maximize, close);
+        windowButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        topRow.getChildren().addAll(brand, spacer, windowButtons);
+
+        Region navSpacer = new Region();
+        HBox.setHgrow(navSpacer, Priority.ALWAYS);
+        HBox navLine = new HBox(10, nav, navSpacer, configButtons);
+        navLine.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(nav, Priority.ALWAYS);
+
+        StackPane motionHost = new StackPane();
+        motionHost.getStyleClass().add("motion-host");
+        Region motionLine = new Region();
+        motionLine.getStyleClass().add("motion-line");
+        motionHost.getChildren().add(motionLine);
+
+        bar.getChildren().addAll(topRow, navLine, motionHost);
+        enableWindowDrag(bar);
+        startHeaderMotion(motionLine);
+        breathe(mark);
+        return bar;
+    }
+
+    private void startHeaderMotion(Node node) {
+        TranslateTransition motion = new TranslateTransition(Duration.seconds(7), node);
+        motion.setFromX(-760);
+        motion.setToX(760);
+        motion.setCycleCount(Animation.INDEFINITE);
+        motion.play();
+    }
+
+    private void breathe(Node node) {
+        FadeTransition fade = new FadeTransition(Duration.seconds(2.8), node);
+        fade.setFromValue(0.72);
+        fade.setToValue(1.0);
+        fade.setAutoReverse(true);
+        fade.setCycleCount(Animation.INDEFINITE);
+        fade.play();
+    }
+
+    private void enableWindowDrag(Node node) {
+        node.setOnMousePressed(e -> {
+            dragOffsetX = e.getSceneX();
+            dragOffsetY = e.getSceneY();
+        });
+        node.setOnMouseDragged(e -> {
+            if (!stage.isMaximized()) {
+                stage.setX(e.getScreenX() - dragOffsetX);
+                stage.setY(e.getScreenY() - dragOffsetY);
+            }
+        });
+        node.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                stage.setMaximized(!stage.isMaximized());
+            }
+        });
     }
 
     private VBox mainArea() {
-        VBox main = new VBox(18);
+        VBox main = new VBox(14);
         main.getStyleClass().add("main");
         HBox top = topBar();
         VBox.setVgrow(contentHost, Priority.ALWAYS);
@@ -267,7 +392,7 @@ public final class FrostFxApp extends Application {
         topEnabledLabel.getStyleClass().add("metric-chip");
         chips.getChildren().addAll(topPresetLabel, topEnabledLabel);
         runProgress.getStyleClass().add("run-progress");
-        runProgress.setPrefWidth(250);
+        runProgress.setPrefWidth(180);
         statusLabel.getStyleClass().add("status-label");
         HBox status = new HBox(10, runProgress, statusLabel);
         status.setAlignment(Pos.CENTER_RIGHT);
@@ -277,8 +402,8 @@ public final class FrostFxApp extends Application {
         validate.setOnAction(e -> validateConfiguration());
         Button reveal = secondaryButton("Reveal Output");
         reveal.setOnAction(e -> revealOutput());
-        Button run = primaryButton("Run Obfuscation");
-        run.setOnAction(e -> runObfuscation(run, validate));
+        Button run = primaryButton("Run Build");
+        run.setOnAction(e -> runProtection(run, validate));
         HBox actions = new HBox(8, validate, reveal, run);
         actions.setAlignment(Pos.CENTER_RIGHT);
 
@@ -287,13 +412,13 @@ public final class FrostFxApp extends Application {
     }
 
     private Node projectPage() {
-        VBox page = new VBox(16);
+        VBox page = new VBox(14);
         page.getStyleClass().add("page");
 
         GridPane cards = new GridPane();
         cards.getStyleClass().add("card-grid");
-        cards.setHgap(16);
-        cards.setVgap(16);
+        cards.setHgap(14);
+        cards.setVgap(14);
         cards.getColumnConstraints().addAll(percentColumn(36), percentColumn(25), percentColumn(39));
         cards.getRowConstraints().add(new RowConstraints());
         Node files = projectFilesCard();
@@ -306,18 +431,26 @@ public final class FrostFxApp extends Application {
         cards.add(build, 1, 0);
         cards.add(mappings, 2, 0);
 
-        VBox rules = card("Rules", "Regex filters");
-        GridPane ruleGrid = new GridPane();
-        ruleGrid.setHgap(14);
-        ruleGrid.getColumnConstraints().addAll(percentColumn(50), percentColumn(50));
-        ruleGrid.add(labeledArea("Inclusions", inclusionsArea), 0, 0);
-        ruleGrid.add(labeledArea("Exclusions", exclusionsArea), 1, 0);
-        VBox.setVgrow(ruleGrid, Priority.ALWAYS);
-        rules.getChildren().add(ruleGrid);
-
-        page.getChildren().addAll(cards, rules);
-        VBox.setVgrow(rules, Priority.ALWAYS);
+        page.getChildren().addAll(cards, profileCard());
         return page;
+    }
+
+    private VBox profileCard() {
+        VBox box = card("Launch Profile", "Start with no passes, then opt into more");
+        HBox presets = new HBox(8);
+        presets.setAlignment(Pos.CENTER_LEFT);
+        presets.getChildren().addAll(
+                presetButton("No Passes", "none"),
+                presetButton("Basic", "basic"),
+                presetButton("Balanced", "balanced"),
+                presetButton("Strong", "strong"),
+                presetButton("Maximum", "maximum")
+        );
+        presetStrengthBar = new ProgressBar(0);
+        presetStrengthBar.getStyleClass().add("strength-bar");
+        presetStrengthBar.setMaxWidth(Double.MAX_VALUE);
+        box.getChildren().addAll(presets, presetStrengthBar);
+        return box;
     }
 
     private VBox projectFilesCard() {
@@ -333,9 +466,72 @@ public final class FrostFxApp extends Application {
         defaults.setOnAction(e -> useDefaultPaths());
         Button clear = secondaryButton("Clear");
         clear.setOnAction(e -> clearProjectPaths());
-        actions.getChildren().addAll(defaults, clear);
+        Button rules = secondaryButton("Edit Rules");
+        rules.setOnAction(e -> showRulesWindow());
+        actions.getChildren().addAll(defaults, clear, rules);
         box.getChildren().add(actions);
         return box;
+    }
+
+    private void showRulesWindow() {
+        if (rulesStage != null) {
+            rulesStage.show();
+            rulesStage.toFront();
+            return;
+        }
+
+        rulesStage = new Stage(StageStyle.TRANSPARENT);
+        rulesStage.initOwner(stage);
+        rulesStage.initModality(Modality.NONE);
+        rulesStage.setTitle("Rules");
+
+        VBox root = new VBox(14);
+        root.getStyleClass().addAll("app-root", "rules-window", "window-frame");
+
+        HBox title = new HBox(12);
+        title.setAlignment(Pos.CENTER_LEFT);
+        Label heading = new Label("Rules");
+        heading.getStyleClass().add("card-title");
+        Label sub = new Label("Regex filters");
+        sub.getStyleClass().add("muted-label");
+        VBox text = new VBox(2, heading, sub);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button close = titleButton("title-close");
+        close.setOnAction(e -> rulesStage.hide());
+        title.getChildren().addAll(text, spacer, close);
+
+        GridPane ruleGrid = new GridPane();
+        ruleGrid.setHgap(12);
+        ruleGrid.getColumnConstraints().addAll(percentColumn(50), percentColumn(50));
+        ruleGrid.add(labeledArea("Inclusions", inclusionsArea), 0, 0);
+        ruleGrid.add(labeledArea("Exclusions", exclusionsArea), 1, 0);
+
+        Button done = primaryButton("Done");
+        done.setOnAction(e -> rulesStage.hide());
+        HBox actions = new HBox(done);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        root.getChildren().addAll(title, ruleGrid, actions);
+        enableModalDrag(root, rulesStage);
+
+        Scene scene = new Scene(root, 920, 360);
+        scene.setFill(Color.TRANSPARENT);
+        scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
+        rulesStage.setScene(scene);
+        rulesStage.show();
+    }
+
+    private void enableModalDrag(Node node, Stage target) {
+        final double[] offset = new double[2];
+        node.setOnMousePressed(e -> {
+            offset[0] = e.getSceneX();
+            offset[1] = e.getSceneY();
+        });
+        node.setOnMouseDragged(e -> {
+            target.setX(e.getScreenX() - offset[0]);
+            target.setY(e.getScreenY() - offset[1]);
+        });
     }
 
     private VBox buildSettingsCard() {
@@ -353,25 +549,44 @@ public final class FrostFxApp extends Application {
         box.getChildren().addAll(
                 mappingEnabledBox,
                 fileRow("Mapping output", mappingOutputField, this::browseMappingOutput),
-                mutedText("Mapping files make obfuscated stack traces recoverable.")
+                mutedText("Mapping files help recover protected stack traces.")
         );
         return box;
     }
 
-    private Node transformersPage() {
-        HBox page = new HBox(16);
+    private Node categoryPage(String category) {
+        ensureCategorySelection(category);
+
+        HBox page = new HBox(18);
         page.getStyleClass().add("page");
 
-        VBox listCard = card("Transformer Stack", "Search, enable, and inspect passes");
-        listCard.setPrefWidth(500);
-        listCard.setMinWidth(430);
-        listCard.getChildren().add(transformerToolbar());
-        transformerList.getStyleClass().add("transformer-list");
-        transformerList.setCellFactory(view -> new TransformerCell());
-        VBox.setVgrow(transformerList, Priority.ALWAYS);
-        listCard.getChildren().add(transformerList);
+        VBox passCard = card(categoryTitle(category), categorySubtitle(category));
+        passCard.setPrefWidth(560);
+        passCard.setMinWidth(460);
 
-        VBox detailCard = card("Settings", "Typed controls");
+        HBox tools = new HBox(10);
+        tools.setAlignment(Pos.CENTER_LEFT);
+        Button allOff = secondaryButton("All Off");
+        allOff.setOnAction(e -> setCategoryEnabled(category, false));
+        Button recommended = secondaryButton("Basic On");
+        recommended.setOnAction(e -> enableCategoryBasic(category));
+        HBox.setHgrow(transformerSearch, Priority.ALWAYS);
+        tools.getChildren().addAll(allOff, transformerSearch, recommended);
+
+        FlowPane passGrid = new FlowPane(12, 12);
+        passGrid.getStyleClass().add("pass-grid");
+        for (String name : passesForCategory(category)) {
+            passGrid.getChildren().add(passTile(name));
+        }
+
+        ScrollPane passScroll = new ScrollPane(passGrid);
+        passScroll.getStyleClass().add("pass-scroll");
+        passScroll.setFitToWidth(true);
+        passScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        VBox.setVgrow(passScroll, Priority.ALWAYS);
+        passCard.getChildren().addAll(tools, passScroll);
+
+        VBox detailCard = card("Settings", "Only the selected pass");
         HBox detailHeader = new HBox(14);
         detailHeader.setAlignment(Pos.CENTER_LEFT);
         VBox detailText = new VBox(4);
@@ -385,24 +600,126 @@ public final class FrostFxApp extends Application {
         ScrollPane settingsScroll = new ScrollPane(settingsBox);
         settingsScroll.getStyleClass().add("settings-scroll");
         settingsScroll.setFitToWidth(true);
+        settingsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(settingsScroll, Priority.ALWAYS);
         detailCard.getChildren().addAll(detailHeader, settingsScroll);
 
         HBox.setHgrow(detailCard, Priority.ALWAYS);
-        page.getChildren().addAll(listCard, detailCard);
+        page.getChildren().addAll(passCard, detailCard);
         return page;
     }
 
-    private HBox transformerToolbar() {
-        HBox toolbar = new HBox(10);
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        Button allOff = secondaryButton("All Off");
-        allOff.setOnAction(e -> setAllTransformers(false));
-        Button allOn = secondaryButton("All On");
-        allOn.setOnAction(e -> setAllTransformers(true));
-        HBox.setHgrow(transformerSearch, Priority.ALWAYS);
-        toolbar.getChildren().addAll(allOff, transformerSearch, allOn);
-        return toolbar;
+    private Node passTile(String name) {
+        TransformerMeta meta = metaFor(name);
+        TransformerConfig tc = config.getTransformers().get(name);
+        VBox tile = new VBox(10);
+        tile.getStyleClass().add("pass-tile");
+        if (name.equals(selectedTransformer)) {
+            tile.getStyleClass().add("selected");
+        }
+
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.CENTER_LEFT);
+        CheckBox enabled = checkBox("");
+        enabled.setSelected(tc != null && tc.isEnabled());
+        Label title = new Label(meta.title);
+        title.getStyleClass().add("transformer-title");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Label category = new Label(meta.category);
+        category.getStyleClass().add("transformer-category");
+        top.getChildren().addAll(enabled, title, spacer, category);
+
+        Label summary = new Label(meta.summary);
+        summary.getStyleClass().add("transformer-summary");
+        summary.setWrapText(true);
+        tile.getChildren().addAll(top, summary);
+        installHoverMotion(tile);
+
+        enabled.setOnAction(e -> {
+            TransformerConfig current = config.getTransformers().get(name);
+            if (current != null) {
+                current.setEnabled(enabled.isSelected());
+                markCustom();
+                selectTransformer(name);
+                showPage(currentPage, false);
+            }
+        });
+        tile.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                selectTransformer(name);
+                showPage(currentPage, false);
+            }
+        });
+        return tile;
+    }
+
+    private void ensureCategorySelection(String category) {
+        List<String> names = passesForCategory(category);
+        if (names.isEmpty()) {
+            selectedTransformer = null;
+            settingsBox.getChildren().setAll(emptySettings("No passes in this category."));
+            return;
+        }
+        if (selectedTransformer == null || !names.contains(selectedTransformer)) {
+            selectTransformer(names.get(0));
+        }
+    }
+
+    private List<String> passesForCategory(String category) {
+        String filter = transformerSearch.getText() == null ? "" : transformerSearch.getText().trim().toLowerCase(Locale.ROOT);
+        return TransformerRegistry.getAllNames().stream()
+                .filter(name -> pageOwnsPass(category, metaFor(name).category))
+                .filter(name -> {
+                    TransformerMeta meta = metaFor(name);
+                    String haystack = (name + " " + meta.title + " " + meta.category + " " + meta.summary).toLowerCase(Locale.ROOT);
+                    return filter.isEmpty() || haystack.contains(filter);
+                })
+                .toList();
+    }
+
+    private boolean pageOwnsPass(String page, String category) {
+        return switch (page) {
+            case "protection" -> category.equals("Protection") || category.equals("Ownership");
+            case "resources" -> category.equals("Resources");
+            case "optimization" -> category.equals("Optimization");
+            case "reporting" -> category.equals("Reporting");
+            default -> category.equals("Renaming")
+                    || category.equals("Cleanup")
+                    || category.equals("Constants")
+                    || category.equals("Flow")
+                    || category.equals("Bytecode")
+                    || category.equals("Calls")
+                    || category.equals("Metadata");
+        };
+    }
+
+    private boolean isCategoryPage(String page) {
+        return page.equals("obfuscation")
+                || page.equals("protection")
+                || page.equals("resources")
+                || page.equals("optimization")
+                || page.equals("reporting");
+    }
+
+    private String categoryTitle(String page) {
+        return switch (page) {
+            case "protection" -> "Protection";
+            case "resources" -> "Resources";
+            case "optimization" -> "Optimize";
+            case "reporting" -> "Reports";
+            default -> "Obfuscation";
+        };
+    }
+
+    private String categorySubtitle(String page) {
+        return switch (page) {
+            case "protection" -> "Watermarks, integrity, anti-debug, anti-decompiler.";
+            case "resources" -> "Compression and resource handling.";
+            case "optimization" -> "Shrinking and bytecode cleanup.";
+            case "reporting" -> "JSON and HTML run reports.";
+            default -> "Renaming, encryption, flow, calls, and metadata.";
+        };
     }
 
     private Node consolePage() {
@@ -460,10 +777,9 @@ public final class FrostFxApp extends Application {
         mappingOutputField.setText(nullToEmpty(cfg.getMapping().getOutput()));
         inclusionsArea.setText(String.join("\n", cfg.getInclusions()));
         exclusionsArea.setText(String.join("\n", cfg.getExclusions()));
-        refreshTransformerList();
-        if (!transformerItems.isEmpty()) {
-            transformerList.getSelectionModel().select(0);
-            selectTransformer(transformerItems.get(0));
+        List<String> names = passesForCategory(currentCategory);
+        if (!names.isEmpty()) {
+            selectTransformer(names.get(0));
         }
         updateStats();
         updateSummary();
@@ -506,17 +822,15 @@ public final class FrostFxApp extends Application {
         currentPage = page;
         Node node;
         switch (page) {
-            case "transformers" -> {
-                pageTitle.setText("Transformers");
-                pageSubtitle.setText("Per-pass controls, no raw option guessing.");
-                if (transformersNode == null) {
-                    transformersNode = transformersPage();
-                }
-                node = transformersNode;
+            case "obfuscation", "protection", "resources", "optimization", "reporting" -> {
+                currentCategory = page;
+                pageTitle.setText(categoryTitle(page));
+                pageSubtitle.setText(categorySubtitle(page));
+                node = categoryPage(page);
             }
             case "console" -> {
                 pageTitle.setText("Console");
-                pageSubtitle.setText("Live obfuscation output and status.");
+                pageSubtitle.setText("Live run output and status.");
                 if (consoleNode == null) {
                     consoleNode = consolePage();
                 }
@@ -540,27 +854,19 @@ public final class FrostFxApp extends Application {
 
     private void animateIn(Node node) {
         node.setOpacity(0);
-        node.setTranslateY(12);
-        FadeTransition fade = new FadeTransition(Duration.millis(180), node);
+        FadeTransition fade = new FadeTransition(Duration.millis(95), node);
         fade.setToValue(1);
-        TranslateTransition slide = new TranslateTransition(Duration.millis(220), node);
-        slide.setToY(0);
-        new ParallelTransition(fade, slide).play();
+        node.setScaleX(0.995);
+        node.setScaleY(0.995);
+        ScaleTransition scale = new ScaleTransition(Duration.millis(120), node);
+        scale.setToX(1);
+        scale.setToY(1);
+        new ParallelTransition(fade, scale).play();
     }
 
     private void refreshTransformerList() {
-        String filter = transformerSearch.getText() == null ? "" : transformerSearch.getText().trim().toLowerCase(Locale.ROOT);
-        String previous = selectedTransformer;
-        transformerItems.setAll(TransformerRegistry.getAllNames().stream()
-                .filter(name -> {
-                    TransformerMeta meta = metaFor(name);
-                    String haystack = (name + " " + meta.title + " " + meta.category + " " + meta.summary).toLowerCase(Locale.ROOT);
-                    return filter.isEmpty() || haystack.contains(filter);
-                })
-                .toList());
-        transformerList.refresh();
-        if (previous != null && transformerItems.contains(previous)) {
-            transformerList.getSelectionModel().select(previous);
+        if (isCategoryPage(currentPage)) {
+            showPage(currentPage, false);
         }
     }
 
@@ -575,7 +881,6 @@ public final class FrostFxApp extends Application {
         selectedEnabledBox.setSelected(tc != null && tc.isEnabled());
         refreshingControls = false;
         buildTransformerSettings(name);
-        transformerList.refresh();
     }
 
     private void buildTransformerSettings(String name) {
@@ -610,9 +915,20 @@ public final class FrostFxApp extends Application {
             case BOOLEAN -> booleanSetting(tc, spec);
             case CHOICE -> choiceSetting(tc, spec);
             case INTEGER -> integerSetting(tc, spec);
+            case TEXT -> textSetting(tc, spec);
         };
         row.getChildren().addAll(label, control, help);
         return row;
+    }
+
+    private Node textSetting(TransformerConfig tc, OptionSpec spec) {
+        TextField field = textField(String.valueOf(spec.defaultValue));
+        field.setText(stringValue(tc.getOptions().get(spec.key), String.valueOf(spec.defaultValue)));
+        field.textProperty().addListener((obs, old, value) -> {
+            tc.getOptions().put(spec.key, value);
+            markCustom();
+        });
+        return field;
     }
 
     private Node booleanSetting(TransformerConfig tc, OptionSpec spec) {
@@ -718,7 +1034,8 @@ public final class FrostFxApp extends Application {
         applyingPreset = true;
         activePreset = preset;
         switch (preset) {
-            case "compatibility" -> applyCompatibilityPreset();
+            case "none" -> applyNoPassPreset();
+            case "basic" -> applyBasicPreset();
             case "strong" -> applyStrongPreset();
             case "maximum" -> applyMaximumPreset();
             default -> applyBalancedPreset();
@@ -733,32 +1050,28 @@ public final class FrostFxApp extends Application {
         }
         updateStats();
         showToast(capitalize(preset) + " preset applied");
-        pulse(sidebarPresetName);
+        pulse(topPresetLabel);
     }
 
-    private void applyCompatibilityPreset() {
+    private void applyNoPassPreset() {
         dictionaryBox.setValue("alphabet");
         packageModeBox.setValue("keep");
         flattenPackageField.setText("obf");
+        for (String name : TransformerRegistry.getAllNames()) {
+            setPreset(name, false, config.getTransformers().getOrDefault(name, new TransformerConfig()).getOptions());
+        }
+    }
+
+    private void applyBasicPreset() {
+        applyNoPassPreset();
+        setPreset("remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+        setPreset("string-encryption", true, options("mode", "lite", "min-length", 2, "max-method-instructions", 6000));
         setPreset("class-rename", true, options("mode", "safe"));
         setPreset("field-rename", true, options("mode", "safe"));
         setPreset("method-rename", true, options("mode", "safe"));
-        setPreset("local-variable-rename", true, options());
-        setPreset("remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
-        setPreset("string-encryption", true, options("mode", "lite", "min-length", 2, "max-method-instructions", 6000));
-        setPreset("number-obfuscation", true, options("probability", 45, "max-per-method", 32, "max-per-class", 96, "max-method-instructions", 6000));
-        setPreset("parameter-encryption", false, options("probability", 20));
-        setPreset("flow-obfuscation", true, options("mode", "lite", "exception-guards", false, "stack-noise", false, "flatten", false, "predicate-rate", 4, "max-predicates-per-method", 8, "max-method-instructions", 5000));
-        setPreset("flow-outliner", false, options("probability", 10, "max-per-class", 8));
-        setPreset("flow-range", false, options("probability", 15));
-        setPreset("flow-condition", false, options("probability", 10, "max-per-method", 8));
-        setPreset("flow-exception", false, options("strength", "WEAK"));
-        setPreset("flow-switch", true, options("probability", 35));
-        setPreset("stack-manipulation", false, options("probability", 5, "max-per-method", 8));
-        setPreset("invoke-dynamic", true, options("probability", 15, "mutable-callsites", false));
-        setPreset("reference-hiding", true, options("probability", 20, "max-per-class", 40, "max-method-instructions", 6000));
-        setPreset("access-modifier", true, options("synthetic", true, "bridge-methods", false, "relax-final", false));
-        setPreset("metadata-noise", false, options("strings-per-class", 4, "deprecated", false, "signatures", false));
+        setPreset("watermark", false, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
+        setPreset("integrity", false, options());
+        setPreset("statistics-report", false, options("format", "json", "output", "frost-report.json"));
     }
 
     private void applyBalancedPreset() {
@@ -784,6 +1097,7 @@ public final class FrostFxApp extends Application {
         setPreset("reference-hiding", true, options("probability", 45, "max-per-class", 96, "max-method-instructions", 6000));
         setPreset("access-modifier", true, options("synthetic", true, "bridge-methods", false, "relax-final", false));
         setPreset("metadata-noise", true, options("strings-per-class", 8, "deprecated", true, "signatures", true));
+        setCommonProtectionPreset(true);
     }
 
     private void applyStrongPreset() {
@@ -800,6 +1114,9 @@ public final class FrostFxApp extends Application {
         setPreset("invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
         setPreset("reference-hiding", true, options("probability", 65, "max-per-class", 144, "max-method-instructions", 6000));
         setPreset("metadata-noise", true, options("strings-per-class", 12, "deprecated", true, "signatures", true));
+        setPreset("anti-debug", true, options("method-name", "__frost$antiDebug"));
+        setPreset("anti-decompiler", true, options());
+        setPreset("bytecode-optimizer", true, options());
     }
 
     private void applyMaximumPreset() {
@@ -816,6 +1133,19 @@ public final class FrostFxApp extends Application {
         setPreset("invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
         setPreset("reference-hiding", true, options("probability", 80, "max-per-class", 192, "max-method-instructions", 6000));
         setPreset("metadata-noise", true, options("strings-per-class", 18, "deprecated", true, "signatures", true));
+        setPreset("jar-shrinker", true, options());
+        setPreset("resource-compression", true, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+    }
+
+    private void setCommonProtectionPreset(boolean enabled) {
+        setPreset("watermark", enabled, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
+        setPreset("integrity", enabled, options());
+        setPreset("anti-debug", false, options("method-name", "__frost$antiDebug"));
+        setPreset("anti-decompiler", enabled, options());
+        setPreset("resource-compression", false, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+        setPreset("bytecode-optimizer", enabled, options());
+        setPreset("jar-shrinker", false, options());
+        setPreset("statistics-report", enabled, options("format", "json", "output", "frost-report.json"));
     }
 
     private void setPreset(String name, boolean enabled, Map<String, Object> options) {
@@ -845,7 +1175,40 @@ public final class FrostFxApp extends Application {
         updateStats();
     }
 
-    private void runObfuscation(Button runButton, Button validateButton) {
+    private void setCategoryEnabled(String category, boolean enabled) {
+        for (String name : passesForCategory(category)) {
+            TransformerConfig tc = config.getTransformers().get(name);
+            if (tc != null) {
+                tc.setEnabled(enabled);
+            }
+        }
+        markCustom();
+        showPage(currentPage, false);
+        updateStats();
+    }
+
+    private void enableCategoryBasic(String category) {
+        setCategoryEnabled(category, false);
+        switch (category) {
+            case "protection" -> {
+                setPreset("watermark", true, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
+                setPreset("integrity", true, options());
+            }
+            case "resources" -> setPreset("resource-compression", true, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+            case "optimization" -> setPreset("bytecode-optimizer", true, options());
+            case "reporting" -> setPreset("statistics-report", true, options("format", "json", "output", "frost-report.json"));
+            default -> {
+                setPreset("remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+                setPreset("string-encryption", true, options("mode", "lite", "min-length", 2, "max-method-instructions", 6000));
+                setPreset("class-rename", true, options("mode", "safe"));
+            }
+        }
+        markCustom();
+        showPage(currentPage, false);
+        updateStats();
+    }
+
+    private void runProtection(Button runButton, Button validateButton) {
         ObfuscationConfig runConfig = buildConfigFromUi();
         try {
             ConfigLoader.validate(runConfig);
@@ -877,7 +1240,7 @@ public final class FrostFxApp extends Application {
                 setRunning(false, runButton, validateButton);
                 statusLabel.setText("Completed");
                 logArea.appendText("\nDone. Output: " + runConfig.getOutput() + "\n");
-                showToast("Obfuscation complete");
+                showToast("Protection run complete");
             }
 
             @Override
@@ -1057,24 +1420,25 @@ public final class FrostFxApp extends Application {
 
     private void updatePresetVisuals() {
         presetButtons.forEach((name, button) -> setActive(button, name.equals(activePreset)));
-        String text = capitalize(activePreset);
-        sidebarPresetName.setText(text);
+        String text = "none".equals(activePreset) ? "No Passes" : capitalize(activePreset);
         topPresetLabel.setText(text);
         double progress = switch (activePreset) {
-            case "compatibility" -> 0.25;
+            case "none" -> 0.0;
+            case "basic" -> 0.18;
             case "strong" -> 0.74;
             case "maximum" -> 1.0;
             case "custom" -> 0.55;
             default -> 0.52;
         };
-        presetStrengthBar.setProgress(progress);
+        if (presetStrengthBar != null) {
+            presetStrengthBar.setProgress(progress);
+        }
     }
 
     private void updateStats() {
         long enabled = config.getTransformers().values().stream().filter(TransformerConfig::isEnabled).count();
         int total = TransformerRegistry.getAllNames().size();
         String text = enabled + " / " + total + " passes enabled";
-        sidebarPresetStats.setText(text);
         topEnabledLabel.setText(text);
     }
 
@@ -1090,11 +1454,11 @@ public final class FrostFxApp extends Application {
     }
 
     private Button navButton(String title, String subtitle, String page) {
-        Button button = new Button(title + "\n" + subtitle);
+        Button button = new Button(subtitle == null || subtitle.isBlank() ? title : title + "\n" + subtitle);
         button.getStyleClass().add("nav-button");
-        button.setMaxWidth(Double.MAX_VALUE);
-        button.setAlignment(Pos.CENTER_LEFT);
+        button.setAlignment(Pos.CENTER);
         button.setOnAction(e -> showPage(page, true));
+        installHoverMotion(button);
         navButtons.put(page, button);
         return button;
     }
@@ -1104,6 +1468,7 @@ public final class FrostFxApp extends Application {
         button.getStyleClass().add("preset-button");
         button.setMaxWidth(Double.MAX_VALUE);
         button.setOnAction(e -> applyPreset(preset));
+        installHoverMotion(button);
         presetButtons.put(preset, button);
         return button;
     }
@@ -1111,12 +1476,14 @@ public final class FrostFxApp extends Application {
     private Button primaryButton(String text) {
         Button button = new Button(text);
         button.getStyleClass().add("primary-button");
+        installHoverMotion(button);
         return button;
     }
 
     private Button secondaryButton(String text) {
         Button button = new Button(text);
         button.getStyleClass().add("secondary-button");
+        installHoverMotion(button);
         return button;
     }
 
@@ -1190,6 +1557,7 @@ public final class FrostFxApp extends Application {
         area.setPromptText(prompt);
         area.getStyleClass().add("text-area");
         area.setWrapText(true);
+        area.setPrefRowCount(3);
         return area;
     }
 
@@ -1207,6 +1575,18 @@ public final class FrostFxApp extends Application {
         CheckBox box = new CheckBox(text);
         box.getStyleClass().add("check-box");
         return box;
+    }
+
+    private void installHoverMotion(Node node) {
+        node.setOnMouseEntered(e -> scaleTo(node, 1.018));
+        node.setOnMouseExited(e -> scaleTo(node, 1.0));
+    }
+
+    private void scaleTo(Node node, double scale) {
+        ScaleTransition transition = new ScaleTransition(Duration.millis(115), node);
+        transition.setToX(scale);
+        transition.setToY(scale);
+        transition.play();
     }
 
     private ColumnConstraints percentColumn(double percent) {
@@ -1270,6 +1650,7 @@ public final class FrostFxApp extends Application {
         for (String name : TransformerRegistry.getAllNames()) {
             map.computeIfAbsent(name, key -> {
                 TransformerConfig tc = new TransformerConfig();
+                tc.setEnabled(false);
                 tc.setDictionary(cfg.getDictionary());
                 return tc;
             });
@@ -1307,7 +1688,7 @@ public final class FrostFxApp extends Application {
             name = name.substring(0, name.length() - 4);
         }
         Path parent = absolute.getParent();
-        Path output = (parent == null ? Path.of("") : parent).resolve(name + "-obf.jar");
+        Path output = (parent == null ? Path.of("") : parent).resolve(name + "-protected.jar");
         return output.toString();
     }
 
@@ -1442,6 +1823,22 @@ public final class FrostFxApp extends Application {
                 bool("deprecated", "Deprecated markers", true, "Adds deprecated metadata."),
                 bool("signatures", "Fake signatures", true, "Adds synthetic-looking signatures.")
         ));
+        specs.put("watermark", List.of(
+                text("owner", "Owner", "unknown", "Owner or project name embedded in metadata."),
+                text("id", "Identifier", "change-me", "Build, customer, or license identifier."),
+                bool("class-annotations", "Class annotations", true, "Adds invisible class annotations."),
+                bool("string-field", "String field", true, "Adds a synthetic watermark field."),
+                text("field-name", "Field name", "__frost$watermark", "Synthetic field name.")
+        ));
+        specs.put("anti-debug", List.of(text("method-name", "Guard method", "__frost$antiDebug", "Generated guard method name.")));
+        specs.put("resource-compression", List.of(
+                bool("remove-originals", "Remove originals", true, "Removes protected resource originals after compressed copies are written."),
+                text("output-prefix", "Output prefix", "META-INF/frostfuscator/resources/", "Compressed resource location.")
+        ));
+        specs.put("statistics-report", List.of(
+                choice("format", "Format", "json", List.of("json", "html"), "Report output format."),
+                text("output", "Output path", "frost-report.json", "Report file path.")
+        ));
         return specs;
     }
 
@@ -1457,10 +1854,15 @@ public final class FrostFxApp extends Application {
         return new OptionSpec(key, label, OptionType.INTEGER, defaultValue, min, max, step, List.of(), help);
     }
 
+    private static OptionSpec text(String key, String label, String defaultValue, String help) {
+        return new OptionSpec(key, label, OptionType.TEXT, defaultValue, 0, 0, 1, List.of(), help);
+    }
+
     private enum OptionType {
         BOOLEAN,
         CHOICE,
-        INTEGER
+        INTEGER,
+        TEXT
     }
 
     private record TransformerMeta(String title, String category, String summary) {

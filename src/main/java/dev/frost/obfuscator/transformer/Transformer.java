@@ -11,11 +11,20 @@ public abstract class Transformer {
 
     public abstract String getName();
 
+    public String getCategory() {
+        return "Obfuscation";
+    }
+
     public boolean runsPostRemap() {
         return false;
     }
 
-    public abstract void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config);
+    public void transform(Context context) {
+        transform(context.pool(), context.mappings(), context.config());
+    }
+
+    public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
+    }
 
     protected boolean shouldProcess(String name, TransformerConfig config, List<String> globalExclusions, List<String> globalInclusions) {
         String dotName = name.replace('/', '.');

@@ -1,65 +1,64 @@
-# Configuration Guide
+# Configuration
 
-Frostfuscator's behavior is driven entirely by a YAML configuration file. This file defines global settings, file paths, and individual transformer configurations.
+Frostfuscator uses YAML for paths, filters, mappings, and pass settings.
 
-## Example `config.yml`
+The key is still named `transformers:` for compatibility, but it now holds every pass: obfuscation, protection, resources, optimization, and reports.
+
+## Example
 
 ```yaml
 input: "my-app.jar"
-output: "my-app-obfuscated.jar"
+output: "my-app-protected.jar"
 
-# Dictionary to use for renaming (alphabet, numeric, unicode, file:/path/to/dict)
 dictionary: "alphabet"
-
-# Package flattening mode: "keep", "flat", or "obf"
-packageMode: "obf"
-flattenPackage: "a"
-
-# Library files required for correct hierarchy resolution
 libs: "libs/"
 
-# Global exclusions and inclusions (Ant-style matching)
+inclusions: []
 exclusions:
-  - "dev/frost/api/**"
-  - "dev/frost/ui/Main.class"
+  - "com\\.example\\.api\\..*"
 
-inclusions:
-  - "**"
+transformers:
+  class-rename:
+    enabled: true
+    mode: "safe"
+
+  string-encryption:
+    enabled: true
+    mode: "lite"
+
+  watermark:
+    enabled: true
+    owner: "Example Studios"
+    id: "customer-42"
+
+  integrity:
+    enabled: true
+
+  statistics-report:
+    enabled: true
+    format: "json"
+    output: "build/frost-report.json"
 
 mapping:
   enabled: true
   output: "mapping.txt"
-
-transformers:
-  # Enable and configure specific transformers
-  StringEncryptionTransformer:
-    enabled: true
-  FlowObfuscationTransformer:
-    enabled: true
-    complexity: 5
-  ClassRenameTransformer:
-    enabled: true
-    keepAnnotations: false
 ```
 
 ## Global Settings
 
 | Setting | Type | Description |
 |---|---|---|
-| `input` | String | Path to the source JAR. |
-| `output` | String | Path to save the obfuscated JAR. |
-| `dictionary` | String | Type of naming dictionary. `alphabet` (a,b,c...), `numeric` (_1, _2...), `unicode` (zero-width chars), or `file:path.txt`. |
-| `packageMode` | String | Determines package structure renaming. `keep` (maintains hierarchy), `flat` (moves all to one package), `obf` (renames packages to dictionary values). |
-| `flattenPackage` | String | If `packageMode` is `flat` or `obf`, specifies the base package name. |
-| `libs` | String | Path to a directory or JAR containing dependencies. Required for proper class hierarchy resolution (e.g. knowing if a class implements a specific interface). |
-| `exclusions` / `inclusions` | List<String> | Ant-style glob patterns to include or exclude classes from obfuscation entirely. |
+| `input` | String | Source JAR. |
+| `output` | String | Output JAR. |
+| `dictionary` | String | Naming dictionary for renaming passes. |
+| `package-mode` | String | Package handling: `keep`, `flatten`, or `remove`. |
+| `flatten-package` | String | Package name used when `package-mode` is `flatten`. |
+| `libs` | String | Dependency JAR directory for hierarchy checks. |
+| `exclusions` | List<String> | Regex patterns for classes to skip. |
+| `inclusions` | List<String> | Regex patterns for classes to process. |
 
-## Mapping File
+## Notes
 
-The mapping file generates a `.txt` mapping of original class, method, and field names to their obfuscated names. This is critical for reading crash logs.
-- `mapping.enabled`: Set to `true` to generate mappings.
-- `mapping.output`: Path to save the mapping file.
-
-## Configuring Transformers
-
-Each transformer can be configured under the `transformers:` block. The key is the exact class name of the transformer. Every transformer supports an `enabled` flag (boolean). Additional properties depend on the transformer's specific implementation.
+- Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
+- `resource-compression.remove-originals` removes protected resource originals after compressed copies are written.
+- `anti-debug` should be tested carefully because it changes runtime startup behavior.

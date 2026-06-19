@@ -1,83 +1,77 @@
-# Frostfuscator ❄️
+# Frostfuscator
 
-Welcome to **Frostfuscator**, a professional-grade, highly customizable Java bytecode obfuscator designed to secure your intellectual property from reverse engineering. Built on top of the powerful ASM framework, Frostfuscator applies state-of-the-art obfuscation techniques without compromising your application's logic or performance.
+Frostfuscator is a Java bytecode obfuscator built with ASM. I originally made it for protecting Minecraft plugins and mods, but it works with any Java application.
 
----
+The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, and other techniques to make reverse engineering harder.
 
-## 📖 Documentation
+Alongside the obfuscation passes, Frostfuscator includes some extra tools for shrinking, reporting, resource handling, and custom plugins.
 
-We have prepared comprehensive documentation for every aspect of Frostfuscator. Please refer to the `/docs` folder for detailed guides:
+## Documentation
 
-- [**Overview & Getting Started**](docs/index.md)
-- [**CLI Usage Guide**](docs/cli.md)
-- [**GUI Usage Guide**](docs/gui.md)
-- [**Configuration Reference**](docs/configuration.md)
-- [**Transformers Deep Dive**](docs/transformers.md)
+* [Getting Started](docs/index.md)
+* [CLI Usage](docs/cli.md)
+* [GUI Usage](docs/gui.md)
+* [Configuration](docs/configuration.md)
+* [Transformers](docs/transformers.md)
 
----
+## Features
 
-## ✨ Features
+### Obfuscation
 
-Frostfuscator is equipped with a vast array of transformers tailored for advanced code protection. 
+* Rename classes, methods, fields, local variables, and parameters.
+* Encrypt strings and mutate numeric constants.
+* Apply control-flow transformations, opaque predicates, switch rewriting, exception-based flow, outlining, and stack noise.
+* Hide method calls through proxies or `invokedynamic`.
+* Remove debug information and add metadata noise.
 
-### 🧹 Cleanup Transformers
-- **Debug Removal:** Strips out `LocalVariableTable`, `LineNumberTable`, and source file attributes, making the code extremely hard to read in decompilers.
-- **Access Modifier Modification:** Scrambles visibility flags (e.g., changing private fields to public or vice versa where safe) to confuse reverse engineers.
-- **Metadata Noise:** Injects junk annotations and attributes that break automated analysis tools.
+### Protection
 
-### 🔒 Encryption Transformers
-- **String Encryption:** Encrypts string literals in the bytecode, decrypting them at runtime dynamically.
-- **Number Obfuscation:** Replaces static numeric constants with complex arithmetic expressions.
-- **Parameter Encryption:** Obfuscates method signatures and parameters to obscure control data.
+* Add watermarks for ownership or build identification.
+* Generate SHA-256 integrity metadata.
+* Optional anti-debug checks.
+* Add decompiler-unfriendly but verifier-safe patterns.
 
-### 🔀 Control Flow Obfuscation
-- **Flow Flattening:** Transforms linear code execution paths into massive `switch` blocks within a loop, destroying the logical structure.
-- **Exception Flow:** Uses try-catch blocks to dictate program flow instead of standard branch instructions.
-- **Outlining:** Extracts parts of methods into synthetic helper methods, breaking up cohesive logic.
-- **Stack Manipulation:** Pushes and pops junk data onto the JVM stack to confuse stack-based decompilers.
+### Resources And Output
 
-### 🪞 Indirection
-- **Reference Hiding:** Replaces direct field and method accesses with synthetic proxy getters/setters or reflection.
-- **InvokeDynamic:** Converts static method invocations into dynamic call sites (`invokedynamic`), making static analysis practically impossible.
+* Compress resources.
+* Strip debug tables and source information.
+* Generate JSON or HTML reports.
+* Support custom transformers through Java `ServiceLoader`.
 
-### 🏷️ Renaming
-- **Class, Method, and Field Renaming:** Replaces descriptive names with meaningless characters (e.g., `a`, `b`, `c`).
-- **Local Variable Renaming:** Destroys local variable semantics.
-- **Custom Dictionaries:** Choose from Alphabet, Numeric, Unicode, or provide your own text file dictionary.
+## Quick Start
 
----
+### Requirements
 
-## 🚀 Quick Start
+* Java 21 or newer
 
-### 1. Prerequisites
-- **Java 21** or higher.
+### CLI
 
-### 2. Download
-Grab the latest `Frostfuscator.jar` and `Frostfuscator-gui.jar` from the releases.
-
-### 3. Run (CLI)
-Obfuscate your JAR file instantly using the command line:
 ```bash
-java -jar Frostfuscator.jar -i input.jar -o output-obfuscated.jar -c config.yml
+java -jar Frostfuscator.jar -i input.jar -o output-protected.jar -c config.yml
 ```
 
-### 4. Run (GUI)
-Prefer a visual approach? Launch the graphical interface:
+List available transformers:
+
+```bash
+java -jar Frostfuscator.jar --list-transforms
+```
+
+### GUI
+
 ```bash
 java -jar Frostfuscator-gui.jar
 ```
 
----
+The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
 
-## ⚙️ Building from Source
+## Building
 
-To build Frostfuscator yourself:
 ```bash
-# Clean the workspace and build the JARs
 ./gradlew clean shadowJar guiShadowJar
-
-# Artifacts will be available in build/libs/
 ```
 
-## 📜 License
+The compiled JARs will be placed in `build/libs/`.
+
+## License
+
 This project is proprietary software. All rights reserved.

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'dev.frost'
-version = ''
+version = '1.1.0'
 
 java {
     toolchain {
@@ -63,7 +63,10 @@ tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.
     from sourceSets.main.output
     configurations = [project.configurations.runtimeClasspath, project.configurations.guiRuntime]
     manifest {
-        attributes('Main-Class': 'dev.frost.obfuscator.gui.GuiMain')
+        attributes(
+                'Main-Class': 'dev.frost.obfuscator.gui.GuiMain',
+                'Enable-Native-Access': 'ALL-UNNAMED'
+        )
     }
 }
 

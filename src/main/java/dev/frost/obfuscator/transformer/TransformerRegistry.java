@@ -16,6 +16,14 @@ import dev.frost.obfuscator.transformer.flow.FlowSwitchTransformer;
 import dev.frost.obfuscator.transformer.flow.StackManipulationTransformer;
 import dev.frost.obfuscator.transformer.indirection.InvokeDynamicTransformer;
 import dev.frost.obfuscator.transformer.indirection.ReferenceHidingTransformer;
+import dev.frost.obfuscator.transformer.optimization.BytecodeOptimizerTransformer;
+import dev.frost.obfuscator.transformer.optimization.JarShrinkerTransformer;
+import dev.frost.obfuscator.transformer.protection.AntiDebugTransformer;
+import dev.frost.obfuscator.transformer.protection.AntiDecompilerTransformer;
+import dev.frost.obfuscator.transformer.protection.IntegrityTransformer;
+import dev.frost.obfuscator.transformer.reporting.StatisticsReportTransformer;
+import dev.frost.obfuscator.transformer.resources.ResourceCompressionTransformer;
+import dev.frost.obfuscator.transformer.watermark.WatermarkTransformer;
 import dev.frost.obfuscator.transformer.rename.ClassRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.FieldRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.LocalVariableRenameTransformer;
@@ -48,10 +56,30 @@ public class TransformerRegistry {
         register(new ReferenceHidingTransformer());
         register(new AccessModifierTransformer());
         register(new MetadataNoiseTransformer());
+        register(new WatermarkTransformer());
+        register(new IntegrityTransformer());
+        register(new AntiDebugTransformer());
+        register(new AntiDecompilerTransformer());
+        register(new ResourceCompressionTransformer());
+        register(new BytecodeOptimizerTransformer());
+        register(new JarShrinkerTransformer());
+        register(new StatisticsReportTransformer());
+        discoverPlugins();
     }
 
     private static void register(Transformer transformer) {
-        TRANSFORMERS.put(transformer.getName(), transformer);
+        Transformer previous = TRANSFORMERS.put(transformer.getName(), transformer);
+        if (previous != null) {
+            Logger.warn("Transformer '{}' was replaced by {}", transformer.getName(), transformer.getClass().getName());
+        }
+    }
+
+    private static void discoverPlugins() {
+        ServiceLoader<Transformer> loader = ServiceLoader.load(Transformer.class);
+        for (Transformer transformer : loader) {
+            register(transformer);
+            Logger.info("Loaded plugin transformer: {}", transformer.getName());
+        }
     }
 
     public static List<Transformer> getEnabled(ObfuscationConfig config) {

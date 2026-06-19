@@ -21,15 +21,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Commercial-grade string encryption.
+ * String constant encryption.
  *
  * Modes:
  *   lite        - per-class XOR key, single decrypt method.
  *   medium      - 3 algorithm variants, per-string keys, simple cache.
  *   heavy       - invokedynamic bootstrap + context keys + multi-layer.
- *   polymorphic - fully inline CBC-style bitwise transform. Each string gets a
- *                 unique randomized chain of rotate/XOR/ADD/SUB/bit-swap operations
- *                 driven by a per-string seed. No runtime trap fields, no divide.
+ *   polymorphic - inline CBC-style bitwise transform with rotate/XOR/ADD/SUB
+ *                 steps driven by a per-string seed.
  *
  * Strings are removed from the constant pool; only encrypted int[]/byte[] data
  * and keys remain.

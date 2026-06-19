@@ -1,84 +1,71 @@
-# ═══════════════════════════════════════════════
-#         Frostfuscator Configuration
-# ═══════════════════════════════════════════════
+# Frostfuscator configuration
 
-# Path to the input JAR to obfuscate
 input: "input.jar"
-
-# Path to the obfuscated output JAR
 output: "output.jar"
 
-# Dictionary type for generating obfuscated names
-# Options: alphabet | unicode | numeric | <file path>
-#   alphabet — a, b, c, ..., aa, ab (clean, short)
-#   unicode  — confusing lookalike chars (Cyrillic/Greek)
-#   numeric  — _0, _1, _2, ... (simple)
-#   <path>   — custom file (one name per line, # for comments)
-#              Example: dictionary: "my-names.txt"
-#              Falls back to alphabet if file runs out of names.
-#              Can also be set per-transformer for different name styles.
+# Used by renaming passes.
 dictionary: "alphabet"
 
-# ─────────────────────────────────────────────
-#  Libraries
-# ─────────────────────────────────────────────
-# Path to a folder containing library JARs.
-# These are used for hierarchy resolution so the
-# obfuscator knows which methods override library
-# methods and should NOT be renamed.
-# Example: libs: "libs/"
+# Dependency JAR folder used for hierarchy checks.
 libs: ""
 
-# ─────────────────────────────────────────────
-#  Package Mode
-# ─────────────────────────────────────────────
-# Controls how packages are handled during class renaming.
-#   keep    — preserve the original package structure
-#   flatten — move all classes into a single package
-#   remove  — remove all packages (classes in default package)
+# Package handling during class renaming: keep, flatten, remove.
 package-mode: "keep"
-
-# The package name to use when package-mode is "flatten"
 flatten-package: "obf"
 
-# ─────────────────────────────────────────────
-#  Global Inclusions
-# ─────────────────────────────────────────────
-# Regex patterns — if set, ONLY classes matching
-# these patterns will be obfuscated. Everything
-# else is left untouched. Leave empty to obfuscate
-# everything (minus exclusions).
+# Regex filters for class names.
 inclusions: []
-  # - "dev\\.frost\\.frostcore\\..*"
-
-# ─────────────────────────────────────────────
-#  Global Exclusions
-# ─────────────────────────────────────────────
-# Regex patterns — classes matching ANY of these
-# will be completely ignored by ALL transformers.
 exclusions: []
-  # - "com\\.example\\.api\\..*"
-
-# ─────────────────────────────────────────────
-#  Transformer Configuration
-# ─────────────────────────────────────────────
 
 transformers:
 
-  # Renames all classes to obfuscated names
-  # Modes:
-  #   safe       — skip public classes and annotated classes
-  #   aggressive — rename everything (default)
+  # Ownership / watermarking
+  watermark:
+    enabled: true
+    owner: "unknown"
+    id: "change-me"
+    class-annotations: true
+    string-field: true
+    field-name: "__frost$watermark"
+
+  # Integrity metadata
+  integrity:
+    enabled: true
+
+  # Runtime protection
+  anti-debug:
+    enabled: false
+    method-name: "__frost$antiDebug"
+
+  anti-decompiler:
+    enabled: true
+
+  # Resource handling
+  resource-compression:
+    enabled: false
+    remove-originals: true
+    output-prefix: "META-INF/frostfuscator/resources/"
+
+  # Optimization
+  bytecode-optimizer:
+    enabled: true
+
+  jar-shrinker:
+    enabled: false
+
+  # Reporting
+  statistics-report:
+    enabled: true
+    format: "json"
+    output: "frost-report.json"
+
+  # Existing obfuscation passes
   class-rename:
     enabled: true
     mode: "aggressive"
     exclusions: []
     inclusions: []
 
-  # Renames all fields to obfuscated names
-  # Modes:
-  #   safe       — skip public/protected and annotated fields
-  #   aggressive — rename everything (default)
   field-rename:
     enabled: true
     mode: "aggressive"
@@ -86,11 +73,6 @@ transformers:
       - "serialVersionUID"
     inclusions: []
 
-  # Renames all methods to obfuscated names
-  # (hierarchy-aware — preserves override chains)
-  # Modes:
-  #   safe       — skip public/protected and annotated methods
-  #   aggressive — rename everything (default)
   method-rename:
     enabled: true
     mode: "aggressive"
@@ -98,32 +80,20 @@ transformers:
       - "main"
     inclusions: []
 
-  # Renames all local variables and method parameters
-  # inside method bodies (replacement, buffer, result, etc.)
   local-variable-rename:
     enabled: true
     exclusions: []
     inclusions: []
 
-  # Strips source file names, line numbers, and debug info
-  # Prevents reverse engineers from mapping stack traces
   remove-debug:
     enabled: true
+    remove-source-file: true
+    remove-line-numbers: true
+    remove-local-variables: true
+    remove-parameters: true
     exclusions: []
     inclusions: []
 
-  # Encrypts all string constants in bytecode
-  # Modes:
-  #   lite        — per-class XOR + single decrypt method (fast)
-  #   medium      — 3 algorithm variants + per-string keys + cache
-  #   heavy       — invokedynamic + context-based keys + multi-layer
-  #                 encryption + ConstantCallSite caching (strongest)
-  #   condy       — Java 11+ ConstantDynamic constants resolved by a
-  #                 bootstrap decryptor (compact and hard to statically fold)
-  #   polymorphic — fully inline CBC cipher. Each string gets unique randomized
-  #                 bitwise ops (rotate, XOR, ADD, SUB, bit-swap) chained through
-  #                 CBC state. Fake branch uses murmur-mix of CBC state (opaque).
-  #                 No divide-by-zero hazard — safe for all JVM verifiers.
   string-encryption:
     enabled: true
     mode: "heavy"
@@ -131,7 +101,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Rewrites integer constants as equivalent arithmetic/XOR expressions.
   number-obfuscation:
     enabled: true
     probability: 80
@@ -140,25 +109,12 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Encrypts eligible method parameters at callsites and decodes at method entry.
-  # Current safe scope: private static methods with one int parameter.
   parameter-encryption:
     enabled: true
     probability: 30
     exclusions: []
     inclusions: []
 
-  # Advanced control flow obfuscation
-  # Breaks decompiler output (CFR, FernFlower, Procyon)
-  # All predicates use runtime-dependent trap fields (nanoTime, threadId, heap state).
-  # Trap fields are instance-scoped per transformer — no cross-contamination.
-  # 8 init variants including freeMemory^maxMemory, identityHashCode(new int[0]).
-  # Modes:
-  #   lite   — opaque predicates on GOTOs (compact)
-  #   medium — + number obfuscation + bogus exception handlers
-  #   heavy  — + scattered predicates + trampoline chains
-  #            + conditional-to-switch conversion (maximum protection)
-  # Irreducible subgraphs use murmur3-mix on both entry edges (not raw XOR).
   flow-obfuscation:
     enabled: true
     mode: "heavy"
@@ -170,7 +126,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Inserts stack-neutral DUP/POP/SWAP-like noise throughout method bodies.
   stack-manipulation:
     enabled: true
     probability: 8
@@ -178,7 +133,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Converts eligible static calls to invokedynamic call sites.
   invoke-dynamic:
     enabled: true
     probability: 35
@@ -186,7 +140,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Hides method references behind synthetic local proxy methods.
   reference-hiding:
     enabled: true
     probability: 45
@@ -194,7 +147,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Applies verifier-safe access metadata noise.
   access-modifier:
     enabled: true
     synthetic: true
@@ -203,7 +155,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Adds bounded metadata and constant-pool noise for decompiler/tool friction.
   metadata-noise:
     enabled: true
     strings-per-class: 8
@@ -212,9 +163,6 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Extracts code blocks into separate private static methods.
-  # Uses proper stack delta tracking — only stack-neutral blocks are extracted.
-  # Blocks with INVOKE* instructions are excluded conservatively (verifier safety).
   flow-outliner:
     enabled: true
     probability: 25
@@ -222,21 +170,12 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Wraps block instructions inside try-catch exception ranges.
-  # Block instructions ARE inside the try region (bug fix from previous version).
-  # 4 opaque guard patterns control the throw label (murmur-mix, nanoTime, etc.)
-  # Catch handler uses a secondary murmur-mix fallback predicate.
   flow-range:
     enabled: true
     probability: 35
     exclusions: []
     inclusions: []
 
-  # Injects 8 opaque condition guards into existing if statements.
-  # All guards have genuine throw paths — no dead GOTO fallthrough.
-  # Patterns: XOR-square, murmur3, multi-field hash, shift-mask hash,
-  #           mul-add hash, nanoTime^trap, identityHashCode(Object)^trap,
-  #           availableProcessors*trap.
   flow-condition:
     enabled: true
     probability: 25
@@ -244,44 +183,23 @@ transformers:
     exclusions: []
     inclusions: []
 
-  # Inserts exception-based conditional guards at block boundaries.
-  # 10 patterns — pattern 3 fixed (was trivially constant trap*trap==trap*trap).
-  # New patterns 8 (murmur3 finalizer) and 9 (availableProcessors*trap).
-  # Strength levels:
-  #   WEAK       — ~75% insertion rate (random skip)
-  #   GOOD       — 100% insertion rate (every block)
-  #   AGGRESSIVE — 200% insertion rate (two guards per block, all 10 patterns)
   flow-exception:
     enabled: true
     strength: "AGGRESSIVE"
     exclusions: []
     inclusions: []
 
-  # Replaces return statements with exception throws.
-  # Methods become void, return values carried via custom exceptions.
-  # WARNING: Experimental — may break reflection and serialization.
-  # Only applies to private/package-private methods.
   exception-return:
     enabled: false
     exclusions: []
     inclusions: []
 
-  # Obfuscates switch case values using compile-time seed hashing.
-  # Key table and runtime transform use identical deterministic logic —
-  # NO runtime trap fields (correctness fix: trap fields broke case lookup).
-  # 6 hash patterns: XOR, XOR*Fibonacci, add-avalanche, mul-avalanche,
-  #                  full murmur3, Wang hash.
-  # Collision detection skips switches that would produce duplicate keys.
   flow-switch:
     enabled: true
     probability: 75
     exclusions: []
     inclusions: []
 
-# ─────────────────────────────────────────────
-#  Mapping File Export
-# ─────────────────────────────────────────────
-# Exports a mapping file for stacktrace recovery
 mapping:
   enabled: true
   output: "mapping.txt"
