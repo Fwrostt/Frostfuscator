@@ -1,0 +1,101 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.gradleup.shadow' version '8.3.10'
+}
+
+group = 'dev.frost'
+version = ''
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21) 
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+def javafxVersion = '21.0.5'
+def javafxPlatform = org.gradle.internal.os.OperatingSystem.current().isWindows()
+        ? 'win'
+        : (org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? 'mac' : 'linux')
+
+configurations {
+    guiRuntime
+}
+
+dependencies {
+    compileOnly "org.openjfx:javafx-base:${javafxVersion}:${javafxPlatform}"
+    compileOnly "org.openjfx:javafx-graphics:${javafxVersion}:${javafxPlatform}"
+    compileOnly "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+
+    guiRuntime "org.openjfx:javafx-base:${javafxVersion}:${javafxPlatform}"
+    guiRuntime "org.openjfx:javafx-graphics:${javafxVersion}:${javafxPlatform}"
+    guiRuntime "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+
+    implementation 'org.ow2.asm:asm:9.7'
+    implementation 'org.ow2.asm:asm-commons:9.7'
+    implementation 'org.ow2.asm:asm-tree:9.7'
+    implementation 'org.ow2.asm:asm-util:9.7'
+
+    implementation 'info.picocli:picocli:4.7.5'
+    implementation 'org.slf4j:slf4j-simple:2.0.13'
+    implementation 'org.yaml:snakeyaml:2.2'
+}
+
+application {
+    mainClass = 'dev.frost.obfuscator.Main'
+}
+
+tasks.register('runGui', JavaExec) {
+    group = 'application'
+    description = 'Run the Frostfuscator desktop GUI'
+    classpath = sourceSets.main.runtimeClasspath + configurations.guiRuntime
+    mainClass = 'dev.frost.obfuscator.gui.GuiMain'
+}
+
+tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+    group = 'build'
+    description = 'Build a runnable GUI jar'
+    archiveClassifier.set('gui')
+    from sourceSets.main.output
+    configurations = [project.configurations.runtimeClasspath, project.configurations.guiRuntime]
+    manifest {
+        attributes('Main-Class': 'dev.frost.obfuscator.gui.GuiMain')
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    enabled = false
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    minimize {
+        exclude(dependency('org.slf4j:.*'))
+    }
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass
+        )
+    }
+}
+
+tasks.named('distZip').configure { dependsOn shadowJar }
+tasks.named('distTar').configure { dependsOn shadowJar }
+tasks.named('startScripts').configure { dependsOn shadowJar }
+
+build {
+    dependsOn shadowJar
+}

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gradlew" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gradlew.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/settings.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/AlphabetDictionary.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/Dictionary.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/FileDictionary.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/NumericDictionary.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/UnicodeDictionary.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ClassPool.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/FrostRemapper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/MappingCollector.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/AccessModifierTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/MetadataNoiseTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/RemoveDebugTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/NumberObfuscationTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/ParameterEncryptionTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowConditionTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowExceptionTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowOutlinerTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowRangeTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowSwitchTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/StackManipulationTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/indirection/InvokeDynamicTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/indirection/ReferenceHidingTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/ClassRenameTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/FieldRenameTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/LocalVariableRenameTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/MethodRenameTransformer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/ASMHelper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/AccessHelper.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/ClassHierarchy.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/resources/config.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/resources/frost-gui.css" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="3COiGI04LkqIw3Ok4rjuXlR5fn3" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Frostfuscator\build\libs\Testing" />
+    </key>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="" />
+      <created>1776262921033</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1776262921033</updated>
+    </task>
+    <servers />
+  </component>
+</project>
