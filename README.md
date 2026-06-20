@@ -6,10 +6,6 @@ The main focus is obfuscation, with support for class and member renaming, strin
 
 Alongside the obfuscation passes, Frostfuscator includes some extra tools for shrinking, reporting, resource handling, and custom plugins.
 
-# Some side rules
-
-- Everytime you make something or update Frostfuscator, you should create a changelog in @updates.
-
 ## Documentation
 
 * [Getting Started](docs/index.md)
