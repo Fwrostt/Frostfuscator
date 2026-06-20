@@ -47,5 +47,5 @@ Put the full class name in that file and run Frostfuscator with the plugin JAR o
 
 ## Requirements
 
-- Java 21 or newer.
+- Java 17 or newer.
 - Enough memory for the input JAR.

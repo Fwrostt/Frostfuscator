@@ -4,37 +4,23 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="bump frostfuscator 1.1.0">
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ProtectionStats.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Context.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/optimization/BytecodeOptimizerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/optimization/JarShrinkerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDebugTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDecompilerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/IntegrityTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/reporting/StatisticsReportTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceCompressionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/watermark/WatermarkTransformer.java" afterDir="false" />
+    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="bump fix">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/cli.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cli.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/configuration.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/configuration.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/gui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/gui.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/index.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/index.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/transformers.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transformers.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/production/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/production/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/FrostRemapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/FrostRemapper.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDebugTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDebugTransformer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/config.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/frost-gui.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/frost-gui.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,12 +38,23 @@
         <task path="$PROJECT_DIR$">
           <activation />
         </task>
-        <projects_view />
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="Frostfuscator" type="f1a62948:ProjectNode" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
       </state>
     </system>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="UPDATE_TYPE" value="REBASE" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -128,10 +125,36 @@
       <option name="presentableId" value="Default" />
       <updated>1776262921033</updated>
     </task>
+    <task id="LOCAL-00001" summary="bump frostfuscator 1.1.0">
+      <option name="closed" value="true" />
+      <created>1781890899942</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1781890899943</updated>
+    </task>
+    <task id="LOCAL-00002" summary="bump frostfuscator 1.1.0">
+      <option name="closed" value="true" />
+      <created>1781891116390</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1781891116390</updated>
+    </task>
+    <task id="LOCAL-00003" summary="bump fix">
+      <option name="closed" value="true" />
+      <created>1781891185674</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1781891185674</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="bump frostfuscator 1.1.0" />
-    <option name="LAST_COMMIT_MESSAGE" value="bump frostfuscator 1.1.0" />
+    <MESSAGE value="bump fix" />
+    <option name="LAST_COMMIT_MESSAGE" value="bump fix" />
   </component>
 </project>

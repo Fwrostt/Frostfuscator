@@ -34,6 +34,52 @@ transformers:
   integrity:
     enabled: true
 
+  anti-debug:
+    enabled: true
+    check-arguments: true
+    check-debug-classes: true
+    check-stack: true
+    check-timing: true
+    check-processes: false
+
+  junk-code:
+    enabled: true
+    min-methods-per-class: 1
+    max-methods-per-class: 2
+    min-fields-per-class: 0
+    max-fields-per-class: 1
+
+  fake-classes:
+    enabled: false
+    count: 12
+    min-methods-per-class: 8
+    max-methods-per-class: 16
+    kind-ratio: "regular:70,interface:10,enum:10,inner:10"
+    placement: "package-mode"
+    naming: "dictionary"
+
+  fake-application:
+    enabled: false
+    profiles: "minecraft-plugin,networking-stack,enterprise"
+    classes-per-profile: 3
+
+  inject-banner:
+    enabled: false
+    text: "Protected by Frostfuscator"
+
+  emoji-hell:
+    enabled: false
+
+  copypasta-injector:
+    enabled: false
+
+  chinese-mode:
+    enabled: false
+    package-mode: "random"
+    package-prefix: "冰霜/混淆器"
+    large-banners: true
+    quotes: true
+
   statistics-report:
     enabled: true
     format: "json"
@@ -61,4 +107,12 @@ mapping:
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
 - `resource-compression.remove-originals` removes protected resource originals after compressed copies are written.
+- `resource-encryption.remove-originals` should stay `false` unless your application knows how to decrypt resources at runtime.
 - `anti-debug` should be tested carefully because it changes runtime startup behavior.
+- `anti-debug.check-processes` is intentionally opt-in because it exits when common reverse-engineering tools are running.
+- `anti-debug.shared-helper` keeps heavy debug checks in one generated helper class to reduce per-class decompiler bloat.
+- `fake-classes.placement` supports `package-mode`, `existing`, `specific`, and `none`.
+- `chinese-mode.package-mode` supports `random`, `global`, `existing`, and `none`; `global` uses `package-prefix`, while `random` creates fresh Chinese package paths.
+- `fake-classes` and `fake-application` run before normal obfuscation, so enabled rename/string/flow passes also affect generated classes.
+- `fake-classes.seed`, `junk-code.seed`, and `resource-encryption.seed` use fresh randomness when set to `0`.
+

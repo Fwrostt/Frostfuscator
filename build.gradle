@@ -5,11 +5,11 @@ plugins {
 }
 
 group = 'dev.frost'
-version = '1.1.0'
+version = '1.1.1'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21) 
+        languageVersion = JavaLanguageVersion.of(17) 
     }
 }
 
@@ -59,7 +59,7 @@ tasks.register('runGui', JavaExec) {
 tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     group = 'build'
     description = 'Build a runnable GUI jar'
-    archiveClassifier.set('gui')
+    archiveFileName.set('Frostfuscator-gui.jar')
     from sourceSets.main.output
     configurations = [project.configurations.runtimeClasspath, project.configurations.guiRuntime]
     manifest {
@@ -72,7 +72,7 @@ tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = 17
 }
 
 test {
@@ -84,7 +84,7 @@ jar {
 }
 
 shadowJar {
-    archiveClassifier.set('')
+    archiveFileName.set('Frostfuscator.jar')
     minimize {
         exclude(dependency('org.slf4j:.*'))
     }
@@ -99,6 +99,126 @@ tasks.named('distZip').configure { dependsOn shadowJar }
 tasks.named('distTar').configure { dependsOn shadowJar }
 tasks.named('startScripts').configure { dependsOn shadowJar }
 
+tasks.register('createSmokeJar') {
+    group = 'verification'
+    description = 'Create a manifest-bearing smoke input jar'
+
+    doLast {
+        def smokeDir = layout.buildDirectory.dir('hotfix-smoke').get().asFile
+        def srcDir = new File(smokeDir, 'src/com/example')
+        def classesDir = new File(smokeDir, 'classes')
+        delete(new File(smokeDir, 'src'))
+        delete(classesDir)
+        delete(new File(smokeDir, 'input.jar'))
+        delete(new File(smokeDir, 'chinese-output.jar'))
+        delete(new File(smokeDir, 'chinese-smoke.yml'))
+        srcDir.mkdirs()
+        classesDir.mkdirs()
+
+        new File(srcDir, 'SmokeApp.java').text = '''package com.example;
+
+public class SmokeApp {
+    public static void main(String[] args) {
+        System.out.println("Frostfuscator smoke booted");
+        System.out.println("Chinese mode manifest entry works");
+        System.out.println("String encryption compatibility check");
+    }
+
+    public static String message() {
+        return "smoke-resource-message";
+    }
+}
+'''
+        new File(classesDir, 'plugin.yml').text = '''name: smoke
+main: com.example.SmokeApp
+version: 1.0.0
+'''
+        new File(classesDir, 'smoke-resource.txt').text = 'resource payload for Frostfuscator smoke checks\n'
+
+        ant.javac(srcdir: new File(smokeDir, 'src'), destdir: classesDir, release: '17', includeantruntime: false)
+        def manifestFile = new File(smokeDir, 'MANIFEST.MF')
+        manifestFile.text = 'Manifest-Version: 1.0\nMain-Class: com.example.SmokeApp\n\n'
+        ant.jar(destfile: new File(smokeDir, 'input.jar'), basedir: classesDir, manifest: manifestFile)
+    }
+}
+
+tasks.register('runSmokeJar') {
+    group = 'verification'
+    description = 'Run Frostfuscator smoke obfuscation and execute the output jar'
+    dependsOn createSmokeJar, shadowJar
+
+    doLast {
+        def smokeDir = layout.buildDirectory.dir('hotfix-smoke').get().asFile
+        def configFile = new File(smokeDir, 'chinese-smoke.yml')
+        configFile.setText("""input: "${new File(smokeDir, 'input.jar').path.replace('\\', '/')}"
+output: "${new File(smokeDir, 'chinese-output.jar').path.replace('\\', '/')}"
+dictionary: "alphabet"
+package-mode: "keep"
+flatten-package: "flat"
+libs: ""
+inclusions: []
+exclusions: []
+transformers:
+  fake-classes:
+    enabled: true
+    count: 4
+    min-methods-per-class: 4
+    max-methods-per-class: 8
+    min-fields-per-class: 2
+    max-fields-per-class: 4
+    kind-ratio: "regular:70,interface:10,enum:10,inner:10"
+    placement: "existing"
+    naming: "dictionary"
+    seed: 0
+  fake-application:
+    enabled: true
+    profiles: "minecraft-plugin,spring-boot,ai-framework,scp"
+    classes-per-profile: 2
+    min-methods-per-class: 4
+    max-methods-per-class: 8
+    min-fields-per-class: 2
+    max-fields-per-class: 4
+    seed: 0
+  string-encryption:
+    enabled: true
+    mode: "lite"
+    min-length: 2
+    max-method-instructions: 6000
+  inject-banner:
+    enabled: true
+    text: "FROSTFUSCATOR HOTFIX SMOKE"
+    copies: 1
+  emoji-hell:
+    enabled: true
+    copies: 2
+  copypasta-injector:
+    enabled: true
+    copies: 2
+  chinese-mode:
+    enabled: true
+    package-mode: "random"
+    package-prefix: ""
+    rename-members: true
+    inject-fun: true
+    large-banners: true
+    quotes: true
+    inject-metadata: true
+    inject-strings: true
+    min-fun-members: 1
+    max-fun-members: 2
+mapping:
+  enabled: false
+  output: "${new File(smokeDir, 'mapping.txt').path.replace('\\', '/')}"
+""", 'UTF-8')
+        exec {
+            commandLine 'java', '-jar', tasks.shadowJar.archiveFile.get().asFile.absolutePath, '-c', configFile.absolutePath
+        }
+        exec {
+            commandLine 'java', '-jar', new File(smokeDir, 'chinese-output.jar').absolutePath
+        }
+    }
+}
+
 build {
-    dependsOn shadowJar
+    dependsOn shadowJar, guiShadowJar
 }

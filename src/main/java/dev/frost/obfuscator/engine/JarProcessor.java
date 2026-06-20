@@ -176,6 +176,27 @@ public class JarProcessor {
         return detectedMainClass;
     }
 
+    @SuppressWarnings("unchecked")
+    public String getCurrentPluginMainClass() {
+        byte[] pluginYml = resources.get("plugin.yml");
+        if (pluginYml == null) {
+            pluginYml = resources.get("paper-plugin.yml");
+        }
+        if (pluginYml == null) {
+            return null;
+        }
+        try {
+            Yaml yaml = new Yaml();
+            Map<String, Object> data = yaml.load(new String(pluginYml, StandardCharsets.UTF_8));
+            if (data != null && data.containsKey("main")) {
+                return data.get("main").toString();
+            }
+        } catch (Exception e) {
+            Logger.warn("Failed to parse current plugin main class");
+        }
+        return null;
+    }
+
     public String getManifestMainClass() {
         if (manifest == null) return null;
         return manifest.getMainAttributes().getValue("Main-Class");

@@ -48,6 +48,7 @@ public class FlowObfuscationTransformer extends Transformer {
         boolean flatten = getBooleanOption(config, "flatten", heavy);
         boolean exceptionGuards = getBooleanOption(config, "exception-guards", heavy);
         boolean stackNoise = getBooleanOption(config, "stack-noise", heavy);
+        int minMethodInstructions = Math.max(0, getIntOption(config, "min-method-instructions", heavy ? 12 : 6));
         int maxMethodInstructions = getIntOption(config, "max-method-instructions", 5000);
         int predicateRate = clamp(getIntOption(config, "predicate-rate", heavy ? 8 : 4), 0, 100);
         int maxPredicatesPerMethod = Math.max(0, getIntOption(config, "max-predicates-per-method", heavy ? 24 : 8));
@@ -65,6 +66,7 @@ public class FlowObfuscationTransformer extends Transformer {
             for (MethodNode method : new ArrayList<>(classNode.methods)) {
                 if (method.instructions == null || method.instructions.size() == 0) continue;
                 if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+                if (method.instructions.size() < minMethodInstructions) continue;
                 if (method.instructions.size() > maxMethodInstructions) continue;
 
                 try {

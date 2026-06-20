@@ -74,28 +74,41 @@ public class ObfuscationEngine {
         pool.setPackageMode(config.getPackageMode());
         pool.setFlattenPackage(config.getFlattenPackage());
 
-        pool.buildHierarchy();
-        Logger.info("Class hierarchy built ({} app + {} library classes)",
-                pool.size(), pool.librarySize());
-
         MappingCollector mappings = new MappingCollector();
 
         List<Transformer> allTransformers = TransformerRegistry.getEnabled(config, cliTransformers);
-        List<Transformer> pass1 = new ArrayList<>();
+        List<Transformer> preObfuscation = new ArrayList<>();
+        List<Transformer> normal = new ArrayList<>();
         List<Transformer> postRemap = new ArrayList<>();
+        List<Transformer> finalPass = new ArrayList<>();
         for (Transformer t : allTransformers) {
-            if (t.runsPostRemap()) {
-                postRemap.add(t);
-            } else {
-                pass1.add(t);
+            switch (t.priority()) {
+                case PRE_OBFUSCATION -> preObfuscation.add(t);
+                case POST_REMAP -> postRemap.add(t);
+                case FINAL -> finalPass.add(t);
+                default -> normal.add(t);
             }
         }
+
+        if (!preObfuscation.isEmpty()) {
+            Logger.info("Pass 0: Pre-obfuscation generation");
+            for (Transformer transformer : preObfuscation) {
+                TransformerConfig tc = resolveConfig(transformer);
+                Logger.info("Running transformer: {}", transformer.getName());
+                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+            }
+            Logger.info("");
+        }
+
+        pool.buildHierarchy();
+        Logger.info("Class hierarchy built ({} app + {} library classes)",
+                pool.size(), pool.librarySize());
 
         Logger.info("Active transformers: {}", allTransformers.stream().map(Transformer::getName).toList());
         Logger.info("");
 
         Logger.info("Pass 1: Collecting mappings");
-        for (Transformer transformer : pass1) {
+        for (Transformer transformer : normal) {
             TransformerConfig tc = resolveConfig(transformer);
             Logger.info("Running transformer: {}", transformer.getName());
             transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -127,6 +140,17 @@ public class ObfuscationEngine {
             Logger.info("Pass 3: Post-remap transforms");
 
             for (Transformer transformer : postRemap) {
+                TransformerConfig tc = resolveConfig(transformer);
+                Logger.info("Running transformer: {}", transformer.getName());
+                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+            }
+        }
+
+        if (!finalPass.isEmpty()) {
+            Logger.info("");
+            Logger.info("Pass 4: Final transforms");
+
+            for (Transformer transformer : finalPass) {
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
                 transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));

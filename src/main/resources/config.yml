@@ -36,15 +36,90 @@ transformers:
   anti-debug:
     enabled: false
     method-name: "__frost$antiDebug"
+    check-arguments: true
+    check-debug-classes: true
+    check-stack: true
+    check-timing: true
+    shared-helper: true
+    helper-class: ""
+    timing-iterations: 1000000
+    timing-threshold-ms: 80
+    check-processes: false
 
   anti-decompiler:
     enabled: true
+
+  junk-code:
+    enabled: true
+    min-methods-per-class: 1
+    max-methods-per-class: 2
+    min-fields-per-class: 0
+    max-fields-per-class: 1
+    seed: 0
+
+  fake-classes:
+    enabled: false
+    priority: "pre-obfuscation"
+    count: 12
+    min-methods-per-class: 8
+    max-methods-per-class: 16
+    min-fields-per-class: 2
+    max-fields-per-class: 4
+    kind-ratio: "regular:70,interface:10,enum:10,inner:10"
+    placement: "package-mode"
+    naming: "dictionary"
+    custom-pattern: "Fake{index}"
+    package: "frost/junk"
+    seed: 0
+
+  # Funsies
+  inject-banner:
+    enabled: false
+    text: "Protected by Frostfuscator"
+    copies: 1
+
+  emoji-hell:
+    enabled: false
+    copies: 3
+
+  copypasta-injector:
+    enabled: false
+    copies: 3
+
+  fake-application:
+    enabled: false
+    profiles: "minecraft-plugin,networking-stack,enterprise"
+    classes-per-profile: 3
+    min-methods-per-class: 8
+    max-methods-per-class: 24
+    min-fields-per-class: 3
+    max-fields-per-class: 10
+    seed: 0
+
+  chinese-mode:
+    enabled: false
+    package-mode: "random"
+    package-prefix: "冰霜/混淆器"
+    rename-members: true
+    inject-fun: true
+    large-banners: true
+    quotes: true
+    inject-metadata: true
+    inject-strings: true
+    min-fun-members: 1
+    max-fun-members: 3
 
   # Resource handling
   resource-compression:
     enabled: false
     remove-originals: true
     output-prefix: "META-INF/frostfuscator/resources/"
+
+  resource-encryption:
+    enabled: false
+    remove-originals: false
+    output-prefix: "META-INF/frostfuscator/encrypted/"
+    seed: 0
 
   # Optimization
   bytecode-optimizer:
@@ -123,6 +198,7 @@ transformers:
     flatten: true
     predicate-rate: 8
     max-predicates-per-method: 24
+    min-method-instructions: 12
     exclusions: []
     inclusions: []
 

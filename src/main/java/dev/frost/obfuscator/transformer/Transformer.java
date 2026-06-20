@@ -9,6 +9,13 @@ import java.util.regex.Pattern;
 
 public abstract class Transformer {
 
+    public enum Priority {
+        PRE_OBFUSCATION,
+        NORMAL,
+        POST_REMAP,
+        FINAL
+    }
+
     public abstract String getName();
 
     public String getCategory() {
@@ -17,6 +24,10 @@ public abstract class Transformer {
 
     public boolean runsPostRemap() {
         return false;
+    }
+
+    public Priority priority() {
+        return runsPostRemap() ? Priority.POST_REMAP : Priority.NORMAL;
     }
 
     public void transform(Context context) {

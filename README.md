@@ -6,6 +6,10 @@ The main focus is obfuscation, with support for class and member renaming, strin
 
 Alongside the obfuscation passes, Frostfuscator includes some extra tools for shrinking, reporting, resource handling, and custom plugins.
 
+# Some side rules
+
+- Everytime you make something or update Frostfuscator, you should create a changelog in @updates.
+
 ## Documentation
 
 * [Getting Started](docs/index.md)
@@ -30,10 +34,13 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * Generate SHA-256 integrity metadata.
 * Optional anti-debug checks.
 * Add decompiler-unfriendly but verifier-safe patterns.
+* Add junk members and decoy classes to increase static-analysis noise.
+* Optional Funsies passes for custom banners and full Chinese-name chaos mode.
 
 ### Resources And Output
 
 * Compress resources.
+* Store encrypted resource copies for applications with a matching resource loader.
 * Strip debug tables and source information.
 * Generate JSON or HTML reports.
 * Support custom transformers through Java `ServiceLoader`.
@@ -42,7 +49,7 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 
 ### Requirements
 
-* Java 21 or newer
+* Java 17 or newer
 
 ### CLI
 
@@ -59,18 +66,18 @@ java -jar Frostfuscator.jar --list-transforms
 ### GUI
 
 ```bash
-java -jar Frostfuscator-gui.jar
+java -jar build/libs/Frostfuscator-gui.jar
 ```
 
-The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
+On systems with Java 17 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
 
 ## Building
 
 ```bash
-./gradlew clean shadowJar guiShadowJar
+./gradlew clean build
 ```
 
-The compiled JARs will be placed in `build/libs/`.
+The compiled JARs will be placed in `build/libs/`, including the CLI JAR and `Frostfuscator-gui.jar`.
 
 ## License
 

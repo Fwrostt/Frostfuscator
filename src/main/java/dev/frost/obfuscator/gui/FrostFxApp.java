@@ -36,9 +36,6 @@ import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.Toggle;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -93,9 +90,17 @@ public final class FrostFxApp extends Application {
             meta("metadata-noise", "Metadata Noise", "Metadata", "Adds bounded metadata noise."),
             meta("watermark", "Watermark", "Ownership", "Embeds ownership markers into classes and resources."),
             meta("integrity", "Integrity Index", "Protection", "Writes SHA-256 metadata for classes and resources."),
-            meta("anti-debug", "Anti-Debug", "Protection", "Injects a JDWP check into application entry points."),
+            meta("anti-debug", "Anti-Debug", "Protection", "Injects argument, agent, stack, timing, and optional process checks."),
             meta("anti-decompiler", "Anti-Decompiler", "Protection", "Adds verifier-safe bytecode traps aimed at decompilers."),
+            meta("junk-code", "Junk Code", "Protection", "Adds bounded synthetic methods and fields."),
+            meta("fake-classes", "Fake Classes", "Protection", "Generates verifier-safe decoy classes."),
+            meta("inject-banner", "Inject Banner", "Funsies", "Injects custom text or ASCII banners into every class."),
+            meta("emoji-hell", "Emoji Hell", "Funsies", "Injects emoji noise strings."),
+            meta("copypasta-injector", "Copypasta", "Funsies", "Injects noisy joke/error strings."),
+            meta("fake-application", "Fake Application", "Funsies", "Generates believable inert app-profile classes."),
+            meta("chinese-mode", "Chinese Mode", "Funsies", "Renames and decorates classes with random Chinese text."),
             meta("resource-compression", "Resource Compression", "Resources", "Stores compressed resource copies and an index."),
+            meta("resource-encryption", "Resource Encryption", "Resources", "Stores encrypted resource copies and an index."),
             meta("bytecode-optimizer", "Bytecode Optimizer", "Optimization", "Removes simple no-op bytecode."),
             meta("jar-shrinker", "JAR Shrinker", "Optimization", "Removes debug tables and source metadata."),
             meta("statistics-report", "Statistics Report", "Reporting", "Writes JSON or HTML run statistics.")
@@ -283,6 +288,7 @@ public final class FrostFxApp extends Application {
                 navButton("Obfuscation", "", "obfuscation"),
                 navButton("Protection", "", "protection"),
                 navButton("Resources", "", "resources"),
+                navButton("Funsies", "", "funsies"),
                 navButton("Optimize", "", "optimization"),
                 navButton("Reports", "", "reporting"),
                 navButton("Console", "", "console")
@@ -682,6 +688,7 @@ public final class FrostFxApp extends Application {
         return switch (page) {
             case "protection" -> category.equals("Protection") || category.equals("Ownership");
             case "resources" -> category.equals("Resources");
+            case "funsies" -> category.equals("Funsies");
             case "optimization" -> category.equals("Optimization");
             case "reporting" -> category.equals("Reporting");
             default -> category.equals("Renaming")
@@ -698,6 +705,7 @@ public final class FrostFxApp extends Application {
         return page.equals("obfuscation")
                 || page.equals("protection")
                 || page.equals("resources")
+                || page.equals("funsies")
                 || page.equals("optimization")
                 || page.equals("reporting");
     }
@@ -706,6 +714,7 @@ public final class FrostFxApp extends Application {
         return switch (page) {
             case "protection" -> "Protection";
             case "resources" -> "Resources";
+            case "funsies" -> "Funsies";
             case "optimization" -> "Optimize";
             case "reporting" -> "Reports";
             default -> "Obfuscation";
@@ -714,8 +723,9 @@ public final class FrostFxApp extends Application {
 
     private String categorySubtitle(String page) {
         return switch (page) {
-            case "protection" -> "Watermarks, integrity, anti-debug, anti-decompiler.";
-            case "resources" -> "Compression and resource handling.";
+            case "protection" -> "Watermarks, integrity, anti-debug, decoys, and traps.";
+            case "resources" -> "Compression, encryption, and resource handling.";
+            case "funsies" -> "Fun noise, banners, and chaos modes.";
             case "optimization" -> "Shrinking and bytecode cleanup.";
             case "reporting" -> "JSON and HTML run reports.";
             default -> "Renaming, encryption, flow, calls, and metadata.";
@@ -822,7 +832,7 @@ public final class FrostFxApp extends Application {
         currentPage = page;
         Node node;
         switch (page) {
-            case "obfuscation", "protection", "resources", "optimization", "reporting" -> {
+            case "obfuscation", "protection", "resources", "funsies", "optimization", "reporting" -> {
                 currentCategory = page;
                 pageTitle.setText(categoryTitle(page));
                 pageSubtitle.setText(categorySubtitle(page));
@@ -944,37 +954,39 @@ public final class FrostFxApp extends Application {
     }
 
     private Node choiceSetting(TransformerConfig tc, OptionSpec spec) {
-        FlowPane choices = new FlowPane(8, 8);
-        choices.getStyleClass().add("segmented");
-        ToggleGroup group = new ToggleGroup();
         String current = stringValue(tc.getOptions().get(spec.key), String.valueOf(spec.defaultValue));
-        Toggle fallback = null;
-        for (String option : spec.choices) {
-            ToggleButton button = new ToggleButton(pretty(option));
-            button.getStyleClass().add("segmented-toggle");
-            button.setUserData(option);
-            button.setToggleGroup(group);
-            button.setSelected(option.equalsIgnoreCase(current));
-            if (option.equalsIgnoreCase(String.valueOf(spec.defaultValue)) || fallback == null) {
-                fallback = button;
+        ComboBox<String> combo = new ComboBox<>(FXCollections.observableArrayList(spec.choices));
+        combo.getStyleClass().add("combo-box");
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : pretty(item));
             }
-            choices.getChildren().add(button);
-        }
-        if (group.getSelectedToggle() == null && fallback != null) {
-            fallback.setSelected(true);
-            tc.getOptions().put(spec.key, fallback.getUserData().toString());
-        }
-        group.selectedToggleProperty().addListener((obs, old, selected) -> {
-            if (selected == null) {
-                if (old != null) {
-                    Platform.runLater(() -> old.setSelected(true));
-                }
-                return;
+        });
+        combo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : pretty(item));
             }
-            tc.getOptions().put(spec.key, selected.getUserData().toString());
+        });
+        String selected = spec.choices.stream()
+                .filter(option -> option.equalsIgnoreCase(current))
+                .findFirst()
+                .orElse(String.valueOf(spec.defaultValue));
+        if (!spec.choices.contains(selected) && !spec.choices.isEmpty()) {
+            selected = spec.choices.get(0);
+        }
+        combo.setValue(selected);
+        tc.getOptions().put(spec.key, selected);
+        combo.valueProperty().addListener((obs, old, value) -> {
+            if (value == null) return;
+            tc.getOptions().put(spec.key, value);
             markCustom();
         });
-        return choices;
+        return combo;
     }
 
     private Node integerSetting(TransformerConfig tc, OptionSpec spec) {
@@ -1086,7 +1098,7 @@ public final class FrostFxApp extends Application {
         setPreset("string-encryption", true, options("mode", "heavy", "min-length", 1, "max-method-instructions", 6000));
         setPreset("number-obfuscation", true, options("probability", 80, "max-per-method", 96, "max-per-class", 256, "max-method-instructions", 6000));
         setPreset("parameter-encryption", true, options("probability", 30));
-        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 8, "max-predicates-per-method", 24, "max-method-instructions", 5000));
+        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 8, "max-predicates-per-method", 24, "min-method-instructions", 12, "max-method-instructions", 5000));
         setPreset("flow-outliner", true, options("probability", 25, "max-per-class", 16));
         setPreset("flow-range", true, options("probability", 35));
         setPreset("flow-condition", true, options("probability", 25, "max-per-method", 16));
@@ -1105,7 +1117,7 @@ public final class FrostFxApp extends Application {
         setPreset("string-encryption", true, options("mode", "condy", "min-length", 1, "max-method-instructions", 6000));
         setPreset("number-obfuscation", true, options("probability", 90, "max-per-method", 128, "max-per-class", 320, "max-method-instructions", 6000));
         setPreset("parameter-encryption", true, options("probability", 45));
-        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 12, "max-predicates-per-method", 32, "max-method-instructions", 5000));
+        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 12, "max-predicates-per-method", 32, "min-method-instructions", 12, "max-method-instructions", 5000));
         setPreset("flow-outliner", true, options("probability", 35, "max-per-class", 22));
         setPreset("flow-range", true, options("probability", 48));
         setPreset("flow-condition", true, options("probability", 38, "max-per-method", 24));
@@ -1114,8 +1126,9 @@ public final class FrostFxApp extends Application {
         setPreset("invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
         setPreset("reference-hiding", true, options("probability", 65, "max-per-class", 144, "max-method-instructions", 6000));
         setPreset("metadata-noise", true, options("strings-per-class", 12, "deprecated", true, "signatures", true));
-        setPreset("anti-debug", true, options("method-name", "__frost$antiDebug"));
+        setPreset("anti-debug", true, antiDebugOptions(false));
         setPreset("anti-decompiler", true, options());
+        setPreset("junk-code", true, options("min-methods-per-class", 1, "max-methods-per-class", 3, "min-fields-per-class", 0, "max-fields-per-class", 2, "seed", 0));
         setPreset("bytecode-optimizer", true, options());
     }
 
@@ -1124,7 +1137,7 @@ public final class FrostFxApp extends Application {
         setPreset("string-encryption", true, options("mode", "polymorphic", "min-length", 1, "max-method-instructions", 6000));
         setPreset("number-obfuscation", true, options("probability", 100, "max-per-method", 160, "max-per-class", 512, "max-method-instructions", 6000));
         setPreset("parameter-encryption", true, options("probability", 60));
-        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 16, "max-predicates-per-method", 40, "max-method-instructions", 5000));
+        setPreset("flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 16, "max-predicates-per-method", 40, "min-method-instructions", 12, "max-method-instructions", 5000));
         setPreset("flow-outliner", true, options("probability", 45, "max-per-class", 28));
         setPreset("flow-range", true, options("probability", 60));
         setPreset("flow-condition", true, options("probability", 50, "max-per-method", 32));
@@ -1133,19 +1146,89 @@ public final class FrostFxApp extends Application {
         setPreset("invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
         setPreset("reference-hiding", true, options("probability", 80, "max-per-class", 192, "max-method-instructions", 6000));
         setPreset("metadata-noise", true, options("strings-per-class", 18, "deprecated", true, "signatures", true));
+        setPreset("anti-debug", true, antiDebugOptions(true));
+        setPreset("junk-code", true, options("min-methods-per-class", 2, "max-methods-per-class", 5, "min-fields-per-class", 1, "max-fields-per-class", 3, "seed", 0));
+        setPreset("fake-classes", true, fakeClassOptions(24, 10, 24, 2, 8));
         setPreset("jar-shrinker", true, options());
         setPreset("resource-compression", true, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+        setPreset("resource-encryption", true, options("remove-originals", false, "output-prefix", "META-INF/frostfuscator/encrypted/", "seed", 0));
     }
 
     private void setCommonProtectionPreset(boolean enabled) {
         setPreset("watermark", enabled, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
         setPreset("integrity", enabled, options());
-        setPreset("anti-debug", false, options("method-name", "__frost$antiDebug"));
+        setPreset("anti-debug", false, antiDebugOptions(false));
         setPreset("anti-decompiler", enabled, options());
+        setPreset("junk-code", enabled, options("min-methods-per-class", 1, "max-methods-per-class", 2, "min-fields-per-class", 0, "max-fields-per-class", 1, "seed", 0));
+        setPreset("fake-classes", false, fakeClassOptions(12, 8, 16, 2, 4));
+        setPreset("inject-banner", false, options("text", "Protected by Frostfuscator", "copies", 1));
+        setPreset("emoji-hell", false, options("copies", 3));
+        setPreset("copypasta-injector", false, options("copies", 3));
+        setPreset("fake-application", false, fakeApplicationOptions());
+        setPreset("chinese-mode", false, chineseModeOptions());
         setPreset("resource-compression", false, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+        setPreset("resource-encryption", false, options("remove-originals", false, "output-prefix", "META-INF/frostfuscator/encrypted/", "seed", 0));
         setPreset("bytecode-optimizer", enabled, options());
         setPreset("jar-shrinker", false, options());
         setPreset("statistics-report", enabled, options("format", "json", "output", "frost-report.json"));
+    }
+
+    private Map<String, Object> antiDebugOptions(boolean processChecks) {
+        return options(
+                "method-name", "__frost$antiDebug",
+                "check-arguments", true,
+                "check-debug-classes", true,
+                "check-stack", true,
+                "check-timing", true,
+                "shared-helper", true,
+                "timing-iterations", 1000000,
+                "timing-threshold-ms", 80,
+                "check-processes", processChecks
+        );
+    }
+
+    private Map<String, Object> fakeClassOptions(int count, int minMethods, int maxMethods, int minFields, int maxFields) {
+        return options(
+                "priority", "pre-obfuscation",
+                "count", count,
+                "min-methods-per-class", minMethods,
+                "max-methods-per-class", maxMethods,
+                "min-fields-per-class", minFields,
+                "max-fields-per-class", maxFields,
+                "kind-ratio", "regular:70,interface:10,enum:10,inner:10",
+                "placement", "package-mode",
+                "naming", "dictionary",
+                "custom-pattern", "Fake{index}",
+                "package", "frost/junk",
+                "seed", 0
+        );
+    }
+
+    private Map<String, Object> fakeApplicationOptions() {
+        return options(
+                "profiles", "minecraft-plugin,networking-stack,enterprise",
+                "classes-per-profile", 3,
+                "min-methods-per-class", 8,
+                "max-methods-per-class", 24,
+                "min-fields-per-class", 3,
+                "max-fields-per-class", 10,
+                "seed", 0
+        );
+    }
+
+    private Map<String, Object> chineseModeOptions() {
+        return options(
+                "package-mode", "random",
+                "package-prefix", "\u51b0\u971c/\u6df7\u6dc6\u5668",
+                "rename-members", true,
+                "inject-fun", true,
+                "large-banners", true,
+                "quotes", true,
+                "inject-metadata", true,
+                "inject-strings", true,
+                "min-fun-members", 1,
+                "max-fun-members", 3
+        );
     }
 
     private void setPreset(String name, boolean enabled, Map<String, Object> options) {
@@ -1193,8 +1276,16 @@ public final class FrostFxApp extends Application {
             case "protection" -> {
                 setPreset("watermark", true, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
                 setPreset("integrity", true, options());
+                setPreset("junk-code", true, options("min-methods-per-class", 1, "max-methods-per-class", 2, "min-fields-per-class", 0, "max-fields-per-class", 1, "seed", 0));
             }
-            case "resources" -> setPreset("resource-compression", true, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+            case "resources" -> {
+                setPreset("resource-compression", true, options("remove-originals", true, "output-prefix", "META-INF/frostfuscator/resources/"));
+                setPreset("resource-encryption", false, options("remove-originals", false, "output-prefix", "META-INF/frostfuscator/encrypted/", "seed", 0));
+            }
+            case "funsies" -> {
+                setPreset("inject-banner", true, options("text", "Protected by Frostfuscator", "copies", 1));
+                setPreset("copypasta-injector", true, options("copies", 3));
+            }
             case "optimization" -> setPreset("bytecode-optimizer", true, options());
             case "reporting" -> setPreset("statistics-report", true, options("format", "json", "output", "frost-report.json"));
             default -> {
@@ -1830,10 +1921,74 @@ public final class FrostFxApp extends Application {
                 bool("string-field", "String field", true, "Adds a synthetic watermark field."),
                 text("field-name", "Field name", "__frost$watermark", "Synthetic field name.")
         ));
-        specs.put("anti-debug", List.of(text("method-name", "Guard method", "__frost$antiDebug", "Generated guard method name.")));
+        specs.put("anti-debug", List.of(
+                text("method-name", "Guard method", "__frost$antiDebug", "Generated guard method name."),
+                bool("check-arguments", "JVM arguments", true, "Checks JDWP, Xdebug, and Java agents."),
+                bool("check-debug-classes", "Debugger classes", true, "Checks common IDE debug agent classes."),
+                bool("check-stack", "Stack trace", true, "Checks suspicious stack trace markers."),
+                bool("check-timing", "Timing check", true, "Detects heavy single-step slowdown."),
+                bool("shared-helper", "Shared helper", true, "Stores heavy guard logic in one generated class to reduce per-class bloat."),
+                text("helper-class", "Helper class", "", "Optional internal name for the shared helper class."),
+                integer("timing-iterations", "Timing iterations", 1000000, 1000, 10000000, 1000, "Loop size for timing detection."),
+                integer("timing-threshold-ms", "Timing threshold", 80, 1, 5000, 1, "Maximum expected timing loop duration."),
+                bool("check-processes", "Process scan", false, "Looks for common reverse-engineering tools.")
+        ));
+        specs.put("junk-code", List.of(
+                integer("min-methods-per-class", "Min methods", 1, 0, 64, 1, "Minimum synthetic junk methods per class."),
+                integer("max-methods-per-class", "Max methods", 3, 0, 64, 1, "Maximum synthetic junk methods per class."),
+                integer("min-fields-per-class", "Min fields", 0, 0, 32, 1, "Minimum synthetic junk fields per class."),
+                integer("max-fields-per-class", "Max fields", 2, 0, 32, 1, "Maximum synthetic junk fields per class."),
+                integer("seed", "Seed", 0, 0, 10000000, 1, "0 uses fresh randomness for each run.")
+        ));
+        specs.put("fake-classes", List.of(
+                choice("priority", "Priority", "pre-obfuscation", List.of("pre-obfuscation", "normal", "post-remap", "final"), "Generation runs before regular obfuscation."),
+                integer("count", "Class count", 12, 0, 500, 1, "Number of decoy classes to add."),
+                integer("min-methods-per-class", "Min methods", 8, 0, 200, 1, "Minimum synthetic methods per decoy class."),
+                integer("max-methods-per-class", "Max methods", 16, 0, 200, 1, "Maximum synthetic methods per decoy class."),
+                integer("min-fields-per-class", "Min fields", 2, 0, 64, 1, "Minimum synthetic fields per decoy class."),
+                integer("max-fields-per-class", "Max fields", 4, 0, 64, 1, "Maximum synthetic fields per decoy class."),
+                text("kind-ratio", "Kind ratio", "regular:70,interface:10,enum:10,inner:10", "Weights for regular/interface/enum-like/inner-shaped decoys."),
+                choice("placement", "Placement", "package-mode", List.of("package-mode", "existing", "specific", "none"), "Where generated decoys are placed."),
+                choice("naming", "Naming", "dictionary", List.of("dictionary", "custom", "confusable", "chinese"), "How fake class simple names are generated."),
+                text("custom-pattern", "Custom pattern", "Fake{index}", "Used when naming is custom; supports {index} and {random}."),
+                text("package", "Package", "frost/junk", "Used when placement is specific."),
+                integer("seed", "Seed", 0, 0, 10000000, 1, "0 uses fresh randomness for each run.")
+        ));
+        specs.put("inject-banner", List.of(
+                text("text", "Text", "Protected by Frostfuscator", "Custom ASCII/banner text to inject."),
+                integer("copies", "Copies", 1, 1, 8, 1, "Number of banner fields/methods per class.")
+        ));
+        specs.put("emoji-hell", List.of(integer("copies", "Copies", 3, 1, 16, 1, "Emoji strings per class.")));
+        specs.put("copypasta-injector", List.of(integer("copies", "Copies", 3, 1, 16, 1, "Copypasta strings per class.")));
+        specs.put("fake-application", List.of(
+                text("profiles", "Profiles", "minecraft-plugin,networking-stack,enterprise", "Comma-separated profiles to generate."),
+                integer("classes-per-profile", "Classes per profile", 3, 1, 32, 1, "Classes generated for each selected profile."),
+                integer("min-methods-per-class", "Min methods", 8, 1, 200, 1, "Minimum methods per generated profile class."),
+                integer("max-methods-per-class", "Max methods", 24, 1, 200, 1, "Maximum methods per generated profile class."),
+                integer("min-fields-per-class", "Min fields", 3, 0, 64, 1, "Minimum fields per generated profile class."),
+                integer("max-fields-per-class", "Max fields", 10, 0, 64, 1, "Maximum fields per generated profile class."),
+                integer("seed", "Seed", 0, 0, 10000000, 1, "0 uses fresh randomness for each run.")
+        ));
+        specs.put("chinese-mode", List.of(
+                choice("package-mode", "Package mode", "random", List.of("random", "global", "existing", "none"), "Random creates fresh Chinese package paths; global uses the prefix below."),
+                text("package-prefix", "Global package", "\u51b0\u971c/\u6df7\u6dc6\u5668", "Used only when package mode is global; leave blank for one random global package."),
+                bool("rename-members", "Rename members", true, "Renames methods and fields to Chinese identifiers."),
+                bool("inject-fun", "Inject fun", true, "Adds Chinese banners, strings, and methods to every class."),
+                bool("large-banners", "Large banners", true, "Adds larger Chinese banner blocks."),
+                bool("quotes", "Quotes", true, "Adds random Chinese quote strings."),
+                bool("inject-metadata", "Metadata", true, "Adds Chinese source/debug metadata."),
+                bool("inject-strings", "Strings", true, "Adds random Chinese strings."),
+                integer("min-fun-members", "Min fun members", 1, 0, 16, 1, "Minimum Chinese fun methods/fields per class."),
+                integer("max-fun-members", "Max fun members", 3, 0, 16, 1, "Maximum Chinese fun methods/fields per class.")
+        ));
         specs.put("resource-compression", List.of(
                 bool("remove-originals", "Remove originals", true, "Removes protected resource originals after compressed copies are written."),
                 text("output-prefix", "Output prefix", "META-INF/frostfuscator/resources/", "Compressed resource location.")
+        ));
+        specs.put("resource-encryption", List.of(
+                bool("remove-originals", "Remove originals", false, "Removes protected resource originals after encrypted copies are written."),
+                text("output-prefix", "Output prefix", "META-INF/frostfuscator/encrypted/", "Encrypted resource location."),
+                integer("seed", "Seed", 0, 0, 10000000, 1, "0 uses fresh randomness for each run.")
         ));
         specs.put("statistics-report", List.of(
                 choice("format", "Format", "json", List.of("json", "html"), "Report output format."),
@@ -1941,3 +2096,4 @@ public final class FrostFxApp extends Application {
         }
     }
 }
+
