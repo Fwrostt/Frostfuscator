@@ -20,6 +20,11 @@ Use the Gradle wrapper. On Windows PowerShell, replace `./gradlew` with `.\gradl
 
 Use 4-space indentation, UTF-8, and Java 21 APIs. Keep packages lowercase under `dev.frost.obfuscator`. Use `PascalCase` classes, `camelCase` methods/fields, and `UPPER_SNAKE_CASE` constants. Transformer implementations should end in `Transformer`, return a stable config name from `getName()` such as `string-encryption`, and live in the matching category package. Register built-in passes in `TransformerRegistry`; external passes may use `ServiceLoader<Transformer>`. Log through `Logger`, not `System.out`.
 
+
+# Some side rules
+
+- Everytime you make something or update Frostfuscator, you should create a changelog in @updates.
+
 ## Testing Guidelines
 
 JUnit Platform is configured, though the repository currently has no committed test cases. Add focused tests beside production packages, named like `ConfigLoaderTest` or `StringEncryptionTransformerTest`. Prioritize coverage for YAML parsing, transformer enablement/order, dictionary generation, remapping, and verifier-sensitive bytecode changes. Run `./gradlew test` before submitting changes; for transformer work, also test a small input JAR manually.

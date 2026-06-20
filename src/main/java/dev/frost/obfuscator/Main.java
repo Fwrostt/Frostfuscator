@@ -15,7 +15,6 @@ import java.util.concurrent.Callable;
 @CommandLine.Command(
         name = "frostfuscator",
         mixinStandardHelpOptions = true,
-        version = "Frostfuscator 1.0.0",
         description = "Java obfuscation toolkit"
 )
 public class Main implements Callable<Integer> {
