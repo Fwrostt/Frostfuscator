@@ -110,6 +110,41 @@ public class ConfigLoader {
             config.setMapping(mc);
         }
 
+        Object frostJniObj = raw.get("frostjni");
+        if (frostJniObj instanceof Map<?, ?> frostJniMap) {
+            FrostJNIConfig nativeConfig = new FrostJNIConfig();
+            nativeConfig.setEnabled(getBoolean(frostJniMap, "enabled", false));
+            nativeConfig.setOutputLibraryName(getString(frostJniMap, "outputLibraryName", "frostjni_protected"));
+            nativeConfig.setWindowsDllName(getString(frostJniMap, "windowsDllName", "frostjni_protected.dll"));
+            nativeConfig.setLinuxSoName(getString(frostJniMap, "linuxSoName", "libfrostjni_protected.so"));
+            nativeConfig.setMacDylibName(getString(frostJniMap, "macDylibName", "libfrostjni_protected.dylib"));
+            nativeConfig.setUseGcc(getBoolean(frostJniMap, "useGcc", true));
+            nativeConfig.setUseClang(getBoolean(frostJniMap, "useClang", true));
+            nativeConfig.setUseMsvc(getBoolean(frostJniMap, "useMsvc", true));
+            nativeConfig.setMode(getString(frostJniMap, "mode", "SELECTIVE"));
+            nativeConfig.setCompileMode(getString(frostJniMap, "compileMode", "FAST"));
+            nativeConfig.setUnityBuild(getBoolean(frostJniMap, "unityBuild", true));
+            nativeConfig.setOptimizationLevel(getString(frostJniMap, "optimizationLevel", "O0"));
+            nativeConfig.setStripSymbols(getBoolean(frostJniMap, "stripSymbols", false));
+            nativeConfig.setCompressLibrary(getBoolean(frostJniMap, "compressLibrary", false));
+            nativeConfig.setGenerateHeaders(getBoolean(frostJniMap, "generateHeaders", true));
+            nativeConfig.setIncludeClasses(getStringList(frostJniMap, "includeClasses"));
+            nativeConfig.setIncludePackages(getStringList(frostJniMap, "includePackages"));
+            nativeConfig.setIncludeMethods(getStringList(frostJniMap, "includeMethods"));
+            nativeConfig.setIncludeAnnotations(getStringList(frostJniMap, "includeAnnotations"));
+            nativeConfig.setExcludedClasses(getStringList(frostJniMap, "excludedClasses"));
+            nativeConfig.setExcludedPackages(getStringList(frostJniMap, "excludedPackages"));
+            nativeConfig.setExcludedAnnotations(getStringList(frostJniMap, "excludedAnnotations"));
+            nativeConfig.setTemporaryDirectory(getString(frostJniMap, "temporaryDirectory", ""));
+            nativeConfig.setKeepGeneratedSources(getBoolean(frostJniMap, "keepGeneratedSources", false));
+            nativeConfig.setLoaderMode(getString(frostJniMap, "loaderMode", "embedded"));
+            nativeConfig.setResourceEmbedding(getBoolean(frostJniMap, "resourceEmbedding", true));
+            nativeConfig.setDebugMode(getBoolean(frostJniMap, "debugMode", false));
+            nativeConfig.setFailFast(getBoolean(frostJniMap, "failFast", true));
+            nativeConfig.setContinueOnFailure(getBoolean(frostJniMap, "continueOnFailure", false));
+            config.setFrostJNI(nativeConfig);
+        }
+
         return config;
     }
 
@@ -149,5 +184,19 @@ public class ConfigLoader {
         if (value instanceof Boolean b) return b;
         if (value != null) return Boolean.parseBoolean(value.toString());
         return defaultValue;
+    }
+
+    private static List<String> getStringList(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof List<?> list) {
+            return list.stream().map(Object::toString).toList();
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            return Arrays.stream(string.split(","))
+                    .map(String::trim)
+                    .filter(item -> !item.isEmpty())
+                    .toList();
+        }
+        return List.of();
     }
 }

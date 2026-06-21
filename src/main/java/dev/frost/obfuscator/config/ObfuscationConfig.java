@@ -16,6 +16,7 @@ public class ObfuscationConfig {
     private String flattenPackage = "obf";
     private Map<String, TransformerConfig> transformers = new LinkedHashMap<>();
     private MappingConfig mapping = new MappingConfig();
+    private FrostJNIConfig frostJNI = new FrostJNIConfig();
 
     public ObfuscationConfig() {
     }
@@ -102,6 +103,14 @@ public class ObfuscationConfig {
 
     public void setMapping(MappingConfig mapping) {
         this.mapping = mapping != null ? mapping : new MappingConfig();
+    }
+
+    public FrostJNIConfig getFrostJNI() {
+        return frostJNI;
+    }
+
+    public void setFrostJNI(FrostJNIConfig frostJNI) {
+        this.frostJNI = frostJNI != null ? frostJNI : new FrostJNIConfig();
     }
 
     public static class MappingConfig {

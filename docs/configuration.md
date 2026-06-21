@@ -17,6 +17,31 @@ inclusions: []
 exclusions:
   - "com\\.example\\.api\\..*"
 
+frostjni:
+  enabled: false
+  outputLibraryName: "frostjni_protected"
+  useClang: true
+  useGcc: true
+  useMsvc: true
+  mode: "SELECTIVE"
+  compileMode: "FAST"
+  unityBuild: true
+  optimizationLevel: "O0"
+  stripSymbols: false
+  includePackages:
+    - "com.example.security"
+  includeClasses: []
+  includeMethods: []
+  includeAnnotations: []
+  excludedClasses:
+    - "com.example.Main"
+  excludedPackages: []
+  excludedAnnotations: []
+  resourceEmbedding: true
+  keepGeneratedSources: false
+  failFast: true
+  continueOnFailure: false
+
 transformers:
   class-rename:
     enabled: true
@@ -103,6 +128,34 @@ mapping:
 | `exclusions` | List<String> | Regex patterns for classes to skip. |
 | `inclusions` | List<String> | Regex patterns for classes to process. |
 
+## FrostJNI Native Protection
+
+`frostjni:` is a top-level section, not a transformer. It runs after Java obfuscation passes and before the final output jar is written. Selected methods are translated to C++, compiled into a native library, replaced with Java `native` declarations, and loaded through an injected runtime loader.
+
+| Setting | Type | Description |
+|---|---|---|
+| `enabled` | Boolean | Enables the native protection pipeline. |
+| `outputLibraryName` | String | Base library name passed to the loader, default `frostjni_protected`. |
+| `useClang` / `useGcc` / `useMsvc` | Boolean | Allows Clang, GCC/MinGW, or MSVC compiler backends. |
+| `mode` | String | `SELECTIVE` converts only chosen classes/packages/methods/annotations. `FULL` converts every eligible original input class. |
+| `compileMode` | String | `FAST` uses fast dev settings. `RELEASE` uses configured optimization/stripping. |
+| `unityBuild` | Boolean | Compiles a generated unity source for much faster MinGW/Clang builds. |
+| `optimizationLevel` | String | Reserved compiler optimization preference. |
+| `stripSymbols` | Boolean | Reserved symbol stripping preference. |
+| `includePackages` | List<String> | Packages eligible for native conversion. In `SELECTIVE` mode, choose at least one class, package, method, or annotation. |
+| `includeClasses` | List<String> | Exact classes eligible for native conversion. |
+| `includeMethods` | List<String> | Method names or `owner#method` entries eligible for conversion. |
+| `includeAnnotations` | List<String> | Annotation descriptors/classes that opt classes or methods into native conversion. |
+| `excludedClasses` | List<String> | Exact classes that must stay Java. |
+| `excludedPackages` | List<String> | Packages that must stay Java. |
+| `excludedAnnotations` | List<String> | Annotation descriptors/classes that force Java output. |
+| `temporaryDirectory` | String | Optional native work directory. Defaults beside the output jar. |
+| `keepGeneratedSources` | Boolean | Keeps generated C++ sources for inspection. |
+| `resourceEmbedding` | Boolean | Embeds native libraries under `native/{os}/{arch}/` in the jar. |
+| `debugMode` | Boolean | Reserved for verbose native diagnostics. |
+| `failFast` | Boolean | Fails the build if native conversion/compilation fails. |
+| `continueOnFailure` | Boolean | Keeps Java output if native protection fails. |
+
 ## Notes
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
@@ -115,4 +168,8 @@ mapping:
 - `chinese-mode.package-mode` supports `random`, `global`, `existing`, and `none`; `global` uses `package-prefix`, while `random` creates fresh Chinese package paths.
 - `fake-classes` and `fake-application` run before normal obfuscation, so enabled rename/string/flow passes also affect generated classes.
 - `fake-classes.seed`, `junk-code.seed`, and `resource-encryption.seed` use fresh randomness when set to `0`.
+- FrostJNI skips Frostfuscator runtime/loader classes and generated fake/helper classes by default. Exclusions always take priority over includes.
+- FrostJNI requires a local C++ compiler such as Clang, MinGW GCC, or MSVC Build Tools. On Windows, MSYS2 UCRT64 MinGW works well when `g++` is available.
+- Keep FrostJNI in `SELECTIVE` mode for real applications. Commercial protectors usually native-protect only high-value code such as licensing, authentication, HWID checks, or decryptors.
+- `FAST` mode defaults to `O0`, no symbol stripping, and unity builds. The compiler log shows how many translation units were merged and prints periodic heartbeat messages during long native compiles.
 

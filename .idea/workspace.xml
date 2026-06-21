@@ -4,10 +4,24 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="Version 1.1.1&#10;&#10;- Fixed fake classes so they no longer land in one predictable package by default.&#10;- Added configurable fake-class placement and naming modes.&#10;- Reduced Strong preset bloat by moving anti-debug guard logic into a shared helper class and skipping heavy flow on tiny methods.&#10;- Added the new Funsies category with `inject-banner` and `chinese-mode`.&#10;- Improved randomness defaults: seed `0` now means fresh randomness per run for affected passes.&#10;- Added explicit transformer priorities so fake generators run before normal obfuscation and Chinese/Funsies display passes run last.&#10;- Added `emoji-hell`, `copypasta-injector`, and `fake-application`.&#10;- Added Gradle smoke tasks: `createSmokeJar` and `runSmokeJar`.&#10;- Fixed Chinese Mode string literals to be Unicode-safe and added large banners, quotes, metadata, and final-stage injection controls.&#10;- Upgraded fake classes with interfaces, enum-like classes, inner-class metadata, static blocks, annotations, constants, arrays, switch/try-catch/loop/synchronization bytecode.&#10;- Reworked fake-code generation so no-pass output is plain functional bytecode, not pre-obfuscated bytecode: generated classes and methods no longer get synthetic/deprecated fingerprints from the generator itself.&#10;- Added larger realistic method/field pools for generic fake classes, with cache/session/config-style names and varied method signatures instead of one repeated junk method body.&#10;- Updated fake application profiles so generated classes use domain-specific method and field names, such as player/economy methods for Minecraft-style classes and controller/repository methods for Spring-style classes.&#10;- Added `chinese-mode.package-mode` with `random`, `global`, `existing`, and `none`; the default now uses random Chinese package paths instead of a fixed package.&#10;- Changed GUI choice controls to dropdowns and converted fake-class priority into a dropdown choice.">
+    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="hotfix bump">
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/cli.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cli.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/configuration.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/configuration.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/gui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/gui.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/index.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/index.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/config.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -153,13 +167,22 @@
       <option name="project" value="LOCAL" />
       <updated>1781949510667</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="hotfix bump">
+      <option name="closed" value="true" />
+      <created>1781966725541</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1781966725541</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="bump frostfuscator 1.1.0" />
     <MESSAGE value="bump fix" />
     <MESSAGE value="Version 1.1.1&#10;&#10;- Fixed fake classes so they no longer land in one predictable package by default.&#10;- Added configurable fake-class placement and naming modes.&#10;- Reduced Strong preset bloat by moving anti-debug guard logic into a shared helper class and skipping heavy flow on tiny methods.&#10;- Added the new Funsies category with `inject-banner` and `chinese-mode`.&#10;- Improved randomness defaults: seed `0` now means fresh randomness per run for affected passes.&#10;- Added explicit transformer priorities so fake generators run before normal obfuscation and Chinese/Funsies display passes run last.&#10;- Added `emoji-hell`, `copypasta-injector`, and `fake-application`.&#10;- Added Gradle smoke tasks: `createSmokeJar` and `runSmokeJar`.&#10;- Fixed Chinese Mode string literals to be Unicode-safe and added large banners, quotes, metadata, and final-stage injection controls.&#10;- Upgraded fake classes with interfaces, enum-like classes, inner-class metadata, static blocks, annotations, constants, arrays, switch/try-catch/loop/synchronization bytecode.&#10;- Reworked fake-code generation so no-pass output is plain functional bytecode, not pre-obfuscated bytecode: generated classes and methods no longer get synthetic/deprecated fingerprints from the generator itself.&#10;- Added larger realistic method/field pools for generic fake classes, with cache/session/config-style names and varied method signatures instead of one repeated junk method body.&#10;- Updated fake application profiles so generated classes use domain-specific method and field names, such as player/economy methods for Minecraft-style classes and controller/repository methods for Spring-style classes.&#10;- Added `chinese-mode.package-mode` with `random`, `global`, `existing`, and `none`; the default now uses random Chinese package paths instead of a fixed package.&#10;- Changed GUI choice controls to dropdowns and converted fake-class priority into a dropdown choice." />
-    <option name="LAST_COMMIT_MESSAGE" value="Version 1.1.1&#10;&#10;- Fixed fake classes so they no longer land in one predictable package by default.&#10;- Added configurable fake-class placement and naming modes.&#10;- Reduced Strong preset bloat by moving anti-debug guard logic into a shared helper class and skipping heavy flow on tiny methods.&#10;- Added the new Funsies category with `inject-banner` and `chinese-mode`.&#10;- Improved randomness defaults: seed `0` now means fresh randomness per run for affected passes.&#10;- Added explicit transformer priorities so fake generators run before normal obfuscation and Chinese/Funsies display passes run last.&#10;- Added `emoji-hell`, `copypasta-injector`, and `fake-application`.&#10;- Added Gradle smoke tasks: `createSmokeJar` and `runSmokeJar`.&#10;- Fixed Chinese Mode string literals to be Unicode-safe and added large banners, quotes, metadata, and final-stage injection controls.&#10;- Upgraded fake classes with interfaces, enum-like classes, inner-class metadata, static blocks, annotations, constants, arrays, switch/try-catch/loop/synchronization bytecode.&#10;- Reworked fake-code generation so no-pass output is plain functional bytecode, not pre-obfuscated bytecode: generated classes and methods no longer get synthetic/deprecated fingerprints from the generator itself.&#10;- Added larger realistic method/field pools for generic fake classes, with cache/session/config-style names and varied method signatures instead of one repeated junk method body.&#10;- Updated fake application profiles so generated classes use domain-specific method and field names, such as player/economy methods for Minecraft-style classes and controller/repository methods for Spring-style classes.&#10;- Added `chinese-mode.package-mode` with `random`, `global`, `existing`, and `none`; the default now uses random Chinese package paths instead of a fixed package.&#10;- Changed GUI choice controls to dropdowns and converted fake-class priority into a dropdown choice." />
+    <MESSAGE value="hotfix bump" />
+    <option name="LAST_COMMIT_MESSAGE" value="hotfix bump" />
   </component>
 </project>

@@ -2,8 +2,13 @@ package dev.frost.obfuscator.gui;
 
 import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.config.ConfigWriter;
+import dev.frost.obfuscator.config.FrostJNIConfig;
 import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.engine.ObfuscationEngine;
+import dev.frost.obfuscator.jni.compiler.CompilerDetector;
+import dev.frost.obfuscator.jni.compiler.CompilerKind;
+import dev.frost.obfuscator.jni.compiler.DetectedCompiler;
+import dev.frost.obfuscator.jni.compiler.TargetPlatform;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
@@ -23,7 +28,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -57,6 +64,8 @@ import javafx.util.Duration;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -64,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public final class FrostFxApp extends Application {
@@ -142,6 +152,30 @@ public final class FrostFxApp extends Application {
     private final ComboBox<String> dictionaryBox = comboBox("alphabet", "unicode", "numeric");
     private final ComboBox<String> packageModeBox = comboBox("keep", "flatten", "remove");
     private final CheckBox mappingEnabledBox = checkBox("Export mapping file");
+    private final CheckBox nativeEnabledBox = checkBox("Enable FrostJNI native protection");
+    private final TextField nativeLibraryField = textField("frostjni_protected");
+    private final TextField nativeTempDirField = textField("Optional work directory");
+    private final ComboBox<String> nativeModeBox = comboBox("SELECTIVE", "FULL");
+    private final ComboBox<String> nativeCompileModeBox = comboBox("FAST", "RELEASE");
+    private final ComboBox<String> nativeOptimizationBox = comboBox("O0", "O1", "O2", "O3");
+    private final CheckBox nativeUseClangBox = checkBox("Use Clang");
+    private final CheckBox nativeUseGccBox = checkBox("Use GCC / MinGW");
+    private final CheckBox nativeUseMsvcBox = checkBox("Use MSVC Build Tools");
+    private final CheckBox nativeStripSymbolsBox = checkBox("Strip symbols");
+    private final CheckBox nativeUnityBuildBox = checkBox("Unity build");
+    private final CheckBox nativeKeepSourcesBox = checkBox("Keep generated sources");
+    private final CheckBox nativeDebugBox = checkBox("Debug mode");
+    private final CheckBox nativeResourceEmbeddingBox = checkBox("Embed libraries in jar");
+    private final CheckBox nativeFailFastBox = checkBox("Fail build on native errors");
+    private final CheckBox nativeContinueBox = checkBox("Continue with Java output on failure");
+    private final TextArea nativeIncludePackagesArea = textArea("com.example.security");
+    private final TextArea nativeIncludeClassesArea = textArea("com.example.LicenseManager");
+    private final TextArea nativeIncludeMethodsArea = textArea("com.example.Class#method");
+    private final TextArea nativeIncludeAnnotationsArea = textArea("dev.frost.obfuscator.jni.loader.Native");
+    private final TextArea nativeExcludePackagesArea = textArea("com.example.generated");
+    private final TextArea nativeExcludeClassesArea = textArea("com.example.Main");
+    private final TextArea nativeExcludeAnnotationsArea = textArea("javax.annotation.Generated");
+    private final Label nativeCompilerStatusLabel = new Label("Compiler status not checked.");
 
     private final ObservableList<String> transformerItems = FXCollections.observableArrayList();
     private final ListView<String> transformerList = new ListView<>(transformerItems);
@@ -287,6 +321,7 @@ public final class FrostFxApp extends Application {
                 navButton("Project", "", "project"),
                 navButton("Obfuscation", "", "obfuscation"),
                 navButton("Protection", "", "protection"),
+                navButton("FrostJNI", "", "native-protection"),
                 navButton("Resources", "", "resources"),
                 navButton("Funsies", "", "funsies"),
                 navButton("Optimize", "", "optimization"),
@@ -374,6 +409,7 @@ public final class FrostFxApp extends Application {
         main.getStyleClass().add("main");
         HBox top = topBar();
         VBox.setVgrow(contentHost, Priority.ALWAYS);
+        contentHost.setMinHeight(0);
         contentHost.getStyleClass().add("content-host");
         main.getChildren().addAll(top, contentHost);
         return main;
@@ -732,6 +768,119 @@ public final class FrostFxApp extends Application {
         };
     }
 
+    private Node nativeProtectionPage() {
+        compactNativeAreas();
+
+        VBox page = new VBox(14);
+        page.getStyleClass().add("page");
+        page.setFillWidth(true);
+
+        GridPane grid = new GridPane();
+        grid.getStyleClass().add("card-grid");
+        grid.setHgap(14);
+        grid.setVgap(14);
+        grid.getColumnConstraints().addAll(percentColumn(50), percentColumn(50));
+
+        VBox overview = card("Native Protection", "JNI conversion runs after Java transformers");
+        overview.getChildren().addAll(
+                nativeEnabledBox,
+                mutedText("Selected methods are moved into generated C++ and replaced with native stubs."),
+                labeledControl("Conversion mode", nativeModeBox),
+                labeledControl("Compile mode", nativeCompileModeBox),
+                labeledControl("Library name", nativeLibraryField),
+                labeledControl("Optimization", nativeOptimizationBox),
+                nativeResourceEmbeddingBox
+        );
+
+        VBox compiler = card("Compiler Detection", "Auto-detect local toolchains");
+        nativeCompilerStatusLabel.getStyleClass().add("muted-label");
+        nativeCompilerStatusLabel.setWrapText(true);
+        Button detect = secondaryButton("Detect Compilers");
+        detect.setOnAction(e -> detectNativeCompilers(true));
+        Button installMinGw = secondaryButton("Install MinGW");
+        installMinGw.setOnAction(e -> openExternal("https://www.msys2.org/"));
+        Button installMsvc = secondaryButton("Install MSVC");
+        installMsvc.setOnAction(e -> openExternal("https://visualstudio.microsoft.com/visual-cpp-build-tools/"));
+        Button installClang = secondaryButton("Install Clang");
+        installClang.setOnAction(e -> openExternal("https://github.com/llvm/llvm-project/releases"));
+        FlowPane compilerActions = new FlowPane(8, 8, detect, installMinGw, installMsvc, installClang);
+        compiler.getChildren().addAll(
+                nativeCompilerStatusLabel,
+                compilerActions,
+                nativeUseClangBox,
+                nativeUseGccBox,
+                nativeUseMsvcBox,
+                nativeStripSymbolsBox,
+                nativeUnityBuildBox,
+                nativeKeepSourcesBox,
+                nativeDebugBox,
+                fileRow("Work directory", nativeTempDirField, this::browseNativeTempDirectory)
+        );
+
+        VBox failures = card("Failure Policy", "Build behavior");
+        failures.getChildren().addAll(
+                nativeFailFastBox,
+                nativeContinueBox,
+                mutedText("Continue mode leaves Java bodies intact if native compilation fails.")
+        );
+
+        grid.add(overview, 0, 0);
+        grid.add(compiler, 1, 0);
+        grid.add(failures, 0, 1, 2, 1);
+        growInGrid(overview);
+        growInGrid(compiler);
+        growInGrid(failures);
+
+        GridPane filters = new GridPane();
+        filters.getStyleClass().add("card-grid");
+        filters.setHgap(14);
+        filters.setVgap(14);
+        filters.getColumnConstraints().addAll(percentColumn(50), percentColumn(50));
+
+        VBox include = card("Include", "Classes, packages, methods, annotations");
+        Button addClass = secondaryButton("Add Class");
+        addClass.setOnAction(e -> showNativeSelectionDialog(false));
+        Button addPackage = secondaryButton("Add Package");
+        addPackage.setOnAction(e -> showNativeSelectionDialog(true));
+        FlowPane includeActions = new FlowPane(8, 8, addClass, addPackage);
+        include.getChildren().addAll(
+                includeActions,
+                labeledControl("Packages", nativeIncludePackagesArea),
+                labeledControl("Classes", nativeIncludeClassesArea),
+                labeledControl("Methods", nativeIncludeMethodsArea),
+                labeledControl("Annotations", nativeIncludeAnnotationsArea)
+        );
+
+        VBox exclude = card("Exclude", "Exclusions always win");
+        exclude.getChildren().addAll(
+                labeledControl("Packages", nativeExcludePackagesArea),
+                labeledControl("Classes", nativeExcludeClassesArea),
+                labeledControl("Annotations", nativeExcludeAnnotationsArea)
+        );
+
+        filters.add(include, 0, 0);
+        filters.add(exclude, 1, 0);
+        growInGrid(include);
+        growInGrid(exclude);
+
+        VBox guide = card("New User Checklist", "What to install before enabling native protection");
+        guide.getChildren().addAll(
+                mutedText("Windows: MSYS2 UCRT64 MinGW is the easiest path. Install MSYS2, open the UCRT64 shell, install gcc, then make sure C:\\msys64\\ucrt64\\bin is on PATH."),
+                mutedText("MSVC: install Visual Studio Build Tools with Desktop development with C++ and a Windows SDK."),
+                mutedText("Clang: plain LLVM Clang still needs Windows C/C++ runtime headers. If Clang is detected but fails, install MSVC Build Tools or use MinGW.")
+        );
+
+        page.getChildren().addAll(grid, filters, guide);
+
+        ScrollPane scroll = new ScrollPane(page);
+        scroll.getStyleClass().add("pass-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        Platform.runLater(() -> detectNativeCompilers(false));
+        return scroll;
+    }
+
     private Node consolePage() {
         VBox page = new VBox(16);
         page.getStyleClass().add("page");
@@ -773,6 +922,14 @@ public final class FrostFxApp extends Application {
                 updateStats();
             }
         });
+        nativeEnabledBox.selectedProperty().addListener((obs, old, value) -> {
+            if (refreshingControls || !value) {
+                return;
+            }
+            if (!confirmNativeProtection()) {
+                nativeEnabledBox.setSelected(false);
+            }
+        });
     }
 
     private void loadConfigIntoUi(ObfuscationConfig cfg) {
@@ -787,6 +944,7 @@ public final class FrostFxApp extends Application {
         mappingOutputField.setText(nullToEmpty(cfg.getMapping().getOutput()));
         inclusionsArea.setText(String.join("\n", cfg.getInclusions()));
         exclusionsArea.setText(String.join("\n", cfg.getExclusions()));
+        loadNativeConfigIntoUi(cfg.getFrostJNI());
         List<String> names = passesForCategory(currentCategory);
         if (!names.isEmpty()) {
             selectTransformer(names.get(0));
@@ -810,7 +968,280 @@ public final class FrostFxApp extends Application {
         mapping.setEnabled(mappingEnabledBox.isSelected());
         mapping.setOutput(mappingOutputField.getText().trim());
         cfg.setMapping(mapping);
+        cfg.setFrostJNI(buildNativeConfigFromUi());
         return cfg;
+    }
+
+    private void loadNativeConfigIntoUi(FrostJNIConfig nativeConfig) {
+        refreshingControls = true;
+        nativeEnabledBox.setSelected(nativeConfig.isEnabled());
+        nativeLibraryField.setText(nativeConfig.getOutputLibraryName());
+        nativeTempDirField.setText(nativeConfig.getTemporaryDirectory());
+        nativeModeBox.setValue(nativeConfig.getMode());
+        nativeCompileModeBox.setValue(nativeConfig.getCompileMode());
+        nativeOptimizationBox.setValue(nativeConfig.getOptimizationLevel());
+        nativeUseClangBox.setSelected(nativeConfig.isUseClang());
+        nativeUseGccBox.setSelected(nativeConfig.isUseGcc());
+        nativeUseMsvcBox.setSelected(nativeConfig.isUseMsvc());
+        nativeStripSymbolsBox.setSelected(nativeConfig.isStripSymbols());
+        nativeUnityBuildBox.setSelected(nativeConfig.isUnityBuild());
+        nativeKeepSourcesBox.setSelected(nativeConfig.isKeepGeneratedSources());
+        nativeDebugBox.setSelected(nativeConfig.isDebugMode());
+        nativeResourceEmbeddingBox.setSelected(nativeConfig.isResourceEmbedding());
+        nativeFailFastBox.setSelected(nativeConfig.isFailFast());
+        nativeContinueBox.setSelected(nativeConfig.isContinueOnFailure());
+        nativeIncludePackagesArea.setText(String.join("\n", nativeConfig.getIncludePackages()));
+        nativeIncludeClassesArea.setText(String.join("\n", nativeConfig.getIncludeClasses()));
+        nativeIncludeMethodsArea.setText(String.join("\n", nativeConfig.getIncludeMethods()));
+        nativeIncludeAnnotationsArea.setText(String.join("\n", nativeConfig.getIncludeAnnotations()));
+        nativeExcludePackagesArea.setText(String.join("\n", nativeConfig.getExcludedPackages()));
+        nativeExcludeClassesArea.setText(String.join("\n", nativeConfig.getExcludedClasses()));
+        nativeExcludeAnnotationsArea.setText(String.join("\n", nativeConfig.getExcludedAnnotations()));
+        refreshingControls = false;
+    }
+
+    private FrostJNIConfig buildNativeConfigFromUi() {
+        FrostJNIConfig nativeConfig = new FrostJNIConfig();
+        nativeConfig.setEnabled(nativeEnabledBox.isSelected());
+        nativeConfig.setOutputLibraryName(nativeLibraryField.getText().trim());
+        nativeConfig.setTemporaryDirectory(nativeTempDirField.getText().trim());
+        nativeConfig.setMode(nativeModeBox.getValue());
+        nativeConfig.setCompileMode(nativeCompileModeBox.getValue());
+        nativeConfig.setOptimizationLevel(nativeOptimizationBox.getValue());
+        nativeConfig.setUseClang(nativeUseClangBox.isSelected());
+        nativeConfig.setUseGcc(nativeUseGccBox.isSelected());
+        nativeConfig.setUseMsvc(nativeUseMsvcBox.isSelected());
+        nativeConfig.setStripSymbols(nativeStripSymbolsBox.isSelected());
+        nativeConfig.setUnityBuild(nativeUnityBuildBox.isSelected());
+        nativeConfig.setKeepGeneratedSources(nativeKeepSourcesBox.isSelected());
+        nativeConfig.setDebugMode(nativeDebugBox.isSelected());
+        nativeConfig.setResourceEmbedding(nativeResourceEmbeddingBox.isSelected());
+        nativeConfig.setFailFast(nativeFailFastBox.isSelected());
+        nativeConfig.setContinueOnFailure(nativeContinueBox.isSelected());
+        nativeConfig.setIncludePackages(lines(nativeIncludePackagesArea));
+        nativeConfig.setIncludeClasses(lines(nativeIncludeClassesArea));
+        nativeConfig.setIncludeMethods(lines(nativeIncludeMethodsArea));
+        nativeConfig.setIncludeAnnotations(lines(nativeIncludeAnnotationsArea));
+        nativeConfig.setExcludedPackages(lines(nativeExcludePackagesArea));
+        nativeConfig.setExcludedClasses(lines(nativeExcludeClassesArea));
+        nativeConfig.setExcludedAnnotations(lines(nativeExcludeAnnotationsArea));
+        return nativeConfig;
+    }
+
+    private boolean confirmNativeProtection() {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.initOwner(stage);
+        alert.setTitle("Enable FrostJNI");
+        alert.setHeaderText("Native protection changes the build and runtime model.");
+        alert.setContentText("""
+                Native protection increases build complexity and build time.
+                Generated libraries are platform dependent.
+                Debugging becomes harder.
+                Antivirus software may flag native loaders.
+                DLL/SO/DYLIB packaging must match your target platform.
+                Reflection-heavy libraries may require exclusions.
+                """);
+        alert.getButtonTypes().setAll(ButtonType.CANCEL, ButtonType.OK);
+        return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    private void compactNativeAreas() {
+        for (TextArea area : List.of(
+                nativeIncludePackagesArea,
+                nativeIncludeClassesArea,
+                nativeIncludeMethodsArea,
+                nativeIncludeAnnotationsArea,
+                nativeExcludePackagesArea,
+                nativeExcludeClassesArea,
+                nativeExcludeAnnotationsArea
+        )) {
+            area.setPrefRowCount(2);
+            area.setMinHeight(58);
+            area.setMaxHeight(92);
+        }
+    }
+
+    private void detectNativeCompilers(boolean notify) {
+        try {
+            TargetPlatform target = TargetPlatform.current();
+            List<DetectedCompiler> detected = new CompilerDetector().detectAll(target);
+            Set<CompilerKind> allowed = allowedNativeCompilers();
+            List<DetectedCompiler> enabled = detected.stream()
+                    .filter(compiler -> allowed.contains(compiler.kind()))
+                    .toList();
+
+            if (detected.isEmpty()) {
+                nativeCompilerStatusLabel.setText("No compiler found for " + target.operatingSystem().resourceName()
+                        + "/" + target.architecture().resourceName()
+                        + ". Install MinGW, MSVC Build Tools, or Clang with runtime headers.");
+                if (notify) {
+                    showToast("No native compiler found");
+                }
+                return;
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.append("Detected for ")
+                    .append(target.operatingSystem().resourceName())
+                    .append('/')
+                    .append(target.architecture().resourceName())
+                    .append(":\n");
+            for (DetectedCompiler compiler : detected) {
+                builder.append("- ")
+                        .append(compiler.displayName())
+                        .append(" at ")
+                        .append(compiler.executable());
+                if (!allowed.contains(compiler.kind())) {
+                    builder.append(" (disabled)");
+                }
+                builder.append('\n');
+            }
+            if (enabled.isEmpty()) {
+                builder.append("All detected compilers are disabled. Enable at least one compiler checkbox.");
+                if (notify) {
+                    showToast("Compilers found but disabled");
+                }
+            } else {
+                builder.append("FrostJNI will try enabled compilers in detected order.");
+                if (notify) {
+                    showToast("Native compiler detected");
+                }
+            }
+            nativeCompilerStatusLabel.setText(builder.toString());
+        } catch (Exception exception) {
+            nativeCompilerStatusLabel.setText("Compiler detection failed: " + exception.getMessage());
+            if (notify) {
+                showError(exception);
+            }
+        }
+    }
+
+    private void showNativeSelectionDialog(boolean packageMode) {
+        try {
+            Path input = Path.of(inputField.getText().trim());
+            if (!Files.isRegularFile(input)) {
+                showError(new IllegalStateException("Select an input jar before adding FrostJNI classes or packages."));
+                return;
+            }
+            List<String> items = packageMode ? scanInputPackages(input) : scanInputClasses(input);
+            if (items.isEmpty()) {
+                showError(new IllegalStateException("No " + (packageMode ? "packages" : "classes") + " found in input jar."));
+                return;
+            }
+
+            Stage picker = new Stage(StageStyle.TRANSPARENT);
+            picker.initOwner(stage);
+            picker.initModality(Modality.APPLICATION_MODAL);
+
+            TextField search = textField(packageMode ? "Search packages" : "Search classes");
+            ListView<String> list = new ListView<>();
+            list.getStyleClass().add("selection-list");
+            Runnable refresh = () -> {
+                String filter = search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+                list.getItems().setAll(items.stream()
+                        .filter(item -> filter.isBlank() || item.toLowerCase(Locale.ROOT).contains(filter))
+                        .toList());
+            };
+            search.textProperty().addListener((obs, old, value) -> refresh.run());
+            refresh.run();
+
+            Button add = primaryButton(packageMode ? "Add Package" : "Add Class");
+            add.setOnAction(e -> {
+                String selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    return;
+                }
+                appendNativeSelection(packageMode ? nativeIncludePackagesArea : nativeIncludeClassesArea, selected);
+                picker.close();
+                showToast((packageMode ? "Package" : "Class") + " added to FrostJNI");
+            });
+            Button cancel = secondaryButton("Cancel");
+            cancel.setOnAction(e -> picker.close());
+            list.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && list.getSelectionModel().getSelectedItem() != null) {
+                    add.fire();
+                }
+            });
+
+            VBox root = card(packageMode ? "Add Package" : "Add Class",
+                    packageMode ? "Selecting a package protects all classes in it." : "Pick a specific class to protect.");
+            root.getChildren().addAll(search, list, new HBox(8, cancel, add));
+            root.setPrefSize(720, 560);
+            enableModalDrag(root, picker);
+
+            Scene scene = new Scene(root);
+            scene.setFill(Color.TRANSPARENT);
+            scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
+            picker.setScene(scene);
+            picker.show();
+        } catch (Exception exception) {
+            showError(exception);
+        }
+    }
+
+    private List<String> scanInputClasses(Path input) throws IOException {
+        List<String> classes = new ArrayList<>();
+        try (java.util.jar.JarFile jar = new java.util.jar.JarFile(input.toFile())) {
+            var entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry entry = entries.nextElement();
+                if (!entry.isDirectory() && entry.getName().endsWith(".class")) {
+                    String name = entry.getName().substring(0, entry.getName().length() - ".class".length())
+                            .replace('/', '.');
+                    if (!name.equals("module-info") && !name.endsWith(".package-info")) {
+                        classes.add(name);
+                    }
+                }
+            }
+        }
+        classes.sort(String::compareToIgnoreCase);
+        return classes;
+    }
+
+    private List<String> scanInputPackages(Path input) throws IOException {
+        java.util.Set<String> packages = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (String className : scanInputClasses(input)) {
+            int lastDot = className.lastIndexOf('.');
+            packages.add(lastDot == -1 ? "(default package)" : className.substring(0, lastDot));
+        }
+        return new ArrayList<>(packages);
+    }
+
+    private void appendNativeSelection(TextArea area, String value) {
+        if ("(default package)".equals(value)) {
+            value = "";
+        }
+        List<String> current = new ArrayList<>(lines(area));
+        if (!value.isBlank() && !current.contains(value)) {
+            current.add(value);
+        }
+        area.setText(String.join("\n", current));
+    }
+
+    private Set<CompilerKind> allowedNativeCompilers() {
+        Set<CompilerKind> allowed = new java.util.LinkedHashSet<>();
+        if (nativeUseClangBox.isSelected()) {
+            allowed.add(CompilerKind.CLANG);
+        }
+        if (nativeUseGccBox.isSelected()) {
+            allowed.add(CompilerKind.GCC);
+        }
+        if (nativeUseMsvcBox.isSelected()) {
+            allowed.add(CompilerKind.MSVC);
+        }
+        return allowed;
+    }
+
+    private void openExternal(String url) {
+        try {
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                showError(new IllegalStateException("Opening links is not supported on this system."));
+                return;
+            }
+            Desktop.getDesktop().browse(URI.create(url));
+        } catch (Exception exception) {
+            showError(exception);
+        }
     }
 
     private Map<String, TransformerConfig> copyTransformers(Map<String, TransformerConfig> source) {
@@ -837,6 +1268,11 @@ public final class FrostFxApp extends Application {
                 pageTitle.setText(categoryTitle(page));
                 pageSubtitle.setText(categorySubtitle(page));
                 node = categoryPage(page);
+            }
+            case "native-protection" -> {
+                pageTitle.setText("Native Protection");
+                pageSubtitle.setText("FrostJNI compiler, loader, and native conversion settings.");
+                node = nativeProtectionPage();
             }
             case "console" -> {
                 pageTitle.setText("Console");
@@ -1303,6 +1739,7 @@ public final class FrostFxApp extends Application {
         ObfuscationConfig runConfig = buildConfigFromUi();
         try {
             ConfigLoader.validate(runConfig);
+            validateNativeConfiguration(runConfig);
         } catch (Exception ex) {
             showError(ex);
             return;
@@ -1359,11 +1796,40 @@ public final class FrostFxApp extends Application {
         try {
             config = buildConfigFromUi();
             ConfigLoader.validate(config);
+            validateNativeConfiguration(config);
             statusLabel.setText("Valid");
             showToast("Configuration is valid");
         } catch (Exception ex) {
             statusLabel.setText("Needs input");
             showError(ex);
+        }
+    }
+
+    private void validateNativeConfiguration(ObfuscationConfig cfg) {
+        FrostJNIConfig nativeConfig = cfg.getFrostJNI();
+        if (nativeConfig == null || !nativeConfig.isEnabled()) {
+            return;
+        }
+        Set<CompilerKind> allowed = allowedNativeCompilers();
+        if (allowed.isEmpty()) {
+            throw new IllegalStateException("FrostJNI is enabled, but every compiler family is disabled. Enable Clang, GCC/MinGW, or MSVC.");
+        }
+        if ("SELECTIVE".equalsIgnoreCase(nativeConfig.getMode())
+                && nativeConfig.getIncludeClasses().isEmpty()
+                && nativeConfig.getIncludePackages().isEmpty()
+                && nativeConfig.getIncludeMethods().isEmpty()
+                && nativeConfig.getIncludeAnnotations().isEmpty()) {
+            throw new IllegalStateException("FrostJNI is in SELECTIVE mode but nothing is selected. Use Add Class, Add Package, or add an annotation filter.");
+        }
+        List<DetectedCompiler> detected = new CompilerDetector().detectAll(TargetPlatform.current()).stream()
+                .filter(compiler -> allowed.contains(compiler.kind()))
+                .toList();
+        if (detected.isEmpty()) {
+            throw new IllegalStateException("""
+                    FrostJNI is enabled, but no enabled native compiler was detected.
+                    Windows beginner path: install MSYS2, install the UCRT64 gcc package, and add C:\\msys64\\ucrt64\\bin to PATH.
+                    Alternative: install Visual Studio Build Tools with Desktop development with C++ and a Windows SDK.
+                    """);
         }
     }
 
@@ -1447,6 +1913,19 @@ public final class FrostFxApp extends Application {
         File folder = chooser.showDialog(stage);
         if (folder != null) {
             libsField.setText(folder.getAbsolutePath());
+        }
+    }
+
+    private void browseNativeTempDirectory() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Select FrostJNI work directory");
+        File current = currentFile(nativeTempDirField.getText());
+        if (current != null && current.exists()) {
+            chooser.setInitialDirectory(current.isDirectory() ? current : current.getParentFile());
+        }
+        File folder = chooser.showDialog(stage);
+        if (folder != null) {
+            nativeTempDirField.setText(folder.getAbsolutePath());
         }
     }
 

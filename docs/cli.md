@@ -40,3 +40,17 @@ Run only selected obfuscation passes:
 ```bash
 java -jar Frostfuscator.jar -i app.jar -o out.jar -t class-rename,string-encryption,remove-debug
 ```
+
+Enable FrostJNI through the YAML config:
+
+```yaml
+frostjni:
+  enabled: true
+  includePackages:
+    - "com.example.security"
+  resourceEmbedding: true
+```
+
+FrostJNI runs inside the normal obfuscation pipeline. It generates C++, compiles a native library with a detected compiler, strips selected Java method bodies into `native` declarations, injects the loader, embeds the library under `native/{os}/{arch}/`, and writes the final output jar.
+
+Native protection requires Java 21 and a local C++ compiler. On Windows, install either MSYS2 MinGW-w64 with `g++` on `PATH`, or Clang with working Windows C/C++ runtime headers.

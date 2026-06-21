@@ -2,7 +2,7 @@
 
 Frostfuscator is a Java bytecode obfuscator built with ASM. I originally made it for protecting Minecraft plugins and mods, but it works with any Java application.
 
-The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, and other techniques to make reverse engineering harder.
+The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, JNI native protection, and other techniques to make reverse engineering harder.
 
 Alongside the obfuscation passes, Frostfuscator includes some extra tools for shrinking, reporting, resource handling, and custom plugins.
 
@@ -30,6 +30,7 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * Generate SHA-256 integrity metadata.
 * Optional anti-debug checks.
 * Add decompiler-unfriendly but verifier-safe patterns.
+* Convert selected Java methods into native JNI stubs with embedded platform libraries through FrostJNI.
 * Add junk members and decoy classes to increase static-analysis noise.
 * Optional Funsies passes for custom banners and full Chinese-name chaos mode.
 
@@ -45,7 +46,8 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 
 ### Requirements
 
-* Java 17 or newer
+* Java 21 or newer
+* Optional for FrostJNI: Clang or GCC/MinGW native C++ toolchain
 
 ### CLI
 
@@ -65,7 +67,7 @@ java -jar Frostfuscator.jar --list-transforms
 java -jar build/libs/Frostfuscator-gui.jar
 ```
 
-On systems with Java 17 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
+On systems with Java 21 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
 
 ## Building
 

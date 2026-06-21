@@ -15,7 +15,8 @@ Frostfuscator is centered on Java bytecode obfuscation, with extra protection, r
 2. Enabled passes run against classes and resources.
 3. Renaming mappings are applied when renaming passes are enabled.
 4. Post-remap passes, such as reports, run.
-5. Frostfuscator writes the output JAR, optional mapping file, and optional report.
+5. Optional FrostJNI native protection converts selected post-obfuscation methods into JNI stubs and embeds native libraries.
+6. Frostfuscator writes the output JAR, optional mapping file, and optional report.
 
 The GUI defaults to **No Passes** so a new project starts from a safe baseline. Obfuscation presets can then be enabled as needed.
 
@@ -47,5 +48,6 @@ Put the full class name in that file and run Frostfuscator with the plugin JAR o
 
 ## Requirements
 
-- Java 17 or newer.
+- Java 21 or newer.
 - Enough memory for the input JAR.
+- A C++ compiler when FrostJNI native protection is enabled.

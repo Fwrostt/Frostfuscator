@@ -5,11 +5,11 @@ plugins {
 }
 
 group = 'dev.frost'
-version = '1.1.1'
+version = '1.2.0'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17) 
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -70,9 +70,54 @@ tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.
     }
 }
 
+tasks.register('writeGuiLaunchers') {
+    group = 'build'
+    description = 'Write double-click friendly GUI launcher scripts next to the GUI jar'
+    dependsOn guiShadowJar
+
+    doLast {
+        def libsDir = layout.buildDirectory.dir('libs').get().asFile
+        libsDir.mkdirs()
+        def windowsLauncher = new File(libsDir, 'Frostfuscator-gui.cmd')
+        windowsLauncher.text = '''@echo off
+setlocal
+set "APP_DIR=%~dp0"
+set "APP_JAR=%APP_DIR%Frostfuscator-gui.jar"
+
+set "JAVA_EXE=javaw.exe"
+if defined JAVA_HOME if exist "%JAVA_HOME%\\bin\\javaw.exe" set "JAVA_EXE=%JAVA_HOME%\\bin\\javaw.exe"
+if exist "C:\\Program Files\\Java\\jdk-21\\bin\\javaw.exe" set "JAVA_EXE=C:\\Program Files\\Java\\jdk-21\\bin\\javaw.exe"
+if exist "C:\\Program Files\\Eclipse Adoptium\\jdk-21*\\bin\\javaw.exe" for /d %%J in ("C:\\Program Files\\Eclipse Adoptium\\jdk-21*") do set "JAVA_EXE=%%~fJ\\bin\\javaw.exe"
+if exist "C:\\Program Files\\Zulu\\zulu-21*\\bin\\javaw.exe" for /d %%J in ("C:\\Program Files\\Zulu\\zulu-21*") do set "JAVA_EXE=%%~fJ\\bin\\javaw.exe"
+
+start "" "%JAVA_EXE%" --enable-native-access=ALL-UNNAMED -jar "%APP_JAR%"
+endlocal
+'''
+        def debugLauncher = new File(libsDir, 'Frostfuscator-gui-debug.cmd')
+        debugLauncher.text = '''@echo off
+setlocal
+set "APP_DIR=%~dp0"
+set "APP_JAR=%APP_DIR%Frostfuscator-gui.jar"
+
+set "JAVA_EXE=java.exe"
+if defined JAVA_HOME if exist "%JAVA_HOME%\\bin\\java.exe" set "JAVA_EXE=%JAVA_HOME%\\bin\\java.exe"
+if exist "C:\\Program Files\\Java\\jdk-21\\bin\\java.exe" set "JAVA_EXE=C:\\Program Files\\Java\\jdk-21\\bin\\java.exe"
+if exist "C:\\Program Files\\Eclipse Adoptium\\jdk-21*\\bin\\java.exe" for /d %%J in ("C:\\Program Files\\Eclipse Adoptium\\jdk-21*") do set "JAVA_EXE=%%~fJ\\bin\\java.exe"
+if exist "C:\\Program Files\\Zulu\\zulu-21*\\bin\\java.exe" for /d %%J in ("C:\\Program Files\\Zulu\\zulu-21*") do set "JAVA_EXE=%%~fJ\\bin\\java.exe"
+
+echo Using "%JAVA_EXE%"
+"%JAVA_EXE%" --enable-native-access=ALL-UNNAMED -jar "%APP_JAR%"
+echo.
+echo Exit code: %ERRORLEVEL%
+pause
+endlocal
+'''
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 17
+    options.release = 21
 }
 
 test {
@@ -220,5 +265,5 @@ mapping:
 }
 
 build {
-    dependsOn shadowJar, guiShadowJar
+    dependsOn shadowJar, guiShadowJar, writeGuiLaunchers
 }

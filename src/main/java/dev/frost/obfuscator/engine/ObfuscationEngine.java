@@ -1,12 +1,16 @@
 package dev.frost.obfuscator.engine;
 
 import dev.frost.obfuscator.config.ObfuscationConfig;
+import dev.frost.obfuscator.jni.FrostJNIProtectionService;
+import dev.frost.obfuscator.jni.FrostJNIResult;
+import dev.frost.obfuscator.jni.NativeProtectionRequest;
 import dev.frost.obfuscator.remapper.FrostRemapper;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
+import dev.frost.obfuscator.transformer.reporting.StatisticsReportTransformer;
 import dev.frost.obfuscator.util.Logger;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.tree.ClassNode;
@@ -157,6 +161,41 @@ public class ObfuscationEngine {
             }
         }
 
+        if (config.getFrostJNI() != null && config.getFrostJNI().isEnabled()) {
+            Logger.info("");
+            Logger.info("Pass 5: FrostJNI native protection");
+            try {
+                FrostJNIResult nativeResult = new FrostJNIProtectionService().protect(
+                        new NativeProtectionRequest(config.getFrostJNI(), pool, processor, inputPath, outputPath)
+                );
+                stats.set("nativeClassesConverted", nativeResult.classesConverted());
+                stats.set("nativeMethodsConverted", nativeResult.methodsConverted());
+                stats.set("nativeSourceBytes", nativeResult.nativeSourceBytes());
+                stats.set("nativeCompilationTimeMs", nativeResult.compilationTimeMs());
+                stats.set("nativeLibraries", nativeResult.generatedLibraries().size());
+                stats.set("nativeExcludedClasses", nativeResult.excludedClasses().size());
+                stats.set("nativeConversionFailures", nativeResult.conversionFailures().size());
+                nativeResult.conversionFailures().forEach(message -> Logger.warn("[FrostJNI] {}", message));
+            } catch (Exception exception) {
+                stats.add("nativeConversionFailures", 1);
+                if (config.getFrostJNI().isContinueOnFailure() || !config.getFrostJNI().isFailFast()) {
+                    Logger.warn("[FrostJNI] Native protection failed; continuing with Java-only output: {}",
+                            exception.getMessage());
+                    Logger.warn("[FrostJNI] Output jar is NOT native-protected. Disable continueOnFailure/failFast=false to stop builds on native errors.");
+                } else {
+                    if (exception instanceof IOException ioException) {
+                        throw ioException;
+                    }
+                    if (exception instanceof InterruptedException interruptedException) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("FrostJNI native protection interrupted", interruptedException);
+                    }
+                    throw new IOException("FrostJNI native protection failed", exception);
+                }
+            }
+            rewriteStatisticsReportIfEnabled(pool, processor, mappings, stats, inputPath, outputPath);
+        }
+
         if (config.getMapping() != null && config.getMapping().isEnabled()) {
             mappings.exportMappings(Path.of(config.getMapping().getOutput()));
         }
@@ -211,5 +250,28 @@ public class ObfuscationEngine {
         pool.getClassMap().putAll(remappedClasses);
 
         Logger.info("Remapping applied to all {} classes", remappedClasses.size());
+    }
+
+    private void rewriteStatisticsReportIfEnabled(
+            ClassPool pool,
+            JarProcessor processor,
+            MappingCollector mappings,
+            ProtectionStats stats,
+            Path inputPath,
+            Path outputPath
+    ) {
+        TransformerConfig reportConfig = config.getTransformerConfig("statistics-report");
+        boolean cliAllowsReport = cliTransformers == null || cliTransformers.contains("statistics-report");
+        if (reportConfig == null || !reportConfig.isEnabled() || !cliAllowsReport) {
+            return;
+        }
+        try {
+            new StatisticsReportTransformer().transform(
+                    new Context(pool, processor, mappings, reportConfig, stats, inputPath, outputPath)
+            );
+        } catch (Exception exception) {
+            Logger.warn("[FrostJNI] Failed to refresh statistics report with native metrics: {}",
+                    exception.getMessage());
+        }
     }
 }

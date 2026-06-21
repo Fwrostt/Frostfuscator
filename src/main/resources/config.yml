@@ -17,6 +17,40 @@ flatten-package: "obf"
 inclusions: []
 exclusions: []
 
+# Native Protection / FrostJNI.
+# Disabled by default because it requires a native C++ compiler and produces
+# platform-dependent libraries embedded into the output jar.
+frostjni:
+  enabled: false
+  outputLibraryName: "frostjni_protected"
+  windowsDllName: "frostjni_protected.dll"
+  linuxSoName: "libfrostjni_protected.so"
+  macDylibName: "libfrostjni_protected.dylib"
+  useGcc: true
+  useClang: true
+  useMsvc: true
+  mode: "SELECTIVE"
+  compileMode: "FAST"
+  unityBuild: true
+  optimizationLevel: "O2"
+  stripSymbols: false
+  compressLibrary: false
+  generateHeaders: true
+  includeClasses: []
+  includePackages: []
+  includeMethods: []
+  includeAnnotations: []
+  excludedClasses: []
+  excludedPackages: []
+  excludedAnnotations: []
+  temporaryDirectory: ""
+  keepGeneratedSources: false
+  loaderMode: "embedded"
+  resourceEmbedding: true
+  debugMode: false
+  failFast: true
+  continueOnFailure: false
+
 transformers:
 
   # Ownership / watermarking
