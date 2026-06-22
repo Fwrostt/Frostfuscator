@@ -7,11 +7,26 @@ output: "output.jar"
 dictionary: "alphabet"
 
 # Dependency JAR folder used for hierarchy checks.
+# Accepts a single path or comma/semicolon-separated paths.
 libs: ""
+
+libraries:
+  # Extra dependency jars, zips, or directories. Directories are scanned recursively by default.
+  paths: []
+  recursive: true
+  runtime: true
+  strict: false
 
 # Package handling during class renaming: keep, flatten, remove.
 package-mode: "keep"
 flatten-package: "obf"
+
+# 0 uses fresh randomness. Positive values are used by seed-aware passes.
+seed: 0
+
+# Plugin directories scanned for Frostfuscator extension jars.
+plugins:
+  - "plugins"
 
 # Regex filters for class names.
 inclusions: []
@@ -35,7 +50,7 @@ frostjni:
   optimizationLevel: "O2"
   stripSymbols: false
   compressLibrary: false
-  generateHeaders: true
+  generateHeaders: false
   includeClasses: []
   includePackages: []
   includeMethods: []

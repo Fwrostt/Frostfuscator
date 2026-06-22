@@ -12,7 +12,7 @@ If double-clicking the JAR itself does nothing, Windows is usually pointing `.ja
 
 ## Layout
 
-- **Project:** input/output JARs, libraries, mapping path, launch profile, and rule editor.
+- **Project:** input/output JARs, libraries, library strict/runtime settings, mapping path, launch profile, and rule editor.
 - **Obfuscation:** renaming, encryption, flow, call hiding, debug cleanup, and metadata passes.
 - **Protection:** watermarking, integrity, anti-debug, and anti-decompiler passes.
 - **Native Protection / FrostJNI:** compiler detection, install links, loader settings, and native method selection.
@@ -28,7 +28,8 @@ The app uses a custom OLED frame, compact top navigation, and category pages. Th
 
 1. Pick the input JAR and output path.
 2. Choose **No Passes**, **Basic**, **Balanced**, **Strong**, or **Maximum** on the Project page.
-3. Open category pages and adjust individual passes.
-4. Open **FrostJNI** only when you want JNI conversion. Use **Detect Compilers** first; the page shows detected Clang, GCC/MinGW, or MSVC toolchains and has install buttons for common Windows setups. Enabling it shows a warning because native builds are platform dependent and require a C++ compiler.
-5. Click **Run Build**.
-6. Test the output JAR before keeping the config.
+3. Use **Edit Rules** to add exact class/package inclusion and exclusion rules from the input jar, or type regexes manually.
+4. Open category pages and adjust individual passes.
+5. Open **FrostJNI** only when you want JNI conversion. Use **Detect Compilers** first; the page shows detected Clang, GCC/MinGW, or MSVC toolchains and has install buttons for common Windows setups. Enabling it shows a warning because native builds are platform dependent and require a C++ compiler.
+6. Click **Run Build**.
+7. Test the output JAR before keeping the config.

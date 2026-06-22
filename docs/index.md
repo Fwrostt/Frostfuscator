@@ -8,6 +8,7 @@ Frostfuscator is centered on Java bytecode obfuscation, with extra protection, r
 - [Passes](transformers.md)
 - [CLI](cli.md)
 - [GUI](gui.md)
+- [Plugins](plugins.md)
 
 ## How A Run Works
 
@@ -22,29 +23,7 @@ The GUI defaults to **No Passes** so a new project starts from a safe baseline. 
 
 ## Plugin API
 
-Custom passes extend `Transformer` and are discovered with Java `ServiceLoader`:
-
-```java
-public class MyTransformer extends Transformer {
-    @Override
-    public String getName() {
-        return "my-transform";
-    }
-
-    @Override
-    public void transform(Context context) {
-        // inspect or change context.pool(), context.resources(), etc.
-    }
-}
-```
-
-Provider file:
-
-```text
-META-INF/services/dev.frost.obfuscator.transformer.Transformer
-```
-
-Put the full class name in that file and run Frostfuscator with the plugin JAR on the classpath.
+Custom passes can live in `plugins/` as Frostfuscator plugin jars. See [Plugins](plugins.md).
 
 ## Requirements
 

@@ -145,10 +145,15 @@ public final class FrostFxApp extends Application {
     private final TextField inputField = textField("Select input jar");
     private final TextField outputField = textField("Choose output jar");
     private final TextField libsField = textField("Optional library folder");
+    private final CheckBox librariesRecursiveBox = checkBox("Scan library folders recursively");
+    private final CheckBox librariesRuntimeBox = checkBox("Load Java runtime classes");
+    private final CheckBox librariesStrictBox = checkBox("Fail on library errors");
     private final TextField flattenPackageField = textField("obf");
     private final TextField mappingOutputField = textField("mapping.txt");
     private final TextArea inclusionsArea = textArea("One regex per line");
     private final TextArea exclusionsArea = textArea("One regex per line");
+    private final FlowPane inclusionChips = new FlowPane(7, 7);
+    private final FlowPane exclusionChips = new FlowPane(7, 7);
     private final ComboBox<String> dictionaryBox = comboBox("alphabet", "unicode", "numeric");
     private final ComboBox<String> packageModeBox = comboBox("keep", "flatten", "remove");
     private final CheckBox mappingEnabledBox = checkBox("Export mapping file");
@@ -202,6 +207,8 @@ public final class FrostFxApp extends Application {
         config = ConfigLoader.loadDefault();
         ensureAllTransformers(config);
         applyNoPassPreset();
+        inclusionsArea.textProperty().addListener((obs, old, value) -> refreshRuleChips());
+        exclusionsArea.textProperty().addListener((obs, old, value) -> refreshRuleChips());
 
         VBox shell = new VBox();
         shell.getStyleClass().addAll("app-root", "app-shell");
@@ -517,6 +524,7 @@ public final class FrostFxApp extends Application {
 
     private void showRulesWindow() {
         if (rulesStage != null) {
+            refreshRuleChips();
             rulesStage.show();
             rulesStage.toFront();
             return;
@@ -545,15 +553,17 @@ public final class FrostFxApp extends Application {
 
         GridPane ruleGrid = new GridPane();
         ruleGrid.setHgap(12);
+        ruleGrid.setVgap(12);
         ruleGrid.getColumnConstraints().addAll(percentColumn(50), percentColumn(50));
-        ruleGrid.add(labeledArea("Inclusions", inclusionsArea), 0, 0);
-        ruleGrid.add(labeledArea("Exclusions", exclusionsArea), 1, 0);
+        ruleGrid.add(ruleEditorCard("Inclusions", "Only matching classes are processed", inclusionsArea, inclusionChips, true), 0, 0);
+        ruleGrid.add(ruleEditorCard("Exclusions", "Matching classes are skipped", exclusionsArea, exclusionChips, false), 1, 0);
 
         Button done = primaryButton("Done");
         done.setOnAction(e -> rulesStage.hide());
         HBox actions = new HBox(done);
         actions.setAlignment(Pos.CENTER_RIGHT);
 
+        refreshRuleChips();
         root.getChildren().addAll(title, ruleGrid, actions);
         enableModalDrag(root, rulesStage);
 
@@ -562,6 +572,149 @@ public final class FrostFxApp extends Application {
         scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
         rulesStage.setScene(scene);
         rulesStage.show();
+    }
+
+    private VBox ruleEditorCard(String title, String subtitle, TextArea area, FlowPane chips, boolean inclusion) {
+        VBox box = card(title, subtitle);
+        chips.getStyleClass().add("rule-chip-box");
+
+        Button addClass = secondaryButton("Add Class");
+        addClass.setOnAction(e -> showRuleSelectionDialog(false, inclusion));
+        Button addPackage = secondaryButton("Add Package");
+        addPackage.setOnAction(e -> showRuleSelectionDialog(true, inclusion));
+        Button clear = secondaryButton("Clear");
+        clear.setOnAction(e -> area.clear());
+        FlowPane actions = new FlowPane(8, 8, addClass, addPackage, clear);
+
+        box.getChildren().addAll(actions, chips, labeledArea("Regex", area));
+        VBox.setVgrow(area, Priority.ALWAYS);
+        return box;
+    }
+
+    private void showRuleSelectionDialog(boolean packageMode, boolean inclusion) {
+        try {
+            Path input = Path.of(inputField.getText().trim());
+            if (!Files.isRegularFile(input)) {
+                showError(new IllegalStateException("Select an input jar before adding project rules."));
+                return;
+            }
+            List<String> items = packageMode ? scanInputPackages(input) : scanInputClasses(input);
+            if (items.isEmpty()) {
+                showError(new IllegalStateException("No " + (packageMode ? "packages" : "classes") + " found in input jar."));
+                return;
+            }
+
+            Stage picker = new Stage(StageStyle.TRANSPARENT);
+            picker.initOwner(rulesStage == null ? stage : rulesStage);
+            picker.initModality(Modality.APPLICATION_MODAL);
+
+            TextField search = textField(packageMode ? "Search packages" : "Search classes");
+            ListView<String> list = new ListView<>();
+            list.getStyleClass().add("selection-list");
+            Runnable refresh = () -> {
+                String filter = search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+                list.getItems().setAll(items.stream()
+                        .filter(item -> filter.isBlank() || item.toLowerCase(Locale.ROOT).contains(filter))
+                        .toList());
+            };
+            search.textProperty().addListener((obs, old, value) -> refresh.run());
+            refresh.run();
+
+            Button add = primaryButton(packageMode ? "Add Package" : "Add Class");
+            add.setOnAction(e -> {
+                String selected = list.getSelectionModel().getSelectedItem();
+                if (selected == null) {
+                    return;
+                }
+                TextArea target = inclusion ? inclusionsArea : exclusionsArea;
+                appendRuleSelection(target, selected, packageMode);
+                picker.close();
+                showToast((packageMode ? "Package" : "Class") + " added to " + (inclusion ? "inclusions" : "exclusions"));
+            });
+            Button cancel = secondaryButton("Cancel");
+            cancel.setOnAction(e -> picker.close());
+            list.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && list.getSelectionModel().getSelectedItem() != null) {
+                    add.fire();
+                }
+            });
+
+            VBox root = card(packageMode ? "Add Package Rule" : "Add Class Rule",
+                    inclusion ? "Matching entries will be processed." : "Matching entries will be skipped.");
+            root.getChildren().addAll(search, list, new HBox(8, cancel, add));
+            root.setPrefSize(720, 560);
+            enableModalDrag(root, picker);
+
+            Scene scene = new Scene(root);
+            scene.setFill(Color.TRANSPARENT);
+            scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
+            picker.setScene(scene);
+            picker.show();
+        } catch (Exception exception) {
+            showError(exception);
+        }
+    }
+
+    private void appendRuleSelection(TextArea area, String value, boolean packageMode) {
+        String pattern = packageMode ? packageRule(value) : classRule(value);
+        List<String> current = new ArrayList<>(lines(area));
+        if (!pattern.isBlank() && !current.contains(pattern)) {
+            current.add(pattern);
+            area.setText(String.join("\n", current));
+        }
+    }
+
+    private String classRule(String className) {
+        return className.replace(".", "\\.");
+    }
+
+    private String packageRule(String packageName) {
+        if ("(default package)".equals(packageName) || packageName.isBlank()) {
+            return "^[^.]+$";
+        }
+        return packageName.replace(".", "\\.") + "\\..*";
+    }
+
+    private void refreshRuleChips() {
+        refreshRuleChips(inclusionChips, inclusionsArea, true);
+        refreshRuleChips(exclusionChips, exclusionsArea, false);
+    }
+
+    private void refreshRuleChips(FlowPane chips, TextArea area, boolean inclusion) {
+        if (chips == null) {
+            return;
+        }
+        chips.getChildren().clear();
+        List<String> values = lines(area);
+        if (values.isEmpty()) {
+            Label empty = new Label(inclusion ? "No inclusion rules" : "No exclusion rules");
+            empty.getStyleClass().add("rule-empty");
+            chips.getChildren().add(empty);
+            return;
+        }
+        for (String value : values) {
+            HBox chip = new HBox(6);
+            chip.setAlignment(Pos.CENTER_LEFT);
+            chip.getStyleClass().addAll("rule-chip", inclusion ? "include-chip" : "exclude-chip");
+            Label text = new Label(shortRule(value));
+            text.getStyleClass().add("rule-chip-text");
+            Button remove = new Button("x");
+            remove.getStyleClass().add("rule-chip-remove");
+            remove.setOnAction(e -> {
+                List<String> next = new ArrayList<>(lines(area));
+                next.remove(value);
+                area.setText(String.join("\n", next));
+            });
+            chip.getChildren().addAll(text, remove);
+            chips.getChildren().add(chip);
+        }
+    }
+
+    private String shortRule(String value) {
+        if (value.length() <= 44) {
+            return value;
+        }
+        return value.substring(0, 41) + "...";
     }
 
     private void enableModalDrag(Node node, Stage target) {
@@ -577,11 +730,14 @@ public final class FrostFxApp extends Application {
     }
 
     private VBox buildSettingsCard() {
-        VBox box = card("Build Settings", "Name generation");
+        VBox box = card("Build Settings", "Name generation and classpath");
         box.getChildren().addAll(
                 labeledControl("Dictionary", dictionaryBox),
                 labeledControl("Package mode", packageModeBox),
-                labeledControl("Flatten package", flattenPackageField)
+                labeledControl("Flatten package", flattenPackageField),
+                librariesRecursiveBox,
+                librariesRuntimeBox,
+                librariesStrictBox
         );
         return box;
     }
@@ -936,6 +1092,9 @@ public final class FrostFxApp extends Application {
         inputField.setText(nullToEmpty(cfg.getInput()));
         outputField.setText(nullToEmpty(cfg.getOutput()));
         libsField.setText(nullToEmpty(cfg.getLibs()));
+        librariesRecursiveBox.setSelected(cfg.getLibraries().isRecursive());
+        librariesRuntimeBox.setSelected(cfg.getLibraries().isRuntime());
+        librariesStrictBox.setSelected(cfg.getLibraries().isStrict());
         dictionaryBox.setValue(cfg.getDictionary());
         packageModeBox.setValue(cfg.getPackageMode());
         flattenPackageField.setText(nullToEmpty(cfg.getFlattenPackage()));
@@ -958,6 +1117,11 @@ public final class FrostFxApp extends Application {
         cfg.setInput(inputField.getText().trim());
         cfg.setOutput(outputField.getText().trim());
         cfg.setLibs(libsField.getText().trim());
+        ObfuscationConfig.LibraryConfig libraries = new ObfuscationConfig.LibraryConfig();
+        libraries.setRecursive(librariesRecursiveBox.isSelected());
+        libraries.setRuntime(librariesRuntimeBox.isSelected());
+        libraries.setStrict(librariesStrictBox.isSelected());
+        cfg.setLibraries(libraries);
         cfg.setDictionary(dictionaryBox.getValue());
         cfg.setPackageMode(packageModeBox.getValue());
         cfg.setFlattenPackage(flattenPackageField.getText().trim());
@@ -1300,14 +1464,17 @@ public final class FrostFxApp extends Application {
 
     private void animateIn(Node node) {
         node.setOpacity(0);
-        FadeTransition fade = new FadeTransition(Duration.millis(95), node);
+        node.setTranslateY(9);
+        FadeTransition fade = new FadeTransition(Duration.millis(170), node);
         fade.setToValue(1);
-        node.setScaleX(0.995);
-        node.setScaleY(0.995);
-        ScaleTransition scale = new ScaleTransition(Duration.millis(120), node);
+        node.setScaleX(0.992);
+        node.setScaleY(0.992);
+        ScaleTransition scale = new ScaleTransition(Duration.millis(190), node);
         scale.setToX(1);
         scale.setToY(1);
-        new ParallelTransition(fade, scale).play();
+        TranslateTransition slide = new TranslateTransition(Duration.millis(190), node);
+        slide.setToY(0);
+        new ParallelTransition(fade, scale, slide).play();
     }
 
     private void refreshTransformerList() {
@@ -1977,6 +2144,9 @@ public final class FrostFxApp extends Application {
         inputField.clear();
         outputField.clear();
         libsField.clear();
+        librariesRecursiveBox.setSelected(true);
+        librariesRuntimeBox.setSelected(true);
+        librariesStrictBox.setSelected(false);
     }
 
     private void markCustom() {

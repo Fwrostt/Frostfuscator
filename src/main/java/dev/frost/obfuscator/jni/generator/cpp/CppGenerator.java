@@ -17,14 +17,12 @@ public final class CppGenerator {
         String fileName = nameMangler.fileName(irClass.internalName());
         String cacheSuffix = fileName.substring(0, fileName.length() - ".cpp".length()).replaceAll("[^A-Za-z0-9_]", "_");
         runtimeGenerator.appendPrelude(source, cacheSuffix);
-        source.append("extern \"C\" {\n\n");
         for (IRMethod method : irClass.methods()) {
             if (shouldGenerate(method)) {
                 methodGenerator.appendMethod(source, method, cacheSuffix);
                 source.append('\n');
             }
         }
-        source.append("}\n");
         return new GeneratedCppClass(fileName, source.toString());
     }
 

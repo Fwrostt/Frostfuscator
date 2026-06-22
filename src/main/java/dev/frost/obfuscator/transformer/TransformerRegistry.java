@@ -36,13 +36,17 @@ import dev.frost.obfuscator.transformer.rename.ClassRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.FieldRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.LocalVariableRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.MethodRenameTransformer;
+import dev.frost.obfuscator.plugin.PluginDescriptor;
+import dev.frost.obfuscator.plugin.PluginLoader;
 import dev.frost.obfuscator.util.Logger;
 
+import java.nio.file.Path;
 import java.util.*;
 
 public class TransformerRegistry {
 
     private static final Map<String, Transformer> TRANSFORMERS = new LinkedHashMap<>();
+    private static final Set<Path> DISCOVERED_PLUGIN_DIRECTORIES = new LinkedHashSet<>();
 
     static {
         register(new ClassRenameTransformer());
@@ -90,12 +94,34 @@ public class TransformerRegistry {
         }
     }
 
+    public static void registerExternal(Transformer transformer) {
+        register(transformer);
+        Logger.info("Registered plugin transformer: {}", transformer.getName());
+    }
+
     private static void discoverPlugins() {
         ServiceLoader<Transformer> loader = ServiceLoader.load(Transformer.class);
         for (Transformer transformer : loader) {
             register(transformer);
             Logger.info("Loaded plugin transformer: {}", transformer.getName());
         }
+    }
+
+    public static List<PluginDescriptor> discoverPlugins(List<Path> directories) {
+        List<Path> newDirectories = new ArrayList<>();
+        for (Path directory : directories) {
+            if (directory == null) {
+                continue;
+            }
+            Path normalized = directory.toAbsolutePath().normalize();
+            if (DISCOVERED_PLUGIN_DIRECTORIES.add(normalized)) {
+                newDirectories.add(normalized);
+            }
+        }
+        if (newDirectories.isEmpty()) {
+            return List.of();
+        }
+        return new PluginLoader().loadDirectories(newDirectories, TransformerRegistry::registerExternal);
     }
 
     public static List<Transformer> getEnabled(ObfuscationConfig config) {

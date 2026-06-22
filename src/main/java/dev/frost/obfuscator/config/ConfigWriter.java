@@ -40,6 +40,9 @@ public final class ConfigWriter {
         root.put("libs", nullToEmpty(config.getLibs()));
         root.put("package-mode", config.getPackageMode());
         root.put("flatten-package", config.getFlattenPackage());
+        root.put("seed", config.getSeed());
+        root.put("plugins", config.getPlugins());
+        root.put("libraries", librariesMap(config.getLibraries()));
         root.put("inclusions", config.getInclusions());
         root.put("exclusions", config.getExclusions());
 
@@ -97,6 +100,15 @@ public final class ConfigWriter {
         nativeConfig.put("failFast", config.isFailFast());
         nativeConfig.put("continueOnFailure", config.isContinueOnFailure());
         return nativeConfig;
+    }
+
+    private static Map<String, Object> librariesMap(ObfuscationConfig.LibraryConfig config) {
+        Map<String, Object> libraries = new LinkedHashMap<>();
+        libraries.put("paths", config.getPaths());
+        libraries.put("recursive", config.isRecursive());
+        libraries.put("runtime", config.isRuntime());
+        libraries.put("strict", config.isStrict());
+        return libraries;
     }
 
     private static String nullToEmpty(String value) {

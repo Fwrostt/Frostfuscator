@@ -25,7 +25,13 @@ public final class NativeMethodTransformer {
             bodyRemover.removeBody(method);
             nativeModifierInjector.markNative(method);
             String nativeSymbol = registry.find(classNode.name, method.name, method.desc).orElseThrow();
-            transformed.add(new NativeMethodPlan(classNode.name, method.name, method.desc, nativeSymbol));
+            transformed.add(new NativeMethodPlan(
+                    classNode.name,
+                    method.name,
+                    method.desc,
+                    nativeSymbol,
+                    (method.access & Opcodes.ACC_STATIC) != 0
+            ));
             Logger.info("[PATCHER] Converted: {}::{}{} to native method.",
                     classNode.name, method.name, method.desc);
         }

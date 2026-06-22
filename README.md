@@ -13,6 +13,7 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * [GUI Usage](docs/gui.md)
 * [Configuration](docs/configuration.md)
 * [Transformers](docs/transformers.md)
+* [Plugins](docs/plugins.md)
 
 ## Features
 
@@ -40,7 +41,7 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * Store encrypted resource copies for applications with a matching resource loader.
 * Strip debug tables and source information.
 * Generate JSON or HTML reports.
-* Support custom transformers through Java `ServiceLoader`.
+* Support custom plugin jars through `plugins/`, `frost-plugin.yml`, and Java `ServiceLoader`.
 
 ## Quick Start
 

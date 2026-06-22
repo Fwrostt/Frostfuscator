@@ -43,4 +43,4 @@ Frostfuscator organizes work into passes. Obfuscation is the main group; the oth
 
 ## Plugins
 
-Plugin passes extend `Transformer` and override `transform(Context context)`. Frostfuscator discovers them with `ServiceLoader`.
+Plugin passes extend `Transformer` and override `transform(Context context)`. Frostfuscator discovers plugin jars from `plugins/`, extra `plugins:` config entries, or `--plugins`.

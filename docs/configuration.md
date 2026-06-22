@@ -12,6 +12,16 @@ output: "my-app-protected.jar"
 
 dictionary: "alphabet"
 libs: "libs/"
+libraries:
+  paths:
+    - "libs"
+    - "third-party/api.jar"
+  recursive: true
+  runtime: true
+  strict: false
+seed: 0
+plugins:
+  - "plugins"
 
 inclusions: []
 exclusions:
@@ -124,9 +134,19 @@ mapping:
 | `dictionary` | String | Naming dictionary for renaming passes. |
 | `package-mode` | String | Package handling: `keep`, `flatten`, or `remove`. |
 | `flatten-package` | String | Package name used when `package-mode` is `flatten`. |
-| `libs` | String | Dependency JAR directory for hierarchy checks. |
+| `libs` | String | Backward-compatible dependency path field. Accepts one path or comma/semicolon-separated paths. |
+| `libraries.paths` | List<String> | Dependency JARs, ZIPs, or directories used for hierarchy and frame computation. |
+| `libraries.recursive` | Boolean | Recursively scans dependency directories for `.jar` and `.zip` archives. |
+| `libraries.runtime` | Boolean | Loads Java runtime module classes as library stubs, improving hierarchy and common-superclass resolution. |
+| `libraries.strict` | Boolean | Fails the run when library paths or archives cannot be loaded. Use for release builds. |
+| `seed` | Number | Global seed. `0` uses fresh randomness; positive values can be pushed into seed-aware passes from the CLI. |
+| `plugins` | List<String> | Plugin directories scanned for Frostfuscator extension jars. |
 | `exclusions` | List<String> | Regex patterns for classes to skip. |
 | `inclusions` | List<String> | Regex patterns for classes to process. |
+
+## Plugins
+
+Frostfuscator scans `plugins/` by default and also scans directories listed in `plugins:`. Plugin jars can expose transformers through `META-INF/services/dev.frost.obfuscator.transformer.Transformer` and may include `frost-plugin.yml` for name/version metadata and an optional `main` plugin entrypoint.
 
 ## FrostJNI Native Protection
 
@@ -141,7 +161,8 @@ mapping:
 | `compileMode` | String | `FAST` uses fast dev settings. `RELEASE` uses configured optimization/stripping. |
 | `unityBuild` | Boolean | Compiles a generated unity source for much faster MinGW/Clang builds. |
 | `optimizationLevel` | String | Reserved compiler optimization preference. |
-| `stripSymbols` | Boolean | Reserved symbol stripping preference. |
+| `stripSymbols` | Boolean | Strips native symbols in release-oriented builds when the backend supports it. |
+| `generateHeaders` | Boolean | Legacy compatibility switch. Defaults to `false`; FrostJNI registers native methods internally and does not need public method headers. |
 | `includePackages` | List<String> | Packages eligible for native conversion. In `SELECTIVE` mode, choose at least one class, package, method, or annotation. |
 | `includeClasses` | List<String> | Exact classes eligible for native conversion. |
 | `includeMethods` | List<String> | Method names or `owner#method` entries eligible for conversion. |
@@ -171,5 +192,6 @@ mapping:
 - FrostJNI skips Frostfuscator runtime/loader classes and generated fake/helper classes by default. Exclusions always take priority over includes.
 - FrostJNI requires a local C++ compiler such as Clang, MinGW GCC, or MSVC Build Tools. On Windows, MSYS2 UCRT64 MinGW works well when `g++` is available.
 - Keep FrostJNI in `SELECTIVE` mode for real applications. Commercial protectors usually native-protect only high-value code such as licensing, authentication, HWID checks, or decryptors.
+- FrostJNI registers converted methods internally through `JNI_OnLoad`; protected jars do not expose a `native/native-methods.txt` method map.
 - `FAST` mode defaults to `O0`, no symbol stripping, and unity builds. The compiler log shows how many translation units were merged and prints periodic heartbeat messages during long native compiles.
 

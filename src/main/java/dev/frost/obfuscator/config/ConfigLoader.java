@@ -1,6 +1,7 @@
 package dev.frost.obfuscator.config;
 
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
 import org.yaml.snakeyaml.Yaml;
 
@@ -51,6 +52,9 @@ public class ConfigLoader {
         config.setLibs(getString(raw, "libs", null));
         config.setPackageMode(getString(raw, "package-mode", "keep"));
         config.setFlattenPackage(getString(raw, "flatten-package", "obf"));
+        config.setSeed(getLong(raw, "seed", 0));
+        config.setPlugins(getStringList(raw, "plugins"));
+        config.setLibraries(parseLibraries(raw));
 
         Object exclusionsObj = raw.get("exclusions");
         if (exclusionsObj instanceof List<?> list) {
@@ -127,7 +131,7 @@ public class ConfigLoader {
             nativeConfig.setOptimizationLevel(getString(frostJniMap, "optimizationLevel", "O0"));
             nativeConfig.setStripSymbols(getBoolean(frostJniMap, "stripSymbols", false));
             nativeConfig.setCompressLibrary(getBoolean(frostJniMap, "compressLibrary", false));
-            nativeConfig.setGenerateHeaders(getBoolean(frostJniMap, "generateHeaders", true));
+            nativeConfig.setGenerateHeaders(getBoolean(frostJniMap, "generateHeaders", false));
             nativeConfig.setIncludeClasses(getStringList(frostJniMap, "includeClasses"));
             nativeConfig.setIncludePackages(getStringList(frostJniMap, "includePackages"));
             nativeConfig.setIncludeMethods(getStringList(frostJniMap, "includeMethods"));
@@ -172,6 +176,38 @@ public class ConfigLoader {
         if (!Files.exists(inputPath)) {
             throw new IllegalArgumentException("Input JAR does not exist: " + inputPath);
         }
+        if (!Files.isRegularFile(inputPath) || !inputPath.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar")) {
+            throw new IllegalArgumentException("Input must be a JAR file: " + inputPath);
+        }
+        if (config.getOutput() != null && config.getOutput().equals(config.getInput())) {
+            throw new IllegalArgumentException("Output JAR must not overwrite the input JAR");
+        }
+        if (!Set.of("alphabet", "unicode", "numeric").contains(config.getDictionary())) {
+            throw new IllegalArgumentException("Unknown dictionary '" + config.getDictionary() + "'. Use alphabet, unicode, or numeric.");
+        }
+        if (!Set.of("keep", "flatten", "remove").contains(config.getPackageMode())) {
+            throw new IllegalArgumentException("Unknown package-mode '" + config.getPackageMode() + "'. Use keep, flatten, or remove.");
+        }
+        for (String path : combinedLibraryPaths(config)) {
+            if (path == null || path.isBlank()) {
+                continue;
+            }
+            Path libraryPath = Path.of(path);
+            if (Files.exists(libraryPath) && Files.isRegularFile(libraryPath)) {
+                String lower = libraryPath.getFileName().toString().toLowerCase(Locale.ROOT);
+                if (!lower.endsWith(".jar") && !lower.endsWith(".zip")) {
+                    throw new IllegalArgumentException("Library file must be a .jar or .zip archive: " + libraryPath);
+                }
+            }
+        }
+        for (Map.Entry<String, TransformerConfig> entry : config.getTransformers().entrySet()) {
+            if (entry.getValue() != null
+                    && entry.getValue().isEnabled()
+                    && TransformerRegistry.getByName(entry.getKey()) == null) {
+                throw new IllegalArgumentException("Unknown enabled transformer '" + entry.getKey()
+                        + "'. Check spelling or install the plugin that provides it.");
+            }
+        }
     }
 
     private static String getString(Map<?, ?> map, String key, String defaultValue) {
@@ -184,6 +220,57 @@ public class ConfigLoader {
         if (value instanceof Boolean b) return b;
         if (value != null) return Boolean.parseBoolean(value.toString());
         return defaultValue;
+    }
+
+    private static long getLong(Map<?, ?> map, String key, long defaultValue) {
+        Object value = map.get(key);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value != null) {
+            try {
+                return Long.parseLong(value.toString());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    private static ObfuscationConfig.LibraryConfig parseLibraries(Map<String, Object> raw) {
+        ObfuscationConfig.LibraryConfig config = new ObfuscationConfig.LibraryConfig();
+        Object librariesObj = raw.get("libraries");
+        if (librariesObj instanceof Map<?, ?> librariesMap) {
+            config.setPaths(getStringList(librariesMap, "paths"));
+            config.setRecursive(getBoolean(librariesMap, "recursive", true));
+            config.setRuntime(getBoolean(librariesMap, "runtime", true));
+            config.setStrict(getBoolean(librariesMap, "strict", false));
+        } else if (librariesObj instanceof List<?> list) {
+            config.setPaths(list.stream().map(Object::toString).toList());
+        } else if (librariesObj instanceof String string && !string.isBlank()) {
+            config.setPaths(splitPathList(string));
+        }
+        return config;
+    }
+
+    public static List<String> combinedLibraryPaths(ObfuscationConfig config) {
+        List<String> paths = new ArrayList<>();
+        paths.addAll(splitPathList(config.getLibs()));
+        paths.addAll(config.getLibraries().getPaths());
+        return paths.stream()
+                .map(String::trim)
+                .filter(path -> !path.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    private static List<String> splitPathList(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split("[;,]"))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .toList();
     }
 
     private static List<String> getStringList(Map<?, ?> map, String key) {

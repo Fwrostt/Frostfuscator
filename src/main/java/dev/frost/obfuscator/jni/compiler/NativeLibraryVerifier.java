@@ -15,13 +15,11 @@ public final class NativeLibraryVerifier {
                 throw new IOException("Missing native library: " + library.path());
             }
             byte[] bytes = Files.readAllBytes(library.path());
-            for (String symbol : symbolRegistry.symbols()) {
-                if (!contains(bytes, symbol)) {
-                    throw new IOException("Native library " + library.path() + " does not appear to export " + symbol);
-                }
+            if (!contains(bytes, "JNI_OnLoad")) {
+                throw new IOException("Native library " + library.path() + " does not appear to export JNI_OnLoad");
             }
         }
-        Logger.info("[VERIFY] JNI symbols verified");
+        Logger.info("[VERIFY] Native library load hook verified; method bindings are registered internally");
     }
 
     private boolean contains(byte[] bytes, String needle) {

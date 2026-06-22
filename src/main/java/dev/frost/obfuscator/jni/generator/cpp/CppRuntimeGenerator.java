@@ -8,6 +8,11 @@ public final class CppRuntimeGenerator {
         source.append("#include <jni.h>\n");
         source.append("#include <cmath>\n");
         source.append("#include \"frostjni_runtime.hpp\"\n\n");
+        source.append("#if defined(_MSC_VER)\n");
+        source.append("#define FROSTJNI_HIDDEN\n");
+        source.append("#else\n");
+        source.append("#define FROSTJNI_HIDDEN __attribute__((visibility(\"hidden\")))\n");
+        source.append("#endif\n\n");
         source.append("static frostjni::ClassCache frostClassCache_").append(cacheSuffix).append(";\n");
         source.append("static frostjni::MethodCache frostMethodCache_").append(cacheSuffix).append(";\n");
         source.append("static frostjni::FieldCache frostFieldCache_").append(cacheSuffix).append(";\n\n");

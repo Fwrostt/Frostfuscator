@@ -8,10 +8,14 @@ import org.objectweb.asm.tree.ClassNode;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -81,53 +85,126 @@ public class JarProcessor {
         return pool;
     }
 
-    public void loadLibraries(ClassPool pool, Path libsPath) throws IOException {
-        if (!Files.exists(libsPath)) {
-            Logger.warn("Libraries path does not exist: {}", libsPath);
-            return;
+    public LibraryLoadReport loadLibraries(ClassPool pool, LibraryOptions options) throws IOException {
+        LibraryLoadReport report = new LibraryLoadReport();
+        if (options.loadRuntime()) {
+            loadRuntimeClasses(pool, report);
         }
 
-        int libCount = 0;
-        int classCount = 0;
-
-        if (Files.isDirectory(libsPath)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(libsPath, "*.jar")) {
-                for (Path jarPath : stream) {
-                    classCount += loadLibraryJar(pool, jarPath);
-                    libCount++;
-                }
+        for (Path input : options.paths()) {
+            Path normalized = input.toAbsolutePath().normalize();
+            report.scannedInput(normalized);
+            if (!Files.exists(normalized)) {
+                report.problem(normalized, "library path does not exist", null);
+                continue;
             }
-        } else if (libsPath.toString().endsWith(".jar")) {
-            classCount += loadLibraryJar(pool, libsPath);
-            libCount++;
+            if (Files.isDirectory(normalized)) {
+                scanLibraryDirectory(pool, normalized, options.recursive(), report);
+            } else if (isArchive(normalized)) {
+                loadLibraryArchive(pool, normalized, report);
+            } else {
+                report.problem(normalized, "not a .jar or .zip archive", null);
+            }
         }
 
-        Logger.info("Loaded {} library classes from {} library JARs", classCount, libCount);
+        for (LibraryLoadReport.LibraryProblem problem : report.problems()) {
+            Logger.warn("Library problem at {}: {}{}",
+                    problem.path(),
+                    problem.message(),
+                    problem.cause() == null ? "" : " (" + problem.cause() + ")");
+        }
+        Logger.info("Loaded library support: {}", report.summary());
+        if (options.strict() && report.hasProblems()) {
+            throw new IOException("Library loading failed in strict mode: " + report.problems().size() + " problem(s)");
+        }
+        return report;
     }
 
-    private int loadLibraryJar(ClassPool pool, Path jarPath) {
-        int count = 0;
+    public void loadLibraries(ClassPool pool, Path libsPath) throws IOException {
+        loadLibraries(pool, new LibraryOptions(List.of(libsPath), false, false, false));
+    }
+
+    private void scanLibraryDirectory(ClassPool pool, Path directory, boolean recursive, LibraryLoadReport report) {
+        try (var stream = recursive ? Files.walk(directory) : Files.list(directory)) {
+            for (Path archive : stream
+                    .filter(Files::isRegularFile)
+                    .filter(this::isArchive)
+                    .sorted()
+                    .toList()) {
+                loadLibraryArchive(pool, archive, report);
+            }
+        } catch (IOException exception) {
+            report.problem(directory, "failed to scan library directory", exception);
+        }
+    }
+
+    private void loadLibraryArchive(ClassPool pool, Path jarPath, LibraryLoadReport report) {
+        report.archive(jarPath);
         try (JarFile jarFile = new JarFile(jarPath.toFile())) {
             var entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
-                if (entry.getName().endsWith(".class")) {
+                if (isClassEntry(entry.getName())) {
                     try (InputStream is = jarFile.getInputStream(entry)) {
                         byte[] data = is.readAllBytes();
-                        ClassReader reader = new ClassReader(data);
-                        ClassNode classNode = new ClassNode();
-                        reader.accept(classNode, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-                        if (!pool.contains(classNode.name)) {
-                            pool.addLibraryClass(classNode.name, classNode);
-                            count++;
-                        }
+                        addLibraryClass(pool, data, false, report);
+                    } catch (Exception exception) {
+                        report.problem(jarPath, "failed to read class entry " + entry.getName(), exception);
                     }
                 }
             }
-        } catch (IOException e) {
-            Logger.warn("Failed to load library JAR: {}", jarPath.getFileName());
+        } catch (IOException exception) {
+            report.problem(jarPath, "failed to load library archive", exception);
         }
-        return count;
+    }
+
+    private void loadRuntimeClasses(ClassPool pool, LibraryLoadReport report) {
+        try {
+            FileSystem jrt = FileSystems.getFileSystem(URI.create("jrt:/"));
+            Path modules = jrt.getPath("/modules");
+            try (var stream = Files.walk(modules)) {
+                for (Path classFile : stream
+                        .filter(Files::isRegularFile)
+                        .filter(path -> isClassEntry(path.toString()))
+                        .toList()) {
+                    try {
+                        addLibraryClass(pool, Files.readAllBytes(classFile), true, report);
+                    } catch (Exception exception) {
+                        report.problem(classFile, "failed to read runtime class", exception);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            Path javaHome = Paths.get(System.getProperty("java.home", ""));
+            report.problem(javaHome, "failed to scan Java runtime modules", exception);
+        }
+    }
+
+    private void addLibraryClass(ClassPool pool, byte[] data, boolean runtime, LibraryLoadReport report) {
+        ClassReader reader = new ClassReader(data);
+        ClassNode classNode = new ClassNode();
+        reader.accept(classNode, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        if (pool.contains(classNode.name)) {
+            report.appShadowedClass();
+            return;
+        }
+        if (pool.getLibraryClasses().containsKey(classNode.name)) {
+            report.duplicateClass();
+            return;
+        }
+        pool.addLibraryClass(classNode.name, classNode);
+        report.loadedClass(runtime);
+    }
+
+    private boolean isArchive(Path path) {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".jar") || name.endsWith(".zip");
+    }
+
+    private boolean isClassEntry(String name) {
+        return name.endsWith(".class")
+                && !name.endsWith("module-info.class")
+                && !name.endsWith("package-info.class");
     }
 
     @SuppressWarnings("unchecked")

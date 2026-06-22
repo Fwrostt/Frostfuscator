@@ -18,7 +18,7 @@ public class FrostJNIConfig {
     private String optimizationLevel = "O0";
     private boolean stripSymbols;
     private boolean compressLibrary;
-    private boolean generateHeaders = true;
+    private boolean generateHeaders;
     private List<String> includeClasses = new ArrayList<>();
     private List<String> includePackages = new ArrayList<>();
     private List<String> includeMethods = new ArrayList<>();

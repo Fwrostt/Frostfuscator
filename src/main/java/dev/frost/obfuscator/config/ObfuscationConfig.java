@@ -14,6 +14,9 @@ public class ObfuscationConfig {
     private String libs;
     private String packageMode = "keep";
     private String flattenPackage = "obf";
+    private long seed;
+    private List<String> plugins = new ArrayList<>();
+    private LibraryConfig libraries = new LibraryConfig();
     private Map<String, TransformerConfig> transformers = new LinkedHashMap<>();
     private MappingConfig mapping = new MappingConfig();
     private FrostJNIConfig frostJNI = new FrostJNIConfig();
@@ -85,6 +88,30 @@ public class ObfuscationConfig {
         this.flattenPackage = flattenPackage;
     }
 
+    public long getSeed() {
+        return seed;
+    }
+
+    public void setSeed(long seed) {
+        this.seed = seed;
+    }
+
+    public List<String> getPlugins() {
+        return plugins;
+    }
+
+    public void setPlugins(List<String> plugins) {
+        this.plugins = plugins != null ? plugins : new ArrayList<>();
+    }
+
+    public LibraryConfig getLibraries() {
+        return libraries;
+    }
+
+    public void setLibraries(LibraryConfig libraries) {
+        this.libraries = libraries != null ? libraries : new LibraryConfig();
+    }
+
     public Map<String, TransformerConfig> getTransformers() {
         return transformers;
     }
@@ -131,6 +158,45 @@ public class ObfuscationConfig {
 
         public void setOutput(String output) {
             this.output = output;
+        }
+    }
+
+    public static class LibraryConfig {
+        private List<String> paths = new ArrayList<>();
+        private boolean recursive = true;
+        private boolean runtime = true;
+        private boolean strict;
+
+        public List<String> getPaths() {
+            return paths;
+        }
+
+        public void setPaths(List<String> paths) {
+            this.paths = paths != null ? paths : new ArrayList<>();
+        }
+
+        public boolean isRecursive() {
+            return recursive;
+        }
+
+        public void setRecursive(boolean recursive) {
+            this.recursive = recursive;
+        }
+
+        public boolean isRuntime() {
+            return runtime;
+        }
+
+        public void setRuntime(boolean runtime) {
+            this.runtime = runtime;
+        }
+
+        public boolean isStrict() {
+            return strict;
+        }
+
+        public void setStrict(boolean strict) {
+            this.strict = strict;
         }
     }
 }

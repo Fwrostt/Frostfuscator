@@ -40,7 +40,7 @@ public final class CppMethodGenerator {
     }
 
     private void appendSignature(StringBuilder source, IRMethod method, MethodDescriptor descriptor) {
-        source.append("JNIEXPORT ")
+        source.append("extern \"C\" FROSTJNI_HIDDEN ")
                 .append(typeUtils.toJniType(descriptor.returnType()))
                 .append(" JNICALL ")
                 .append(nameMangler.functionName(method.ownerInternalName(), method.name(), method.descriptor()))

@@ -1,6 +1,7 @@
 package dev.frost.obfuscator.engine;
 
 import dev.frost.obfuscator.config.ObfuscationConfig;
+import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.jni.FrostJNIProtectionService;
 import dev.frost.obfuscator.jni.FrostJNIResult;
 import dev.frost.obfuscator.jni.NativeProtectionRequest;
@@ -45,6 +46,13 @@ public class ObfuscationEngine {
         if (config.getLibs() != null && !config.getLibs().isEmpty()) {
             Logger.info("Libraries: {}", config.getLibs());
         }
+        if (!config.getLibraries().getPaths().isEmpty()) {
+            Logger.info("Library paths: {}", config.getLibraries().getPaths());
+        }
+        Logger.info("Library mode: recursive={} runtime={} strict={}",
+                config.getLibraries().isRecursive(),
+                config.getLibraries().isRuntime(),
+                config.getLibraries().isStrict());
         if (config.getInclusions() != null && !config.getInclusions().isEmpty()) {
             Logger.info("Inclusions: {}", config.getInclusions());
         }
@@ -54,9 +62,13 @@ public class ObfuscationEngine {
         ClassPool pool = processor.loadJar(inputPath);
         stats.set("classes", pool.size());
 
-        if (config.getLibs() != null && !config.getLibs().isEmpty()) {
-            processor.loadLibraries(pool, Path.of(config.getLibs()));
-        }
+        LibraryLoadReport libraryReport = processor.loadLibraries(pool, libraryOptions());
+        stats.set("libraryClasses", libraryReport.loadedClasses());
+        stats.set("libraryRuntimeClasses", libraryReport.runtimeClasses());
+        stats.set("libraryArchives", libraryReport.libraryArchives().size());
+        stats.set("libraryDuplicates", libraryReport.duplicateClasses());
+        stats.set("libraryAppShadowedClasses", libraryReport.appShadowedClasses());
+        stats.set("libraryProblems", libraryReport.problems().size());
 
         List<String> exclusions = new ArrayList<>(config.getExclusions() != null ? config.getExclusions() : List.of());
 
@@ -225,6 +237,18 @@ public class ObfuscationEngine {
             tc.setDictionary(config.getDictionary());
         }
         return tc;
+    }
+
+    private LibraryOptions libraryOptions() {
+        List<Path> paths = ConfigLoader.combinedLibraryPaths(config).stream()
+                .map(Path::of)
+                .toList();
+        return new LibraryOptions(
+                paths,
+                config.getLibraries().isRecursive(),
+                config.getLibraries().isRuntime(),
+                config.getLibraries().isStrict()
+        );
     }
 
     private void applyRemapping(ClassPool pool, MappingCollector mappings) {

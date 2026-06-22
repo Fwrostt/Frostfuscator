@@ -29,18 +29,20 @@ public final class NativeSourcePreparer {
         if (Files.isRegularFile(runtimeHeader)) {
             Files.copy(runtimeHeader, include.resolve("frostjni_runtime.hpp"), StandardCopyOption.REPLACE_EXISTING);
         }
-        writeSupportSources(generated, runtime);
+        writeSupportSources(generated, runtime, Files.isRegularFile(sourceDirectory.resolve("frostjni_registrar.cpp")));
         return new SourceLayout(generated, classes, runtime, include, headers);
     }
 
-    private void writeSupportSources(Path generated, Path runtime) throws IOException {
-        Files.writeString(generated.resolve("bootstrap.cpp"), """
-                #include <jni.h>
+    private void writeSupportSources(Path generated, Path runtime, boolean hasRegistrar) throws IOException {
+        if (!hasRegistrar) {
+            Files.writeString(generated.resolve("bootstrap.cpp"), """
+                    #include <jni.h>
 
-                extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
-                    return JNI_VERSION_1_8;
-                }
-                """);
+                    extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
+                        return JNI_VERSION_1_8;
+                    }
+                    """);
+        }
         Files.writeString(runtime.resolve("frost_runtime.cpp"), """
                 #include "frostjni_runtime.hpp"
 

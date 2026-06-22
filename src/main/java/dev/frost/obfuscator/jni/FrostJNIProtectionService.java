@@ -6,6 +6,7 @@ import dev.frost.obfuscator.engine.JarProcessor;
 import dev.frost.obfuscator.jni.compiler.CompilationResult;
 import dev.frost.obfuscator.jni.compiler.CompilerKind;
 import dev.frost.obfuscator.jni.compiler.CompilerInput;
+import dev.frost.obfuscator.jni.compiler.JniRegistrationGenerator;
 import dev.frost.obfuscator.jni.compiler.JniSymbolRegistry;
 import dev.frost.obfuscator.jni.compiler.NativeBuildPipeline;
 import dev.frost.obfuscator.jni.compiler.NativeLibrary;
@@ -64,6 +65,7 @@ public final class FrostJNIProtectionService {
     private final NativeMethodTransformer methodTransformer = new NativeMethodTransformer();
     private final BridgeMetadataGenerator metadataGenerator = new BridgeMetadataGenerator();
     private final JniNameMangler nameMangler = new JniNameMangler();
+    private final JniRegistrationGenerator registrationGenerator = new JniRegistrationGenerator();
     private final RuntimeResource runtimeResource = new RuntimeResource();
     private final NativeProtectionHooks hooks = new NativeProtectionHooks();
     private final InvokeDynamicDesugarer invokeDynamicDesugarer = new InvokeDynamicDesugarer();
@@ -116,7 +118,8 @@ public final class FrostJNIProtectionService {
                         method.ownerInternalName(),
                         method.name(),
                         method.descriptor(),
-                        nameMangler.functionName(method.ownerInternalName(), method.name(), method.descriptor())
+                        nameMangler.functionName(method.ownerInternalName(), method.name(), method.descriptor()),
+                        (method.access() & org.objectweb.asm.Opcodes.ACC_STATIC) != 0
                 );
                 nativeMethods.add(plan);
                 symbolRegistry.register(plan.ownerInternalName(), plan.name(), plan.descriptor(), plan.nativeSymbol());
@@ -128,6 +131,11 @@ public final class FrostJNIProtectionService {
             Logger.warn("[FrostJNI] No eligible native methods selected; skipping native compilation");
             return emptyResult(workDirectory, excludedClasses, conversionFailures);
         }
+        Files.writeString(
+                sourceDirectory.resolve("frostjni_registrar.cpp"),
+                registrationGenerator.generate(nativeMethods),
+                StandardCharsets.UTF_8
+        );
 
         CompilerInput compilerInput = new CompilerInput(
                 sourceDirectory,
