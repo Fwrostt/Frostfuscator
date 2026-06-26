@@ -1,8 +1,0 @@
-# Frostfuscator Mapping File
-# Generated at 2026-06-27T00:12:24.666759900
-
-# Class Mappings
-
-# Field Mappings
-
-# Method Mappings
