@@ -1,4 +1,4 @@
-package dev.frost.obfuscator.transformer.virtualization;
+package dev.frost.obfuscator.virtualisation;
 
 import java.util.ArrayList;
 import java.util.Collections;

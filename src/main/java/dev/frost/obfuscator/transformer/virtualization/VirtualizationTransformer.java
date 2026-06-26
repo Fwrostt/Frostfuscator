@@ -5,6 +5,7 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.virtualisation.*;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;

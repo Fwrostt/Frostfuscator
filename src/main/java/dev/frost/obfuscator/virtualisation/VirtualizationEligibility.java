@@ -1,4 +1,4 @@
-package dev.frost.obfuscator.transformer.virtualization;
+package dev.frost.obfuscator.virtualisation;
 
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
