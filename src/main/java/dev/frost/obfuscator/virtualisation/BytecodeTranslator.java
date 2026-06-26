@@ -58,7 +58,6 @@ public class BytecodeTranslator {
     }
 
     public TranslatedMethod translate() {
-        // Pass 1: Compute absolute instruction offsets and record label positions
         int currentOffset = 0;
         for (AbstractInsnNode insn : method.instructions) {
             if (insn instanceof LabelNode) {
@@ -68,7 +67,6 @@ public class BytecodeTranslator {
             }
         }
 
-        // Pass 2: Write custom bytecode
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (AbstractInsnNode insn : method.instructions) {
             if (insn instanceof LabelNode || insn instanceof LineNumberNode || insn instanceof FrameNode) {
@@ -77,7 +75,6 @@ public class BytecodeTranslator {
             writeInsn(insn, out);
         }
 
-        // Compute argSlots
         boolean isStatic = (method.access & Opcodes.ACC_STATIC) != 0;
         Type[] argTypes = Type.getArgumentTypes(method.desc);
         int[] argSlots = new int[argTypes.length + (isStatic ? 0 : 1)];
@@ -114,7 +111,7 @@ public class BytecodeTranslator {
 
     private int getInsnSize(AbstractInsnNode insn) {
         int opcode = insn.getOpcode();
-        if (opcode == -1) return 0; // line numbers, frames, labels
+        if (opcode == -1) return 0;
 
         if (insn instanceof InsnNode) {
             return 1;
@@ -172,7 +169,6 @@ public class BytecodeTranslator {
             out.write((varIdx >> 8) & 0xFF);
             out.write(varIdx & 0xFF);
         } else if (insn instanceof LdcInsnNode) {
-            // OP_LDC
             out.write(opcodeTable.encode(18));
             Object cst = ((LdcInsnNode) insn).cst;
             int cpIdx = addConstant(cst);
@@ -196,11 +192,10 @@ public class BytecodeTranslator {
             int internalOp = mapTypeOpcode(opcode);
             out.write(opcodeTable.encode(internalOp));
             TypeInsnNode tin = (TypeInsnNode) insn;
-            int cpIdx = addConstant(tin.desc); // class name as string
+            int cpIdx = addConstant(tin.desc);
             out.write((cpIdx >> 8) & 0xFF);
             out.write(cpIdx & 0xFF);
         } else if (insn instanceof IincInsnNode) {
-            // OP_IINC
             out.write(opcodeTable.encode(82));
             IincInsnNode iin = (IincInsnNode) insn;
             out.write((iin.var >> 8) & 0xFF);
@@ -217,7 +212,6 @@ public class BytecodeTranslator {
             out.write((targetPos >> 8) & 0xFF);
             out.write(targetPos & 0xFF);
         } else if (insn instanceof TableSwitchInsnNode) {
-            // OP_TABLESWITCH
             out.write(opcodeTable.encode(118));
             TableSwitchInsnNode tsin = (TableSwitchInsnNode) insn;
             int defaultTarget = labelPositions.get(tsin.dflt);
@@ -228,7 +222,6 @@ public class BytecodeTranslator {
                 writeFourBytes(out, labelPositions.get(label));
             }
         } else if (insn instanceof LookupSwitchInsnNode) {
-            // OP_LOOKUPSWITCH
             out.write(opcodeTable.encode(119));
             LookupSwitchInsnNode lsin = (LookupSwitchInsnNode) insn;
             int defaultTarget = labelPositions.get(lsin.dflt);

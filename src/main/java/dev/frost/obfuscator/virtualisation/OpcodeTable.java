@@ -10,7 +10,6 @@ public class OpcodeTable {
     private final int[] internalToCustom = new int[256];
 
     public OpcodeTable(Random random) {
-        // OP_TRAP = 145
         for (int i = 0; i < 256; i++) {
             customToInternal[i] = 145;
         }
@@ -25,7 +24,6 @@ public class OpcodeTable {
         Collections.shuffle(customOpcodes, random);
 
         int customIdx = 0;
-        // OP_NOP to OP_STORE2
         for (int internalOp = 0; internalOp <= 147; internalOp++) {
             int customOp = customOpcodes.get(customIdx++);
             customToInternal[customOp] = internalOp;

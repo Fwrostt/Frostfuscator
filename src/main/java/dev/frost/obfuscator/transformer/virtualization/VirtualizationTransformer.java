@@ -39,7 +39,6 @@ public class VirtualizationTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        // Fallback to legacy context-less call if needed
     }
 
     @Override
@@ -73,11 +72,9 @@ public class VirtualizationTransformer extends Transformer {
                 }
 
                 try {
-                    // Translate
                     BytecodeTranslator translator = new BytecodeTranslator(mn, opcodeTable);
                     BytecodeTranslator.TranslatedMethod tm = translator.translate();
 
-                    // Generate fields
                     String bytecodeFieldName = "$frost$vm$bytecode_" + methodIndex;
                     String constPoolFieldName = "$frost$vm$constpool_" + methodIndex;
 
@@ -97,10 +94,8 @@ public class VirtualizationTransformer extends Transformer {
                         null
                     ));
 
-                    // Inject to <clinit>
                     injectClinitFieldInit(cn, bytecodeFieldName, constPoolFieldName, tm, options, random);
 
-                    // Rebuild method body as stub
                     rebuildAsStub(cn, mn, bytecodeFieldName, constPoolFieldName, tm);
 
                     virtualizedCount++;
@@ -113,7 +108,6 @@ public class VirtualizationTransformer extends Transformer {
         }
 
         if (virtualizedCount > 0) {
-            // Inject runtime VM classes
             StringBuilder sb = new StringBuilder();
             int[] table = opcodeTable.getDecodingTable();
             for (int i = 0; i < 256; i++) {
@@ -172,7 +166,6 @@ public class VirtualizationTransformer extends Transformer {
 
         InsnList list = new InsnList();
 
-        // 1. Initialize bytecode byte[] field.
         int bytecodeKey = options.encryptBytecode() ? random.nextInt() : 0;
         byte[] storedBytecode = options.encryptBytecode() ? encodeBytecode(tm.bytecode, bytecodeKey) : tm.bytecode;
         String base64Bytes = Base64.getEncoder().encodeToString(storedBytecode);
@@ -205,7 +198,6 @@ public class VirtualizationTransformer extends Transformer {
         }
         list.add(new FieldInsnNode(Opcodes.PUTSTATIC, cn.name, bytecodeFieldName, "[B"));
 
-        // 2. Initialize constPool Object[] field
         list.add(getIntInsn(tm.constPool.length));
         list.add(new TypeInsnNode(Opcodes.ANEWARRAY, "java/lang/Object"));
 
@@ -291,13 +283,10 @@ public class VirtualizationTransformer extends Transformer {
 
         InsnList list = new InsnList();
 
-        // 1. Get bytecode field
         list.add(new FieldInsnNode(Opcodes.GETSTATIC, cn.name, bytecodeFieldName, "[B"));
 
-        // 2. Get constpool field
         list.add(new FieldInsnNode(Opcodes.GETSTATIC, cn.name, constPoolFieldName, "[Ljava/lang/Object;"));
 
-        // 3. Construct args array
         boolean isStatic = (mn.access & Opcodes.ACC_STATIC) != 0;
         Type[] argTypes = Type.getArgumentTypes(mn.desc);
         int argsCount = argTypes.length + (isStatic ? 0 : 1);
@@ -328,7 +317,6 @@ public class VirtualizationTransformer extends Transformer {
             list.add(new InsnNode(Opcodes.AASTORE));
         }
 
-        // 4. Construct argSlots array
         list.add(getIntInsn(tm.argSlots.length));
         list.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_INT));
         for (int i = 0; i < tm.argSlots.length; i++) {
@@ -338,11 +326,9 @@ public class VirtualizationTransformer extends Transformer {
             list.add(new InsnNode(Opcodes.IASTORE));
         }
 
-        // 5. Load maxLocals
         list.add(getIntInsn(tm.maxLocals));
         list.add(getIntInsn(tm.maxStack));
 
-        // 6. Invoke FrostVM.execute
         list.add(new MethodInsnNode(
             Opcodes.INVOKESTATIC,
             "dev/frost/loader/FrostVM",
@@ -351,7 +337,6 @@ public class VirtualizationTransformer extends Transformer {
             false
         ));
 
-        // 7. Return value cast/unbox
         Type retType = Type.getReturnType(mn.desc);
         if (retType.getSort() == Type.VOID) {
             list.add(new InsnNode(Opcodes.POP));
