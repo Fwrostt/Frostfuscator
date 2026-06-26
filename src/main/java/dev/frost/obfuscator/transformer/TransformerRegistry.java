@@ -20,10 +20,12 @@ import dev.frost.obfuscator.transformer.funsies.CopypastaInjectorTransformer;
 import dev.frost.obfuscator.transformer.funsies.EmojiHellTransformer;
 import dev.frost.obfuscator.transformer.indirection.InvokeDynamicTransformer;
 import dev.frost.obfuscator.transformer.indirection.ReferenceHidingTransformer;
+import dev.frost.obfuscator.transformer.license.LicenseGuardTransformer;
 import dev.frost.obfuscator.transformer.optimization.BytecodeOptimizerTransformer;
 import dev.frost.obfuscator.transformer.optimization.JarShrinkerTransformer;
 import dev.frost.obfuscator.transformer.protection.AntiDebugTransformer;
 import dev.frost.obfuscator.transformer.protection.AntiDecompilerTransformer;
+import dev.frost.obfuscator.transformer.protection.EncryptedClassLoaderTransformer;
 import dev.frost.obfuscator.transformer.protection.FakeApplicationTransformer;
 import dev.frost.obfuscator.transformer.protection.FakeClassTransformer;
 import dev.frost.obfuscator.transformer.protection.IntegrityTransformer;
@@ -32,6 +34,7 @@ import dev.frost.obfuscator.transformer.reporting.StatisticsReportTransformer;
 import dev.frost.obfuscator.transformer.resources.ResourceCompressionTransformer;
 import dev.frost.obfuscator.transformer.resources.ResourceEncryptionTransformer;
 import dev.frost.obfuscator.transformer.watermark.WatermarkTransformer;
+import dev.frost.obfuscator.transformer.virtualization.VirtualizationTransformer;
 import dev.frost.obfuscator.transformer.rename.ClassRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.FieldRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.LocalVariableRenameTransformer;
@@ -49,6 +52,7 @@ public class TransformerRegistry {
     private static final Set<Path> DISCOVERED_PLUGIN_DIRECTORIES = new LinkedHashSet<>();
 
     static {
+        register(new LicenseGuardTransformer());
         register(new ClassRenameTransformer());
         register(new FieldRenameTransformer());
         register(new MethodRenameTransformer());
@@ -75,6 +79,8 @@ public class TransformerRegistry {
         register(new JunkCodeTransformer());
         register(new FakeApplicationTransformer());
         register(new FakeClassTransformer());
+        register(new EncryptedClassLoaderTransformer());
+        register(new VirtualizationTransformer());
         register(new BannerInjectionTransformer());
         register(new EmojiHellTransformer());
         register(new CopypastaInjectorTransformer());

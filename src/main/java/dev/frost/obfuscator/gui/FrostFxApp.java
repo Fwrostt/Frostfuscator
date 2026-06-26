@@ -98,6 +98,7 @@ public final class FrostFxApp extends Application {
             meta("reference-hiding", "Reference Hiding", "Calls", "Routes calls through generated proxies."),
             meta("access-modifier", "Access Noise", "Metadata", "Adds safe access metadata noise."),
             meta("metadata-noise", "Metadata Noise", "Metadata", "Adds bounded metadata noise."),
+            meta("license-guard", "License Guard", "License", "Adds HWID, expiration, token, feature, and clock rollback checks before obfuscation."),
             meta("watermark", "Watermark", "Ownership", "Embeds ownership markers into classes and resources."),
             meta("integrity", "Integrity Index", "Protection", "Writes SHA-256 metadata for classes and resources."),
             meta("anti-debug", "Anti-Debug", "Protection", "Injects argument, agent, stack, timing, and optional process checks."),
@@ -113,7 +114,9 @@ public final class FrostFxApp extends Application {
             meta("resource-encryption", "Resource Encryption", "Resources", "Stores encrypted resource copies and an index."),
             meta("bytecode-optimizer", "Bytecode Optimizer", "Optimization", "Removes simple no-op bytecode."),
             meta("jar-shrinker", "JAR Shrinker", "Optimization", "Removes debug tables and source metadata."),
-            meta("statistics-report", "Statistics Report", "Reporting", "Writes JSON or HTML run statistics.")
+            meta("statistics-report", "Statistics Report", "Reporting", "Writes JSON or HTML run statistics."),
+            meta("classloader-encryption", "Encrypted ClassLoader", "Protection", "Encrypts class files with AES and injects a decrypting runtime ClassLoader."),
+            meta("virtualization", "Bytecode Virtualization", "Protection", "Translates methods into a custom instruction set executed by an embedded VM. Defeats all standard decompilers.")
     );
 
     private static final Map<String, List<OptionSpec>> OPTION_SPECS = buildOptionSpecs();
@@ -326,6 +329,7 @@ public final class FrostFxApp extends Application {
         nav.getStyleClass().add("nav-row");
         nav.getChildren().addAll(
                 navButton("Project", "", "project"),
+                navButton("License", "", "license"),
                 navButton("Obfuscation", "", "obfuscation"),
                 navButton("Protection", "", "protection"),
                 navButton("FrostJNI", "", "native-protection"),
@@ -878,6 +882,7 @@ public final class FrostFxApp extends Application {
 
     private boolean pageOwnsPass(String page, String category) {
         return switch (page) {
+            case "license" -> category.equals("License");
             case "protection" -> category.equals("Protection") || category.equals("Ownership");
             case "resources" -> category.equals("Resources");
             case "funsies" -> category.equals("Funsies");
@@ -895,6 +900,7 @@ public final class FrostFxApp extends Application {
 
     private boolean isCategoryPage(String page) {
         return page.equals("obfuscation")
+                || page.equals("license")
                 || page.equals("protection")
                 || page.equals("resources")
                 || page.equals("funsies")
@@ -904,6 +910,7 @@ public final class FrostFxApp extends Application {
 
     private String categoryTitle(String page) {
         return switch (page) {
+            case "license" -> "License";
             case "protection" -> "Protection";
             case "resources" -> "Resources";
             case "funsies" -> "Funsies";
@@ -915,6 +922,7 @@ public final class FrostFxApp extends Application {
 
     private String categorySubtitle(String page) {
         return switch (page) {
+            case "license" -> "HWID binding, trial windows, signed tokens, and runtime license checks.";
             case "protection" -> "Watermarks, integrity, anti-debug, decoys, and traps.";
             case "resources" -> "Compression, encryption, and resource handling.";
             case "funsies" -> "Fun noise, banners, and chaos modes.";
@@ -1072,6 +1080,27 @@ public final class FrostFxApp extends Application {
             }
             TransformerConfig tc = config.getTransformers().get(selectedTransformer);
             if (tc != null) {
+                if (value) {
+                    if (selectedTransformer.equals("classloader-encryption")) {
+                        TransformerConfig integrity = config.getTransformers().get("integrity");
+                        if (integrity != null && integrity.isEnabled()) {
+                            showToast("ClassLoader Encryption is incompatible with Integrity Index! Disabling Integrity Index.");
+                            integrity.setEnabled(false);
+                            refreshTransformerList();
+                        }
+                        if (nativeEnabledBox.isSelected()) {
+                            showToast("ClassLoader Encryption is incompatible with FrostJNI! Disabling FrostJNI.");
+                            nativeEnabledBox.setSelected(false);
+                        }
+                    } else if (selectedTransformer.equals("integrity")) {
+                        TransformerConfig classloader = config.getTransformers().get("classloader-encryption");
+                        if (classloader != null && classloader.isEnabled()) {
+                            showToast("Integrity Index is incompatible with ClassLoader Encryption! Disabling ClassLoader Encryption.");
+                            classloader.setEnabled(false);
+                            refreshTransformerList();
+                        }
+                    }
+                }
                 tc.setEnabled(value);
                 markCustom();
                 refreshTransformerList();
@@ -1084,6 +1113,13 @@ public final class FrostFxApp extends Application {
             }
             if (!confirmNativeProtection()) {
                 nativeEnabledBox.setSelected(false);
+                return;
+            }
+            TransformerConfig classloader = config.getTransformers().get("classloader-encryption");
+            if (classloader != null && classloader.isEnabled()) {
+                showToast("FrostJNI is incompatible with ClassLoader Encryption! Disabling ClassLoader Encryption.");
+                classloader.setEnabled(false);
+                refreshTransformerList();
             }
         });
     }
@@ -1427,7 +1463,7 @@ public final class FrostFxApp extends Application {
         currentPage = page;
         Node node;
         switch (page) {
-            case "obfuscation", "protection", "resources", "funsies", "optimization", "reporting" -> {
+            case "license", "obfuscation", "protection", "resources", "funsies", "optimization", "reporting" -> {
                 currentCategory = page;
                 pageTitle.setText(categoryTitle(page));
                 pageSubtitle.setText(categorySubtitle(page));
@@ -1508,6 +1544,20 @@ public final class FrostFxApp extends Application {
         if (specs.isEmpty()) {
             settingsBox.getChildren().add(emptySettings("This pass only needs the enabled checkbox."));
             return;
+        }
+
+        if (name.equals("classloader-encryption")) {
+            Label warningLabel = new Label("WARNING: ClassLoader Encryption modifies the application startup and is incompatible with FrostJNI, Bukkit/Spigot plugins, or the Integrity Index. Reflection-heavy applications may require class exclusions.");
+            warningLabel.setWrapText(true);
+            warningLabel.setMaxWidth(350);
+            warningLabel.setStyle("-fx-text-fill: #e06c75; -fx-font-weight: bold; -fx-padding: 10; -fx-background-color: #2c313c; -fx-background-radius: 4; -fx-border-color: #e06c75; -fx-border-width: 1; -fx-border-radius: 4;");
+            settingsBox.getChildren().add(warningLabel);
+        } else if (name.equals("virtualization")) {
+            Label warningLabel = new Label("WARNING: Virtualized methods run ~10-50x slower than native JVM bytecode. Use selectively on critical methods. Not compatible with INVOKEDYNAMIC (lambdas) or try-catch blocks in V1.");
+            warningLabel.setWrapText(true);
+            warningLabel.setMaxWidth(350);
+            warningLabel.setStyle("-fx-text-fill: #e06c75; -fx-font-weight: bold; -fx-padding: 10; -fx-background-color: #2c313c; -fx-background-radius: 4; -fx-border-color: #e06c75; -fx-border-width: 1; -fx-border-radius: 4;");
+            settingsBox.getChildren().add(warningLabel);
         }
 
         for (OptionSpec spec : specs) {
@@ -1876,6 +1926,14 @@ public final class FrostFxApp extends Application {
     private void enableCategoryBasic(String category) {
         setCategoryEnabled(category, false);
         switch (category) {
+            case "license" -> setPreset("license-guard", true, options(
+                    "product", "FrostProtectedApp",
+                    "license-id", "trial",
+                    "expires-at", "",
+                    "hwid-enabled", false,
+                    "coverage", "entrypoints",
+                    "inject-clinit", true
+            ));
             case "protection" -> {
                 setPreset("watermark", true, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
                 setPreset("integrity", true, options());
@@ -2570,6 +2628,31 @@ public final class FrostFxApp extends Application {
                 bool("string-field", "String field", true, "Adds a synthetic watermark field."),
                 text("field-name", "Field name", "__frost$watermark", "Synthetic field name.")
         ));
+        specs.put("license-guard", List.of(
+                text("product", "Product", "FrostProtectedApp", "Product identifier expected by the runtime guard."),
+                text("license-id", "License ID", "", "License, order, trial, or customer license identifier."),
+                text("customer", "Customer", "", "Optional customer identity expected in signed tokens."),
+                text("expires-at", "Expires at", "", "UTC date/time or yyyy-MM-dd; blank means no expiry."),
+                text("not-before", "Not before", "", "UTC date/time or yyyy-MM-dd before which the license is invalid."),
+                integer("grace-days", "Grace days", 0, 0, 365, 1, "Extra days accepted after expiration and for clock drift."),
+                bool("hwid-enabled", "HWID binding", false, "Restricts runtime to matching hardware fingerprint hashes."),
+                bool("bind-current-machine", "Bind this machine", false, "Uses this build machine's HWID when no allowed HWIDs are configured."),
+                text("allowed-hwids", "Allowed HWIDs", "", "Comma/newline-separated SHA-256 HWID hashes."),
+                text("hwid-components", "HWID components", "mac,hostname,os,user,machine-id", "Fingerprint components to hash."),
+                text("hwid-salt", "HWID salt", "change-me", "Salt mixed into HWID hashes."),
+                bool("print-hwid-on-failure", "Print HWID", true, "Shows current HWID in validation failure messages."),
+                text("token", "Signed token", "", "Optional payload.signature license token."),
+                text("token-public-key", "Token public key", "", "RSA public key for signed license tokens."),
+                text("token-secret", "Token secret", "", "Optional HMAC token secret; public-key tokens are preferred."),
+                text("required-features", "Required features", "", "Comma-separated features required from the token."),
+                bool("clock-rollback", "Clock rollback", true, "Tracks last seen runtime time to detect rollback."),
+                bool("state-required", "State required", false, "Fails if clock state cannot be written."),
+                text("state-file", "State file", "", "Optional explicit clock state file path."),
+                choice("failure-action", "Failure action", "throw", List.of("throw", "exit", "halt", "warn"), "Runtime behavior when validation fails."),
+                text("failure-message", "Failure message", "License validation failed", "Message prefix for failed validation."),
+                choice("coverage", "Coverage", "entrypoints", List.of("entrypoints", "all-methods", "all-classes", "selected"), "Where verifier calls are injected."),
+                bool("inject-clinit", "Class init guard", true, "Also validates when entry classes initialize.")
+        ));
         specs.put("anti-debug", List.of(
                 text("method-name", "Guard method", "__frost$antiDebug", "Generated guard method name."),
                 bool("check-arguments", "JVM arguments", true, "Checks JDWP, Xdebug, and Java agents."),
@@ -2642,6 +2725,25 @@ public final class FrostFxApp extends Application {
         specs.put("statistics-report", List.of(
                 choice("format", "Format", "json", List.of("json", "html"), "Report output format."),
                 text("output", "Output path", "frost-report.json", "Report file path.")
+        ));
+        specs.put("classloader-encryption", List.of(
+                text("includePatterns", "Include Patterns", "", "Comma-separated class/package regex patterns to include (leave empty to encrypt all)."),
+                text("excludePatterns", "Exclude Patterns", "", "Comma-separated class/package regex patterns to exclude."),
+                bool("encryptMainClass", "Encrypt Main Class", true, "Encrypts the main class; patches the entry point to Bootstrap."),
+                choice("algorithm", "Algorithm", "AES/GCM/NoPadding", List.of("AES/GCM/NoPadding", "AES/CTR/NoPadding"), "AES/GCM is authenticated; AES/CTR is slightly faster."),
+                text("resourcePath", "Resource Path", "classes.db", "Resource path inside the JAR to store encrypted bytes."),
+                bool("compressClasses", "Compress Classes", true, "Compresses class bytes before encryption."),
+                bool("failOnError", "Fail on Error", true, "Aborts build if encryption fails.")
+        ));
+        specs.put("virtualization", List.of(
+                integer("probability", "Probability (%)", 15, 1, 100, 5, "Percentage of eligible methods to virtualize."),
+                integer("max-method-instructions", "Max instructions", 300, 50, 2000, 50, "Methods larger than this are skipped."),
+                integer("min-method-instructions", "Min instructions", 8, 1, 50, 1, "Methods smaller than this are skipped."),
+                bool("skip-initializers", "Skip initializers", true, "Skip <init> and <clinit> methods (recommended)."),
+                bool("encrypt-bytecode", "Encode VM bytecode", true, "Stores virtual bytecode encoded until class initialization."),
+                integer("max-locals", "Max locals", 256, 16, 1024, 16, "Skips methods with too many local slots."),
+                integer("max-stack", "Max stack", 512, 16, 2048, 16, "Skips methods with too much operand stack usage."),
+                integer("seed", "Seed", 0, 0, 10000000, 1, "0 uses fresh randomness for each run.")
         ));
         return specs;
     }

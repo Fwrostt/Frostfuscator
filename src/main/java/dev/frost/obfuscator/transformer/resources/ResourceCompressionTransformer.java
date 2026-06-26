@@ -34,6 +34,10 @@ public class ResourceCompressionTransformer extends Transformer {
                 continue;
             }
 
+            String clResourcePath = context.config().getOption("resourcePath", "classes.db");
+            if (name.equals(clResourcePath)) {
+                continue;
+            }
             byte[] gz = gzip(entry.getValue());
             String compressedName = prefix + name + ".gz";
             context.jar().putResource(compressedName, gz);

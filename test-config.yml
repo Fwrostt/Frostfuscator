@@ -1,0 +1,20 @@
+input: "build/smoke-test/input.jar"
+output: "build/smoke-test/test-output.jar"
+transformers:
+  classloader-encryption:
+    enabled: true
+    algorithm: "AES/GCM/NoPadding"
+    resource-path: "dev/custom/encrypted_classes.db"
+    fail-on-error: true
+  class-rename:
+    enabled: true
+  method-rename:
+    enabled: true
+  field-rename:
+    enabled: true
+  string-encryption:
+    enabled: true
+  number-obfuscation:
+    enabled: true
+  flow-obfuscation:
+    enabled: true

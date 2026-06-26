@@ -208,6 +208,106 @@ public class ConfigLoader {
                         + "'. Check spelling or install the plugin that provides it.");
             }
         }
+
+        TransformerConfig clConfig = config.getTransformerConfig("classloader-encryption");
+        if (clConfig != null && clConfig.isEnabled()) {
+            String algo = getOption(clConfig, "AES/GCM/NoPadding", "algorithm");
+            if (!"AES/GCM/NoPadding".equals(algo) && !"AES/CTR/NoPadding".equals(algo)) {
+                throw new IllegalArgumentException("Unsupported ClassLoader Encryption algorithm '" + algo + "'. Supported: AES/GCM/NoPadding, AES/CTR/NoPadding");
+            }
+            String resPath = getOption(clConfig, "classes.db", "resource-path", "resourcePath");
+            if (resPath == null || resPath.trim().isEmpty()) {
+                throw new IllegalArgumentException("resourcePath must not be empty when ClassLoader Encryption is enabled");
+            }
+            TransformerConfig integrityConfig = config.getTransformerConfig("integrity");
+            if (integrityConfig != null && integrityConfig.isEnabled()) {
+                throw new IllegalArgumentException("ClassLoader Encryption is incompatible with Integrity Index. Please disable one of them.");
+            }
+            if (config.getFrostJNI() != null && config.getFrostJNI().isEnabled()) {
+                throw new IllegalArgumentException("ClassLoader Encryption is incompatible with FrostJNI (native protection). Please disable one of them.");
+            }
+        }
+
+        TransformerConfig virtConfig = config.getTransformerConfig("virtualization");
+        if (virtConfig != null && virtConfig.isEnabled()) {
+            int prob = getIntOption(virtConfig, 15, "probability");
+            if (prob < 1 || prob > 100) {
+                throw new IllegalArgumentException("Virtualization probability must be between 1 and 100");
+            }
+            int maxLocals = getIntOption(virtConfig, 256, "max-locals", "maxLocals");
+            int maxStack = getIntOption(virtConfig, 512, "max-stack", "maxStack");
+            if (maxLocals < 1 || maxStack < 1) {
+                throw new IllegalArgumentException("Virtualization max-locals and max-stack must be positive");
+            }
+        }
+
+        TransformerConfig licenseConfig = config.getTransformerConfig("license-guard");
+        if (licenseConfig != null && licenseConfig.isEnabled()) {
+            String action = getOption(licenseConfig, "throw", "failure-action", "fail-action");
+            if (!Set.of("throw", "exit", "halt", "warn").contains(action)) {
+                throw new IllegalArgumentException("license-guard.failure-action must be one of throw, exit, halt, warn");
+            }
+            String coverage = getOption(licenseConfig, "entrypoints", "coverage", "injection-mode");
+            if (!Set.of("entrypoints", "all-methods", "all", "all-classes", "selected").contains(coverage)) {
+                throw new IllegalArgumentException("license-guard.coverage must be entrypoints, all-methods, all-classes, or selected");
+            }
+            validateLicenseDate(getOption(licenseConfig, "", "expires-at", "expiresAt", "expiration"), "expires-at");
+            validateLicenseDate(getOption(licenseConfig, "", "not-before", "notBefore"), "not-before");
+            boolean hwid = Boolean.parseBoolean(getOption(licenseConfig, "false", "hwid-enabled", "hwid"));
+            boolean bindCurrent = Boolean.parseBoolean(getOption(licenseConfig, "false", "bind-current-machine", "bindCurrentMachine"));
+            String allowedHwids = getOption(licenseConfig, "", "allowed-hwids", "allowedHwids", "hwids");
+            String token = getOption(licenseConfig, "", "token", "license-token", "licenseToken");
+            if (hwid && !bindCurrent && allowedHwids.isBlank() && token.isBlank()) {
+                throw new IllegalArgumentException("license-guard HWID binding needs allowed-hwids, bind-current-machine, or a signed token");
+            }
+        }
+    }
+
+    private static void validateLicenseDate(String value, String key) {
+        if (value == null || value.isBlank() || value.equals("0")) {
+            return;
+        }
+        try {
+            Long.parseLong(value);
+            return;
+        } catch (NumberFormatException ignored) {
+        }
+        try {
+            java.time.Instant.parse(value);
+            return;
+        } catch (java.time.format.DateTimeParseException ignored) {
+        }
+        try {
+            java.time.LocalDate.parse(value);
+        } catch (java.time.format.DateTimeParseException exception) {
+            throw new IllegalArgumentException("license-guard." + key + " must be epoch millis, ISO instant, or yyyy-MM-dd");
+        }
+    }
+
+    private static String getOption(TransformerConfig config, String defaultValue, String... keys) {
+        for (String key : keys) {
+            Object value = config.getOptions().get(key);
+            if (value != null) {
+                return value.toString();
+            }
+        }
+        return defaultValue;
+    }
+
+    private static int getIntOption(TransformerConfig config, int defaultValue, String... keys) {
+        for (String key : keys) {
+            Object value = config.getOptions().get(key);
+            if (value instanceof Number number) {
+                return number.intValue();
+            }
+            if (value != null) {
+                try {
+                    return Integer.parseInt(value.toString());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return defaultValue;
     }
 
     private static String getString(Map<?, ?> map, String key, String defaultValue) {

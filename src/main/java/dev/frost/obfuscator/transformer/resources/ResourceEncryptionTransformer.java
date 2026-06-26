@@ -39,6 +39,10 @@ public class ResourceEncryptionTransformer extends Transformer {
             if (!shouldEncrypt(name, prefix)) {
                 continue;
             }
+            String clResourcePath = context.config().getOption("resourcePath", "classes.db");
+            if (!shouldEncrypt(name, prefix) || name.equals(clResourcePath)) {
+                continue;
+            }
 
             int key = seed ^ name.hashCode();
             byte[] data = xor(entry.getValue(), key);

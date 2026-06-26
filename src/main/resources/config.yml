@@ -68,6 +68,35 @@ frostjni:
 
 transformers:
 
+  # Licensing / DRM
+  license-guard:
+    enabled: false
+    product: "FrostProtectedApp"
+    license-id: ""
+    customer: ""
+    expires-at: ""
+    not-before: ""
+    grace-days: 0
+    hwid-enabled: false
+    bind-current-machine: false
+    allowed-hwids: ""
+    hwid-components: "mac,hostname,os,user,machine-id"
+    hwid-salt: "change-me"
+    print-hwid-on-failure: true
+    token: ""
+    token-public-key: ""
+    token-secret: ""
+    required-features: ""
+    clock-rollback: true
+    state-required: false
+    state-file: ""
+    failure-action: "throw"
+    failure-message: "License validation failed"
+    coverage: "entrypoints"
+    inject-clinit: true
+    exclusions: []
+    inclusions: []
+
   # Ownership / watermarking
   watermark:
     enabled: true
@@ -222,6 +251,29 @@ transformers:
     enabled: true
     mode: "heavy"
     min-length: 1
+    exclusions: []
+    inclusions: []
+
+  classloader-encryption:
+    enabled: false
+    encryptMainClass: true
+    algorithm: "AES/GCM/NoPadding"
+    resourcePath: "classes.db"
+    compressClasses: true
+    failOnError: true
+    exclusions: []
+    inclusions: []
+
+  virtualization:
+    enabled: false
+    probability: 15
+    max-method-instructions: 300
+    min-method-instructions: 8
+    skip-initializers: true
+    encrypt-bytecode: true
+    max-locals: 256
+    max-stack: 512
+    seed: 0
     exclusions: []
     inclusions: []
 

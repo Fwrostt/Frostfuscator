@@ -53,6 +53,26 @@ frostjni:
   continueOnFailure: false
 
 transformers:
+  license-guard:
+    enabled: false
+    product: "ExampleProduct"
+    license-id: "customer-42"
+    expires-at: "2026-12-31"
+    not-before: ""
+    grace-days: 0
+    hwid-enabled: false
+    bind-current-machine: false
+    allowed-hwids: ""
+    hwid-components: "mac,hostname,os,user,machine-id"
+    hwid-salt: "change-me"
+    token: ""
+    token-public-key: ""
+    required-features: ""
+    clock-rollback: true
+    failure-action: "throw"
+    coverage: "entrypoints"
+    inject-clinit: true
+
   class-rename:
     enabled: true
     mode: "safe"
@@ -60,6 +80,28 @@ transformers:
   string-encryption:
     enabled: true
     mode: "lite"
+
+  classloader-encryption:
+    enabled: false
+    encryptMainClass: true
+    algorithm: "AES/GCM/NoPadding"
+    resourcePath: "classes.db"
+    compressClasses: true
+    failOnError: true
+    exclusions: []
+    inclusions: []
+
+  virtualization:
+    enabled: false
+    probability: 15
+    min-method-instructions: 8
+    max-method-instructions: 300
+    skip-initializers: true
+    encrypt-bytecode: true
+    max-locals: 256
+    max-stack: 512
+    exclusions: []
+    inclusions: []
 
   watermark:
     enabled: true
@@ -180,9 +222,15 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 ## Notes
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
+- `license-guard` runs before normal obfuscation, then later rename/string/flow passes can harden the injected verifier. It supports direct expiry/not-before rules, HWID hashes, current-machine binding, optional RSA/HMAC signed license tokens, feature checks, and clock rollback state.
+- For Bukkit/Paper plugins, `license-guard.coverage: entrypoints` injects into `onLoad`/`onEnable` and class initialization when those methods/classes exist, without depending on the Bukkit API at build time.
+- Use `license-guard.bind-current-machine: true` only for customer-specific builds. For reusable releases, prefer `token` with `token-public-key` and put customer/HWID/feature/expiry claims in the signed token.
 - `resource-compression.remove-originals` removes protected resource originals after compressed copies are written.
 - `resource-encryption.remove-originals` should stay `false` unless your application knows how to decrypt resources at runtime.
 - `anti-debug` should be tested carefully because it changes runtime startup behavior.
+- `classloader-encryption` runs after remapping and native protection. Standalone jars get a bootstrap main class and encrypted classes are removed from the raw JAR. Bukkit/Paper plugin jars keep the plugin main class and its startup signature dependencies loadable, and only encrypt same-package classes that can be defined safely from the plugin main lookup.
+- `classloader-encryption` accepts both camelCase and kebab-case aliases for common options, including `resourcePath`/`resource-path`, `failOnError`/`fail-on-error`, and `compressClasses`/`compress-classes`.
+- `virtualization` skips methods with exception handlers, invokedynamic, synchronized bytecode, oversized local/stack usage, and loader/runtime classes. Raise `max-locals` and `max-stack` only after testing the protected output with your target API.
 - `anti-debug.check-processes` is intentionally opt-in because it exits when common reverse-engineering tools are running.
 - `anti-debug.shared-helper` keeps heavy debug checks in one generated helper class to reduce per-class decompiler bloat.
 - `fake-classes.placement` supports `package-mode`, `existing`, `specific`, and `none`.

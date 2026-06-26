@@ -4,38 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="HOTFIX BUMP">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="bump build script">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/cli.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cli.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/configuration.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/configuration.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/gui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/gui.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/index.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/index.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/transformers.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transformers.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/FrostJNIConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/FrostJNIConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/FrostJNIProtectionService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/FrostJNIProtectionService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibraryVerifier.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibraryVerifier.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeSourcePreparer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeSourcePreparer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppMethodGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppMethodGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppRuntimeGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppRuntimeGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/BridgeMetadataGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/BridgeMetadataGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/MethodMappingRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/MethodMappingRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodPlan.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodPlan.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceCompressionTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceCompressionTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceEncryptionTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceEncryptionTransformer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/config.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/frost-gui.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/frost-gui.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -95,11 +77,15 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;Gradle.Frostfuscator [build].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.Frostfuscator [shadowJar guiShadowJar].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.Frostfuscator [shadowJar].executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;
   }
 }</component>
   <component name="RecentsManager">
@@ -108,7 +94,7 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration name="Frostfuscator [shadowJar guiShadowJar]" type="GradleRunConfiguration" factoryName="Gradle" nameIsGenerated="true">
+    <configuration name="Frostfuscator [build]" type="GradleRunConfiguration" factoryName="Gradle" nameIsGenerated="true">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -119,8 +105,7 @@
         </option>
         <option name="taskNames">
           <list>
-            <option value="shadowJar" />
-            <option value="guiShadowJar" />
+            <option value="build" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -205,7 +190,23 @@
       <option name="project" value="LOCAL" />
       <updated>1782034081468</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="1.2.1&#10;&#10;CLI, Plugins, GUI Rules, and FrostJNI Export Hardening&#10;&#10;## Added&#10;&#10;- Added GUI-style CLI profiles with `--profile none|basic|balanced|strong|maximum`.&#10;- Added CLI overrides for plugin directories, dictionary/package settings, global includes/excludes, transformer enable/disable, transformer options, mapping, reports, seeds, dry-run, and FrostJNI selection.&#10;- Added plugin auto-discovery from `plugins/`, config `plugins:`, and `--plugins`.&#10;- Added `frost-plugin.yml` support with optional `FrostPlugin` entrypoints and `PluginContext` transformer registration.&#10;- Added `docs/plugins.md` with descriptor, entrypoint, transformer, ServiceLoader, and run examples.&#10;- Added class/package picker buttons and removable colored chips to the normal project inclusion/exclusion rules window.&#10;&#10;## Changed&#10;&#10;- FrostJNI generated native methods are now registered internally from `JNI_OnLoad` instead of being emitted as public JNI exports.&#10;- FrostJNI no longer embeds `native/native-methods.txt` in protected jars.&#10;- FrostJNI `generateHeaders` now defaults to `false`.&#10;- GUI transitions, tags, rule chips, selection lists, and active states received a color and motion refresh.&#10;- Config validation now fails early for missing/invalid JAR input, invalid dictionary/package mode, output overwriting input, and unknown enabled transformers.&#10;&#10;## Docs&#10;&#10;- Updated CLI, configuration, GUI, transformer, README, and docs index pages for the new plugin, CLI, rule editor, and FrostJNI behavior.">
+      <option name="closed" value="true" />
+      <created>1782150982607</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1782150982607</updated>
+    </task>
+    <task id="LOCAL-00010" summary="bump build script">
+      <option name="closed" value="true" />
+      <created>1782391795803</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1782391795803</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -215,6 +216,8 @@
     <MESSAGE value="hotfix bump" />
     <MESSAGE value="## FrostJNI Integration&#10;&#10;* Integrated FrostJNI directly into Frostfuscator under `dev.frost.obfuscator.jni`.&#10;* Added top-level `frostjni` configuration with YAML serialization support.&#10;* Integrated native generation, compilation, method patching, loader injection, and library embedding into the standard obfuscation pipeline.&#10;* Added runtime loader classes and embedded native libraries under `native/{os}/{arch}/`.&#10;* Added native protection metrics to reports and protection statistics.&#10;* Added a dedicated GUI page for Native Protection with an enable-warning dialog.&#10;* Updated documentation for Java 21, FrostJNI configuration, GUI usage, CLI usage, and compiler/toolchain setup.&#10;* Verified protection of a smoke-test application where `SmokeApp.main` and `SmokeApp.message` were converted to native methods, embedded into the output jar, and executed successfully.&#10;&#10;## Native Protection UX&#10;&#10;* Redesigned the FrostJNI GUI page into a compact scrollable layout.&#10;* Added built-in compiler detection directly in the GUI.&#10;* Added install shortcuts for MinGW/MSYS2, MSVC Build Tools, and Clang.&#10;* Added `useMsvc` configuration support.&#10;* Added compiler family selection:&#10;&#10;  * GCC / MinGW&#10;  * Clang&#10;  * MSVC&#10;* Added validation warnings when FrostJNI is enabled but the selected compiler is unavailable.&#10;&#10;## Native Compilation Improvements&#10;&#10;* Made `SELECTIVE` + `FAST` the recommended workflow to avoid accidental full-application native conversion.&#10;* Added unity-build compilation by default for faster native build times.&#10;* Fixed unity-build generation by isolating native cache globals per generated class.&#10;* Fixed compiler process handling by consuming stdout and stderr concurrently, preventing potential deadlocks.&#10;* Added compiler heartbeat logging for long-running builds.&#10;* Added detailed unity-build logging, including merged translation unit counts.&#10;* Verified successful selective native protection using MSYS2 MinGW with embedded DLL generation and JNI stub replacement.&#10;&#10;## JNI Overload Support&#10;&#10;* Fixed JNI symbol generation for overloaded methods by emitting descriptor-qualified long JNI names.&#10;* Verified native protection of overloaded methods such as multiple `choose(...)` variants in the same class.&#10;* Removed MinGW label-at-end warning spam from generated sources.&#10;* Improved fallback reporting when native compilation fails and continuation is allowed, clearly indicating that the resulting jar remains Java-only.&#10;&#10;## Invokedynamic String Concatenation Support&#10;&#10;* Added bootstrap metadata support to the ASM-independent invokedynamic model.&#10;* Implemented native lowering for `java/lang/invoke/StringConcatFactory`.&#10;* Added support for Java 9+ string concatenation during native conversion.&#10;* Verified methods containing string concatenation are successfully converted to native code and execute correctly.&#10;&#10;## Bytecode Coverage Expansion&#10;&#10;* Added `LambdaMetafactory` desugaring to convert lambda invokedynamic sites into generated helper classes before native conversion.&#10;* Added `ObjectMethods` desugaring to support native protection of generated record methods:&#10;&#10;  * `toString`&#10;  * `hashCode`&#10;  * `equals`&#10;* Added support for:&#10;&#10;  * Object comparison branches&#10;  * Primitive conversions&#10;  * Primitive comparisons&#10;  * Bitwise operations&#10;  * Unsigned shifts&#10;  * Common stack manipulation instructions&#10;* Replaced generic conversion warnings with precise unsupported opcode/bootstrap diagnostics.&#10;&#10;## Validation&#10;&#10;* Successfully executed a native protection pass against the FrostCore package.&#10;* Converted **2,413 methods** to native code.&#10;* Recorded **0 conversion failures**.&#10;* Embedded a single Windows x86_64 native library.&#10;* Eliminated unsupported generated-source placeholder output." />
     <MESSAGE value="HOTFIX BUMP" />
-    <option name="LAST_COMMIT_MESSAGE" value="HOTFIX BUMP" />
+    <MESSAGE value="1.2.1&#10;&#10;CLI, Plugins, GUI Rules, and FrostJNI Export Hardening&#10;&#10;## Added&#10;&#10;- Added GUI-style CLI profiles with `--profile none|basic|balanced|strong|maximum`.&#10;- Added CLI overrides for plugin directories, dictionary/package settings, global includes/excludes, transformer enable/disable, transformer options, mapping, reports, seeds, dry-run, and FrostJNI selection.&#10;- Added plugin auto-discovery from `plugins/`, config `plugins:`, and `--plugins`.&#10;- Added `frost-plugin.yml` support with optional `FrostPlugin` entrypoints and `PluginContext` transformer registration.&#10;- Added `docs/plugins.md` with descriptor, entrypoint, transformer, ServiceLoader, and run examples.&#10;- Added class/package picker buttons and removable colored chips to the normal project inclusion/exclusion rules window.&#10;&#10;## Changed&#10;&#10;- FrostJNI generated native methods are now registered internally from `JNI_OnLoad` instead of being emitted as public JNI exports.&#10;- FrostJNI no longer embeds `native/native-methods.txt` in protected jars.&#10;- FrostJNI `generateHeaders` now defaults to `false`.&#10;- GUI transitions, tags, rule chips, selection lists, and active states received a color and motion refresh.&#10;- Config validation now fails early for missing/invalid JAR input, invalid dictionary/package mode, output overwriting input, and unknown enabled transformers.&#10;&#10;## Docs&#10;&#10;- Updated CLI, configuration, GUI, transformer, README, and docs index pages for the new plugin, CLI, rule editor, and FrostJNI behavior." />
+    <MESSAGE value="bump build script" />
+    <option name="LAST_COMMIT_MESSAGE" value="bump build script" />
   </component>
 </project>

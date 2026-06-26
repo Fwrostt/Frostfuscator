@@ -97,11 +97,13 @@ public class ObfuscationEngine {
         List<Transformer> normal = new ArrayList<>();
         List<Transformer> postRemap = new ArrayList<>();
         List<Transformer> finalPass = new ArrayList<>();
+        List<Transformer> classloaderEncryption = new ArrayList<>();
         for (Transformer t : allTransformers) {
             switch (t.priority()) {
                 case PRE_OBFUSCATION -> preObfuscation.add(t);
                 case POST_REMAP -> postRemap.add(t);
                 case FINAL -> finalPass.add(t);
+                case CLASSLOADER_ENCRYPTION -> classloaderEncryption.add(t);
                 default -> normal.add(t);
             }
         }
@@ -216,6 +218,17 @@ public class ObfuscationEngine {
         stats.set("fieldMappings", mappings.getFieldMappings().size());
         stats.set("methodMappings", mappings.getMethodMappings().size());
         stats.set("totalMappings", mappings.totalMappings());
+
+        if (!classloaderEncryption.isEmpty()) {
+            Logger.info("");
+            Logger.info("Pass 6: ClassLoader Encryption");
+
+            for (Transformer transformer : classloaderEncryption) {
+                TransformerConfig tc = resolveConfig(transformer);
+                Logger.info("Running transformer: {}", transformer.getName());
+                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+            }
+        }
 
         processor.writeJar(pool, outputPath);
 

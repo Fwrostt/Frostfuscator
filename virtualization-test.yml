@@ -1,0 +1,9 @@
+input: "build/smoke-test/input.jar"
+output: "build/smoke-test/test-output.jar"
+transformers:
+  virtualization:
+    enabled: true
+    probability: 100
+    min-method-instructions: 0
+    max-method-instructions: 1000
+    skip-initializers: true

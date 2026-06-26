@@ -13,7 +13,8 @@ public abstract class Transformer {
         PRE_OBFUSCATION,
         NORMAL,
         POST_REMAP,
-        FINAL
+        FINAL,
+        CLASSLOADER_ENCRYPTION
     }
 
     public abstract String getName();
