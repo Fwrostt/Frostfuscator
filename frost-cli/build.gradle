@@ -1,0 +1,39 @@
+plugins {
+    id 'application'
+    id 'com.gradleup.shadow'
+}
+
+description = 'Command-line application packaging.'
+
+dependencies {
+    implementation project(':frost-core')
+    implementation 'info.picocli:picocli:4.7.5'
+    implementation 'org.slf4j:slf4j-simple:2.0.13'
+}
+
+application {
+    mainClass = 'dev.frost.obfuscator.Main'
+}
+
+jar {
+    enabled = false
+}
+
+shadowJar {
+    archiveFileName.set('Frostfuscator.jar')
+    minimize {
+        exclude(dependency('org.slf4j:.*'))
+    }
+    manifest {
+        attributes('Main-Class': application.mainClass)
+    }
+}
+
+tasks.named('distZip').configure { dependsOn shadowJar }
+tasks.named('distTar').configure { dependsOn shadowJar }
+tasks.named('startScripts').configure { dependsOn shadowJar }
+
+tasks.matching { it.name in ['distZip', 'distTar', 'shadowDistZip', 'shadowDistTar', 'startScripts', 'startShadowScripts'] }
+        .configureEach {
+            enabled = false
+        }

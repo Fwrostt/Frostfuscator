@@ -1,14 +1,14 @@
 # GUI Usage
 
-The GUI is packaged as `build/libs/Frostfuscator-gui.jar`.
+The GUI is packaged as `frost-gui/build/libs/Frostfuscator-gui.jar`.
 
 ```bash
-java -jar build/libs/Frostfuscator-gui.jar
+java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 
-On Windows, use `build/libs/Frostfuscator-gui.cmd` for the smoothest double-click launch. It prefers a Java 21 install when one is available and starts the GUI without a console window.
+On Windows, use `frost-gui/build/libs/Frostfuscator-gui.cmd` for the smoothest double-click launch. It prefers a Java 21 install when one is available and starts the GUI without a console window.
 
-If double-clicking the JAR itself does nothing, Windows is usually pointing `.jar` files at the wrong Java runtime. Run `build/libs/Frostfuscator-gui-debug.cmd`; it keeps a console open and the GUI also writes startup failures to `%USERPROFILE%\.frostfuscator\gui-crash.log`.
+If double-clicking the JAR itself does nothing, Windows is usually pointing `.jar` files at the wrong Java runtime. Run `frost-gui/build/libs/Frostfuscator-gui-debug.cmd`; it keeps a console open and the GUI also writes startup failures to `%USERPROFILE%\.frostfuscator\gui-crash.log`.
 
 ## Layout
 

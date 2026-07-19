@@ -119,6 +119,38 @@ transformers:
     check-timing: true
     check-processes: false
 
+  anti-attach:
+    enabled: false
+    coverage: "entrypoints"
+    require-disable-attach: true
+    require-dynamic-agent-disabled: false
+    reject-agents: true
+    reject-attach-listener: true
+    failure-action: "throw"
+    runtime-class: ""
+    runtime-method: ""
+
+  runtime-self-checksum:
+    enabled: false
+    coverage: "entrypoints"
+    max-classes: 64
+    failure-action: "throw"
+    runtime-class: ""
+    runtime-method: ""
+
+  structural-hardening:
+    enabled: true
+    attributes-per-class: 4
+    payload-bytes: 256
+    method-attributes: true
+    field-attributes: true
+
+  archive-extraction-canary:
+    enabled: false
+    count: 2
+    expanded-size: 1048576
+    seed: 0
+
   junk-code:
     enabled: true
     min-methods-per-class: 1
@@ -156,6 +188,44 @@ transformers:
     package-prefix: "冰霜/混淆器"
     large-banners: true
     quotes: true
+
+  language-mixup:
+    enabled: false
+    style: "mixed"
+    rename-classes: true
+    rename-methods: true
+
+  decompiler-zip-ties:
+    enabled: false
+    generic-depth: 96
+    fields-per-class: 2
+    methods-per-class: 2
+    class-signature: true
+
+  troll-stack-traces:
+    enabled: false
+    message: "Stack trace unavailable"
+
+  resource-steganography:
+    enabled: false
+    password: "replace-this"
+    extensions: "json,yml,yaml,properties,xml,conf,cfg,ini,key,pem"
+    remove-originals: true
+
+  resource-splitting:
+    enabled: false
+    part-size: 32768
+    minimum-size: 65536
+    remove-originals: true
+
+  aggressive-inlining:
+    enabled: false
+    max-instructions: 12
+    remove-inlined-methods: true
+
+  dead-code-elimination:
+    enabled: false
+    remove-private-fields: true
 
   statistics-report:
     enabled: true
@@ -227,7 +297,16 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 - Use `license-guard.bind-current-machine: true` only for customer-specific builds. For reusable releases, prefer `token` with `token-public-key` and put customer/HWID/feature/expiry claims in the signed token.
 - `resource-compression.remove-originals` removes protected resource originals after compressed copies are written.
 - `resource-encryption.remove-originals` should stay `false` unless your application knows how to decrypt resources at runtime.
+- `resource-steganography.remove-originals` requires resource reads to go through the injected `StegoResourceLoader`; change the default password for release builds.
+- `resource-splitting.remove-originals` requires resource reads to go through the injected `SplitResourceLoader`.
+- `dead-code-elimination` intentionally removes only private members, but reflection by string name is not statically visible; use transformer exclusions or leave the pass disabled for reflection-heavy code.
+- `decompiler-zip-ties.generic-depth` is capped at 512 to keep generated class metadata bounded. The GUI exposes the same cap.
 - `anti-debug` should be tested carefully because it changes runtime startup behavior.
+- `anti-attach.require-disable-attach` expects production launch scripts to include `-XX:+DisableAttachMechanism`. `require-dynamic-agent-disabled` expects `-XX:-EnableDynamicAgentLoading` on JVMs that support it.
+- `anti-attach.runtime-class`, `anti-attach.runtime-method`, `runtime-self-checksum.runtime-class`, and `runtime-self-checksum.runtime-method` can pin helper names for reproducible tests. Leave them blank for randomized relocated helpers.
+- `runtime-self-checksum` hashes emitted `.class` resource bytes. It is best for normal raw class entries and should not be combined with classloader encryption for classes whose raw `.class` entries are removed.
+- `structural-hardening` only writes verifier-safe opaque attributes; malformed classfile structures are intentionally not emitted because the JVM rejects them.
+- `archive-extraction-canary` is capped at bounded sizes and is intended as an extraction canary, not an unbounded resource exhaustion payload.
 - `classloader-encryption` runs after remapping and native protection. Standalone jars get a bootstrap main class and encrypted classes are removed from the raw JAR. Bukkit/Paper plugin jars keep the plugin main class and its startup signature dependencies loadable, and only encrypt same-package classes that can be defined safely from the plugin main lookup.
 - `classloader-encryption` accepts both camelCase and kebab-case aliases for common options, including `resourcePath`/`resource-path`, `failOnError`/`fail-on-error`, and `compressClasses`/`compress-classes`.
 - `virtualization` skips methods with exception handlers, invokedynamic, synchronized bytecode, oversized local/stack usage, and loader/runtime classes. Raise `max-locals` and `max-stack` only after testing the protected output with your target API.

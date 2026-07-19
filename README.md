@@ -14,6 +14,7 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * [Configuration](docs/configuration.md)
 * [Transformers](docs/transformers.md)
 * [Plugins](docs/plugins.md)
+* [Update Log](updates/README.md)
 
 ## Features
 
@@ -65,10 +66,10 @@ java -jar Frostfuscator.jar --list-transforms
 ### GUI
 
 ```bash
-java -jar build/libs/Frostfuscator-gui.jar
+java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 
-On systems with Java 21 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
+On systems with Java 21 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `frost-gui/build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
 
 ## Building
 
@@ -76,7 +77,7 @@ On systems with Java 21 or newer installed and `.jar` files associated with Java
 ./gradlew clean build
 ```
 
-The compiled JARs will be placed in `build/libs/`, including the CLI JAR and `Frostfuscator-gui.jar`.
+The runnable CLI JAR is written to `frost-cli/build/libs/Frostfuscator.jar`. The runnable GUI JAR and launchers are written to `frost-gui/build/libs/`. The generated multi-class test input JAR is written to `frost-core/build/test-jars/frostfuscator-test-input.jar`.
 
 ## License
 

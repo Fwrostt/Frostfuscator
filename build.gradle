@@ -1,205 +1,75 @@
 plugins {
-    id 'java'
-    id 'application'
-    id 'com.gradleup.shadow' version '8.3.10'
+    id 'base'
+    id 'com.gradleup.shadow' version '8.3.10' apply false
 }
 
 group = 'dev.frost'
-version = '1.2.2'
+version = '1.2.3'
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+ext {
+    asmVersion = '9.7'
+    javafxVersion = '21.0.5'
+    junitVersion = '5.10.2'
+}
+
+subprojects {
+    group = rootProject.group
+    version = rootProject.version
+
+    plugins.withType(JavaPlugin).configureEach {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(21)
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 21
+        }
+
+        tasks.withType(Test).configureEach {
+            useJUnitPlatform()
+        }
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
-def javafxVersion = '21.0.5'
-def javafxPlatform = org.gradle.internal.os.OperatingSystem.current().isWindows()
-        ? 'win'
-        : (org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? 'mac' : 'linux')
-
-configurations {
-    guiRuntime
-}
-
-dependencies {
-    compileOnly "org.openjfx:javafx-base:${javafxVersion}:${javafxPlatform}"
-    compileOnly "org.openjfx:javafx-graphics:${javafxVersion}:${javafxPlatform}"
-    compileOnly "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
-
-    guiRuntime "org.openjfx:javafx-base:${javafxVersion}:${javafxPlatform}"
-    guiRuntime "org.openjfx:javafx-graphics:${javafxVersion}:${javafxPlatform}"
-    guiRuntime "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
-
-    implementation 'org.ow2.asm:asm:9.7'
-    implementation 'org.ow2.asm:asm-commons:9.7'
-    implementation 'org.ow2.asm:asm-tree:9.7'
-    implementation 'org.ow2.asm:asm-util:9.7'
-
-    implementation 'info.picocli:picocli:4.7.5'
-    implementation 'org.slf4j:slf4j-simple:2.0.13'
-    implementation 'org.yaml:snakeyaml:2.2'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-}
-
-application {
-    mainClass = 'dev.frost.obfuscator.Main'
-}
-
-tasks.register('runGui', JavaExec) {
-    group = 'application'
-    description = 'Run the Frostfuscator desktop GUI'
-    classpath = sourceSets.main.runtimeClasspath + configurations.guiRuntime
-    mainClass = 'dev.frost.obfuscator.gui.GuiMain'
-}
-
-tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+tasks.register('cleanAll') {
     group = 'build'
-    description = 'Build a runnable GUI jar'
-    archiveFileName.set('Frostfuscator-gui.jar')
-    from sourceSets.main.output
-    configurations = [project.configurations.runtimeClasspath, project.configurations.guiRuntime]
-    manifest {
-        attributes(
-                'Main-Class': 'dev.frost.obfuscator.gui.GuiMain',
-                'Enable-Native-Access': 'ALL-UNNAMED'
-        )
+    description = 'Clean all module build directories and root build output'
+    dependsOn subprojects.collect { "${it.path}:clean" }
+    doLast {
+        delete layout.buildDirectory
     }
+}
+
+tasks.register('testInputJar') {
+    group = 'verification'
+    description = 'Build the professional multi-class test input jar'
+    dependsOn ':frost-core:testInputJar'
+}
+
+tasks.register('cliShadowJar') {
+    group = 'build'
+    description = 'Build the runnable CLI jar'
+    dependsOn ':frost-cli:shadowJar'
+}
+
+tasks.register('guiShadowJar') {
+    group = 'build'
+    description = 'Build the runnable GUI jar'
+    dependsOn ':frost-gui:guiShadowJar'
 }
 
 tasks.register('writeGuiLaunchers') {
     group = 'build'
-    description = 'Write double-click friendly GUI launcher scripts next to the GUI jar'
-    dependsOn guiShadowJar
-
-    doLast {
-        def libsDir = layout.buildDirectory.dir('libs').get().asFile
-        libsDir.mkdirs()
-        def windowsLauncher = new File(libsDir, 'Frostfuscator-gui.cmd')
-        windowsLauncher.text = '''@echo off
-setlocal
-set "APP_DIR=%~dp0"
-set "APP_JAR=%APP_DIR%Frostfuscator-gui.jar"
-
-set "JAVA_EXE=javaw.exe"
-if defined JAVA_HOME if exist "%JAVA_HOME%\\bin\\javaw.exe" set "JAVA_EXE=%JAVA_HOME%\\bin\\javaw.exe"
-if exist "C:\\Program Files\\Java\\jdk-21\\bin\\javaw.exe" set "JAVA_EXE=C:\\Program Files\\Java\\jdk-21\\bin\\javaw.exe"
-if exist "C:\\Program Files\\Eclipse Adoptium\\jdk-21*\\bin\\javaw.exe" for /d %%J in ("C:\\Program Files\\Eclipse Adoptium\\jdk-21*") do set "JAVA_EXE=%%~fJ\\bin\\javaw.exe"
-if exist "C:\\Program Files\\Zulu\\zulu-21*\\bin\\javaw.exe" for /d %%J in ("C:\\Program Files\\Zulu\\zulu-21*") do set "JAVA_EXE=%%~fJ\\bin\\javaw.exe"
-
-start "" "%JAVA_EXE%" --enable-native-access=ALL-UNNAMED -jar "%APP_JAR%"
-endlocal
-'''
-        def debugLauncher = new File(libsDir, 'Frostfuscator-gui-debug.cmd')
-        debugLauncher.text = '''@echo off
-setlocal
-set "APP_DIR=%~dp0"
-set "APP_JAR=%APP_DIR%Frostfuscator-gui.jar"
-
-set "JAVA_EXE=java.exe"
-if defined JAVA_HOME if exist "%JAVA_HOME%\\bin\\java.exe" set "JAVA_EXE=%JAVA_HOME%\\bin\\java.exe"
-if exist "C:\\Program Files\\Java\\jdk-21\\bin\\java.exe" set "JAVA_EXE=C:\\Program Files\\Java\\jdk-21\\bin\\java.exe"
-if exist "C:\\Program Files\\Eclipse Adoptium\\jdk-21*\\bin\\java.exe" for /d %%J in ("C:\\Program Files\\Eclipse Adoptium\\jdk-21*") do set "JAVA_EXE=%%~fJ\\bin\\java.exe"
-if exist "C:\\Program Files\\Zulu\\zulu-21*\\bin\\java.exe" for /d %%J in ("C:\\Program Files\\Zulu\\zulu-21*") do set "JAVA_EXE=%%~fJ\\bin\\java.exe"
-
-echo Using "%JAVA_EXE%"
-"%JAVA_EXE%" --enable-native-access=ALL-UNNAMED -jar "%APP_JAR%"
-echo.
-echo Exit code: %ERRORLEVEL%
-pause
-endlocal
-'''
-    }
+    description = 'Write GUI launchers beside the GUI jar'
+    dependsOn ':frost-gui:writeGuiLaunchers'
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release = 21
-}
-
-test {
-    useJUnitPlatform()
-}
-
-jar {
-    enabled = false
-}
-
-shadowJar {
-    archiveFileName.set('Frostfuscator.jar')
-    minimize {
-        exclude(dependency('org.slf4j:.*'))
-    }
-    manifest {
-        attributes(
-                'Main-Class': application.mainClass
-        )
-    }
-}
-
-tasks.named('distZip').configure { dependsOn shadowJar }
-tasks.named('distTar').configure { dependsOn shadowJar }
-tasks.named('startScripts').configure { dependsOn shadowJar }
-
-tasks.register('createSmokeJar') {
-    group = 'verification'
-    description = 'Create a manifest-bearing smoke input jar'
-
-    doLast {
-        def smokeDir = layout.buildDirectory.dir('smoke-test').get().asFile
-        def srcDir = new File(smokeDir, 'src/com/example')
-        def classesDir = new File(smokeDir, 'classes')
-        delete(new File(smokeDir, 'src'))
-        delete(classesDir)
-        delete(new File(smokeDir, 'input.jar'))
-        delete(new File(smokeDir, 'chinese-output.jar'))
-        delete(new File(smokeDir, 'chinese-smoke.yml'))
-        srcDir.mkdirs()
-        classesDir.mkdirs()
-
-        new File(srcDir, 'SmokeApp.java').text = '''package com.example;
-
-public class SmokeApp {
-    public static void main(String[] args) {
-        System.out.println("Frostfuscator smoke booted");
-        System.out.println("Chinese mode manifest entry works");
-        System.out.println("String encryption compatibility check");
-        System.out.println("Loaded from encrypted helper: " + SmokeHelper.getMessage());
-    }
-
-    public static String message() {
-        return "smoke-resource-message";
-    }
-}
-'''
-        new File(srcDir, 'SmokeHelper.java').text = '''package com.example;
-
-public class SmokeHelper {
-    public static String getMessage() {
-        return "Hello from encrypted classloader!";
-    }
-}
-'''
-        new File(classesDir, 'plugin.yml').text = '''name: smoke
-main: com.example.SmokeApp
-version: 1.0.0
-'''
-        new File(classesDir, 'smoke-resource.txt').text = 'resource payload for Frostfuscator smoke checks\n'
-
-        ant.javac(srcdir: new File(smokeDir, 'src'), destdir: classesDir, release: '17', includeantruntime: false)
-        def manifestFile = new File(smokeDir, 'MANIFEST.MF')
-        manifestFile.text = 'Manifest-Version: 1.0\nMain-Class: com.example.SmokeApp\n\n'
-        ant.jar(destfile: new File(smokeDir, 'input.jar'), basedir: classesDir, manifest: manifestFile)
-    }
-}
-
-shadowJar.finalizedBy('createSmokeJar')
-
-build {
-    dependsOn shadowJar, guiShadowJar, writeGuiLaunchers, 'createSmokeJar'
+tasks.named('build') {
+    dependsOn ':frost-cli:shadowJar'
+    dependsOn ':frost-gui:guiShadowJar'
+    dependsOn ':frost-gui:writeGuiLaunchers'
+    dependsOn ':frost-core:testInputJar'
 }

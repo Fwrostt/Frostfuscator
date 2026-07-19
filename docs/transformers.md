@@ -19,7 +19,11 @@ Frostfuscator organizes work into passes. Obfuscation is the main group; the oth
 - **`watermark`** embeds owner/build identifiers into class metadata and writes `META-INF/frostfuscator/watermark.properties`.
 - **`integrity`** writes a SHA-256 index for classes and resources.
 - **`anti-debug`** injects JVM argument, debugger-agent class, stack trace, timing, and optional process checks.
+- **`anti-attach`** injects entrypoint or all-class startup checks for attach exposure. It can require `-XX:+DisableAttachMechanism`, optionally require `-XX:-EnableDynamicAgentLoading`, reject launch agents, and reject a visible JVM Attach Listener thread. Its helper class and public guard method are randomized and relocated by default.
+- **`runtime-self-checksum`** injects class initializer checks that hash the emitted `.class` resource bytes at runtime and compare them with `META-INF/frostfuscator/runtime-checksums.tsv`. This protects normal raw class entries; it is not a JVM-internal memory scanner. Its helper class and public guard method are randomized and relocated by default.
 - **`anti-decompiler`** adds verifier-safe bytecode traps aimed at CFR, FernFlower, Procyon, and JADX output.
+- **`structural-hardening`** adds JVM-valid opaque class, method, and field attributes with bounded payloads. It intentionally avoids malformed constant pools, invalid lengths, and illegal flags because those are rejected by the JVM before the program can run.
+- **`archive-extraction-canary`** adds bounded, highly compressible dummy resources and a metadata index. It is a safe extraction canary, not an unbounded zip bomb.
 - **`classloader-encryption`** encrypts eligible application classes into a compressed AES database, removes their raw `.class` entries, and injects a decrypting runtime loader. Standalone jars are launched through `dev.frost.loader.Bootstrap`; Bukkit/Paper plugin jars keep the plugin entry shell loadable and only encrypt plugin-compatible same-package classes that can be defined safely from the plugin main lookup.
 - **`virtualization`** translates eligible methods into a randomized VM instruction set, stores encoded VM bytecode in synthetic fields, and injects `FrostVM` to execute the protected methods at runtime. It skips handlers, invokedynamic, synchronized code, oversized methods, and loader classes for verifier and API compatibility.
 - **`junk-code`** adds bounded synthetic fields and methods to real classes.
@@ -32,16 +36,23 @@ Frostfuscator organizes work into passes. Obfuscation is the main group; the oth
 - **`copypasta-injector`** injects noisy joke/error strings into classes.
 - **`fake-application`** generates inert but believable themed classes for profiles such as Minecraft plugins, Spring Boot, networking, AI, SCP, quantum, and enterprise code.
 - **`chinese-mode`** remaps classes, methods, and fields to random Chinese identifiers and injects Chinese banner/noise members after other generated classes exist. Package mode can use one global package, random Chinese package paths, existing packages, or no package.
+- **`language-mixup`** remaps eligible classes and methods to legal JVM identifiers resembling C++ mangling, Kotlin synthetic accessors, Scala adapters, or a mixture of all three.
+- **`decompiler-zip-ties`** adds bounded, deeply nested recursive generic signatures to synthetic fields and methods, plus a cyclic type-variable class signature trap by default. The pass does not emit cyclic inheritance because the JVM rejects inheritance cycles before application code can run.
+- **`troll-stack-traces`** rewrites explicit `Throwable.printStackTrace` calls to print a configured ASCII banner. It leaves the caught exception object and normal exception-table behavior intact.
 
 ## Resources
 
 - **`resource-compression`** stores compressed resource copies and writes an index. Frostfuscator metadata is skipped so generated ownership/integrity files are not recursively protected.
 - **`resource-encryption`** stores XOR-encrypted resource copies and writes an index. Keep originals unless the application has a matching runtime resource loader.
+- **`resource-steganography`** AES-GCM encrypts selected resource extensions, stores the ciphertext in PNG RGB least-significant bits, and injects `dev.frost.runtime.StegoResourceLoader`. When originals are removed, use `StegoResourceLoader.read(name, password)` or `open(name, password)` at runtime.
+- **`resource-splitting`** breaks resources above `minimum-size` into `part-size` fragments, records a SHA-256 checksum, and injects `dev.frost.runtime.SplitResourceLoader`. When originals are removed, use `SplitResourceLoader.read(name)` or `open(name)`.
 
 ## Optimization
 
 - **`bytecode-optimizer`** removes simple `NOP` instructions.
 - **`jar-shrinker`** removes debug tables, line numbers, and source metadata.
+- **`aggressive-inlining`** inlines tiny private static no-argument straight-line methods. It rejects branches, handlers, locals, synchronization, native code, and recursion, and can remove methods whose call sites were fully inlined.
+- **`dead-code-elimination`** computes method reachability from externally callable roots and removes unreachable private methods. It can also remove unused private fields; disable that option for reflection-heavy applications.
 
 ## Reporting
 

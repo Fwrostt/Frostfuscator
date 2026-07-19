@@ -1,0 +1,66 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Core Frostfuscator engine, transformers, config, JNI, and tests.'
+
+dependencies {
+    api project(':frost-runtime')
+
+    api "org.ow2.asm:asm:${rootProject.ext.asmVersion}"
+    api "org.ow2.asm:asm-commons:${rootProject.ext.asmVersion}"
+    api "org.ow2.asm:asm-tree:${rootProject.ext.asmVersion}"
+    implementation "org.ow2.asm:asm-util:${rootProject.ext.asmVersion}"
+
+    implementation 'info.picocli:picocli:4.7.5'
+    implementation 'org.slf4j:slf4j-simple:2.0.13'
+    implementation 'org.yaml:snakeyaml:2.2'
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
+}
+
+sourceSets {
+    testInput {
+        java.srcDir 'src/test/fixtures/multiclass/src/main/java'
+        resources.srcDir 'src/test/fixtures/multiclass/src/main/resources'
+    }
+}
+
+tasks.named('compileTestInputJava').configure {
+    options.release = 17
+}
+
+tasks.register('generateTestInputResources') {
+    group = 'verification'
+    description = 'Generate large deterministic resources for the multi-class fixture input jar'
+    def outputDir = layout.buildDirectory.dir('generated/test-input-resources')
+    outputs.dir(outputDir)
+    doLast {
+        def dataFile = outputDir.get().file('data/database.bin').asFile
+        dataFile.parentFile.mkdirs()
+        def pattern = 'FROST-FIXTURE-DATABASE-0123456789\n'.getBytes('UTF-8')
+        byte[] data = new byte[128 * 1024]
+        for (int i = 0; i < data.length; i++) {
+            data[i] = pattern[i % pattern.length]
+        }
+        dataFile.bytes = data
+    }
+}
+
+tasks.register('testInputJar', Jar) {
+    group = 'verification'
+    description = 'Build the multi-class fixture input jar used by integration tests and manual decompiler checks'
+    archiveFileName.set('frostfuscator-test-input.jar')
+    destinationDirectory.set(layout.buildDirectory.dir('test-jars'))
+    from sourceSets.testInput.output
+    from layout.buildDirectory.dir('generated/test-input-resources')
+    manifest {
+        attributes('Main-Class': 'com.acme.frostfixture.FixtureApp')
+    }
+    dependsOn tasks.named('testInputClasses')
+    dependsOn tasks.named('generateTestInputResources')
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('testInputJar')
+}
