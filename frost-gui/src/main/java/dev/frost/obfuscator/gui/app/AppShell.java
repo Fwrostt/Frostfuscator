@@ -118,6 +118,17 @@ public final class AppShell {
         return (System.nanoTime() - started) / 1_000_000L;
     }
 
+    /**
+     * Constructs and caches a page without forcing a full scene CSS/layout pass.
+     * Startup uses this path so every page is ready while animations retain an
+     * opportunity to render between page constructions.
+     */
+    public long preloadPage(PageId page) {
+        long started = System.nanoTime();
+        cache.computeIfAbsent(page, pages::create);
+        return (System.nanoTime() - started) / 1_000_000L;
+    }
+
     public int preloadedPageCount() {
         return cache.size();
     }

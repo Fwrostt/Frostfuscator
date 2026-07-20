@@ -3,24 +3,18 @@ package dev.frost.obfuscator.gui.state;
 import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.config.ConfigWriter;
 import dev.frost.obfuscator.config.ObfuscationConfig;
-import dev.frost.obfuscator.gui.build.BuildRecord;
 import dev.frost.obfuscator.gui.config.ConfigurationBinder;
 import dev.frost.obfuscator.gui.console.ConsoleModel;
-import dev.frost.obfuscator.gui.console.LogEntry;
-import javafx.collections.ListChangeListener;
+import javafx.application.Platform;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -31,8 +25,6 @@ import java.util.concurrent.TimeUnit;
  * blocking the JavaFX application thread on disk access.
  */
 public final class WorkspacePersistence implements AutoCloseable {
-    private static final int MAX_BUILD_RECORDS = 100;
-    private static final int MAX_LOG_ENTRIES = 5_000;
     private final AppDataPaths paths;
     private final ProjectState state;
     private final ConfigurationBinder binder;
@@ -43,9 +35,7 @@ public final class WorkspacePersistence implements AutoCloseable {
         return thread;
     });
     private ScheduledFuture<?> pendingWorkspace;
-    private ScheduledFuture<?> pendingActivity;
     private volatile WorkspaceSnapshot latestWorkspace;
-    private volatile ActivitySnapshot latestActivity;
     private boolean started;
     private boolean closed;
 
@@ -58,8 +48,30 @@ public final class WorkspacePersistence implements AutoCloseable {
     }
 
     public void restore() {
-        restoreWorkspace();
-        restoreActivity();
+        applyRestore(loadRestore());
+    }
+
+    /**
+     * Reads session files away from the JavaFX application thread, then applies
+     * the parsed snapshot in one short FX-thread transaction.
+     */
+    public CompletableFuture<Void> restoreAsync() {
+        return CompletableFuture.supplyAsync(this::loadRestore, writer)
+                .thenCompose(snapshot -> {
+                    CompletableFuture<Void> applied = new CompletableFuture<>();
+                    Platform.runLater(() -> {
+                        try {
+                            if (!closed) {
+                                applyRestore(snapshot);
+                                start();
+                            }
+                            applied.complete(null);
+                        } catch (RuntimeException exception) {
+                            applied.completeExceptionally(exception);
+                        }
+                    });
+                    return applied;
+                });
     }
 
     public void start() {
@@ -71,79 +83,45 @@ public final class WorkspacePersistence implements AutoCloseable {
         state.outputSizeLimitMbProperty().addListener((obs, old, value) -> scheduleWorkspaceSave());
         state.runtimeOverheadPreferenceProperty().addListener((obs, old, value) -> scheduleWorkspaceSave());
         state.dirtyProperty().addListener((obs, old, value) -> scheduleWorkspaceSave());
-        state.buildHistory().addListener((ListChangeListener<BuildRecord>) change -> scheduleActivitySave());
-        console.entries().addListener((ListChangeListener<LogEntry>) change -> scheduleActivitySave());
         captureWorkspace();
-        captureActivity();
     }
 
     public void saveNow() {
         captureWorkspace();
-        captureActivity();
         cancelPending();
         WorkspaceSnapshot workspace = latestWorkspace;
-        ActivitySnapshot activity = latestActivity;
         if (workspace != null) writeWorkspace(workspace);
-        if (activity != null) writeActivity(activity);
     }
 
-    private void restoreWorkspace() {
+    private RestoreSnapshot loadRestore() {
         Properties metadata = loadProperties(paths.sessionMetadata());
+        ObfuscationConfig configuration = null;
         if (Files.isRegularFile(paths.sessionConfig())) {
             try {
-                ObfuscationConfig configuration = ConfigLoader.load(paths.sessionConfig());
+                configuration = ConfigLoader.load(paths.sessionConfig());
                 ConfigurationBinder.ensureAllTransformers(configuration);
-                state.replaceConfiguration(configuration);
             } catch (RuntimeException ignored) {
                 // Keep the known-good default configuration when an autosave is damaged.
             }
         }
+        if (configuration != null) clearTransientProjectFields(configuration);
+        deleteQuietly(paths.buildHistory());
+        deleteQuietly(paths.latestLog());
+        return new RestoreSnapshot(configuration, metadata);
+    }
+
+    private void applyRestore(RestoreSnapshot snapshot) {
+        if (snapshot.configuration() != null) state.replaceConfiguration(snapshot.configuration());
+        Properties metadata = snapshot.metadata();
         state.profileProperty().set(metadata.getProperty("profile", state.profileProperty().get()));
         state.goalProperty().set(metadata.getProperty("goal", state.goalProperty().get()));
         state.outputSizeLimitMbProperty().set(parseDouble(metadata, "outputSizeLimitMb",
                 state.outputSizeLimitMbProperty().get()));
         state.runtimeOverheadPreferenceProperty().set(parseDouble(metadata, "runtimeOverheadPreference",
                 state.runtimeOverheadPreferenceProperty().get()));
-        state.dirtyProperty().set(Boolean.parseBoolean(metadata.getProperty("dirty", "false")));
-    }
-
-    private void restoreActivity() {
-        Properties history = loadProperties(paths.buildHistory());
-        int historyCount = parseInt(history, "count", 0);
-        List<BuildRecord> records = new ArrayList<>();
-        for (int index = 0; index < Math.min(historyCount, MAX_BUILD_RECORDS); index++) {
-            try {
-                String prefix = "record." + index + ".";
-                String output = decode(history.getProperty(prefix + "output", ""));
-                records.add(new BuildRecord(
-                        LocalDateTime.parse(history.getProperty(prefix + "time")),
-                        BuildRecord.Status.valueOf(history.getProperty(prefix + "status")),
-                        output.isBlank() ? null : Path.of(output),
-                        Duration.ofMillis(Long.parseLong(history.getProperty(prefix + "durationMillis", "0"))),
-                        decode(history.getProperty(prefix + "message", ""))));
-            } catch (RuntimeException ignored) {
-                // Preserve the remaining valid records.
-            }
-        }
-        state.buildHistory().setAll(records);
-
-        Properties logs = loadProperties(paths.latestLog());
-        int logCount = parseInt(logs, "count", 0);
-        List<LogEntry> entries = new ArrayList<>();
-        for (int index = 0; index < Math.min(logCount, MAX_LOG_ENTRIES); index++) {
-            try {
-                String prefix = "entry." + index + ".";
-                entries.add(new LogEntry(
-                        LocalDateTime.parse(logs.getProperty(prefix + "time")),
-                        LogEntry.Level.valueOf(logs.getProperty(prefix + "level")),
-                        decode(logs.getProperty(prefix + "transformer", "")),
-                        decode(logs.getProperty(prefix + "message", "")),
-                        decode(logs.getProperty(prefix + "reference", ""))));
-            } catch (RuntimeException ignored) {
-                // Preserve the remaining valid entries.
-            }
-        }
-        console.restore(entries);
+        state.dirtyProperty().set(false);
+        state.buildHistory().clear();
+        console.clear();
     }
 
     private void scheduleWorkspaceSave() {
@@ -156,32 +134,15 @@ public final class WorkspacePersistence implements AutoCloseable {
         }, 420, TimeUnit.MILLISECONDS);
     }
 
-    private void scheduleActivitySave() {
-        if (!started || closed) return;
-        captureActivity();
-        if (pendingActivity != null) pendingActivity.cancel(false);
-        pendingActivity = writer.schedule(() -> {
-            ActivitySnapshot snapshot = latestActivity;
-            if (snapshot != null) writeActivity(snapshot);
-        }, 650, TimeUnit.MILLISECONDS);
-    }
-
     private void captureWorkspace() {
+        ObfuscationConfig configuration = binder.snapshot();
+        clearTransientProjectFields(configuration);
         latestWorkspace = new WorkspaceSnapshot(
-                binder.snapshot(),
+                configuration,
                 state.profileProperty().get(),
                 state.goalProperty().get(),
                 state.outputSizeLimitMbProperty().get(),
-                state.runtimeOverheadPreferenceProperty().get(),
-                state.dirtyProperty().get());
-    }
-
-    private void captureActivity() {
-        List<BuildRecord> history = List.copyOf(state.buildHistory().subList(
-                0, Math.min(state.buildHistory().size(), MAX_BUILD_RECORDS)));
-        List<LogEntry> allLogs = console.entries();
-        int start = Math.max(0, allLogs.size() - MAX_LOG_ENTRIES);
-        latestActivity = new ActivitySnapshot(history, List.copyOf(allLogs.subList(start, allLogs.size())));
+                state.runtimeOverheadPreferenceProperty().get());
     }
 
     private void writeWorkspace(WorkspaceSnapshot snapshot) {
@@ -202,38 +163,14 @@ public final class WorkspacePersistence implements AutoCloseable {
         metadata.setProperty("outputSizeLimitMb", Double.toString(snapshot.outputSizeLimitMb()));
         metadata.setProperty("runtimeOverheadPreference",
                 Double.toString(snapshot.runtimeOverheadPreference()));
-        metadata.setProperty("dirty", Boolean.toString(snapshot.dirty()));
         storeProperties(metadata, paths.sessionMetadata(), "Frostfuscator workspace session");
     }
 
-    private void writeActivity(ActivitySnapshot snapshot) {
-        Properties history = new Properties();
-        history.setProperty("formatVersion", "1");
-        history.setProperty("count", Integer.toString(snapshot.history().size()));
-        for (int index = 0; index < snapshot.history().size(); index++) {
-            BuildRecord record = snapshot.history().get(index);
-            String prefix = "record." + index + ".";
-            history.setProperty(prefix + "time", record.time().toString());
-            history.setProperty(prefix + "status", record.status().name());
-            history.setProperty(prefix + "output", encode(record.output() == null ? "" : record.output().toString()));
-            history.setProperty(prefix + "durationMillis", Long.toString(record.duration().toMillis()));
-            history.setProperty(prefix + "message", encode(record.message()));
-        }
-        storeProperties(history, paths.buildHistory(), "Frostfuscator build history");
-
-        Properties logs = new Properties();
-        logs.setProperty("formatVersion", "1");
-        logs.setProperty("count", Integer.toString(snapshot.logs().size()));
-        for (int index = 0; index < snapshot.logs().size(); index++) {
-            LogEntry entry = snapshot.logs().get(index);
-            String prefix = "entry." + index + ".";
-            logs.setProperty(prefix + "time", entry.timestamp().toString());
-            logs.setProperty(prefix + "level", entry.level().name());
-            logs.setProperty(prefix + "transformer", encode(entry.transformer()));
-            logs.setProperty(prefix + "message", encode(entry.message()));
-            logs.setProperty(prefix + "reference", encode(entry.reference()));
-        }
-        storeProperties(logs, paths.latestLog(), "Frostfuscator latest console session");
+    private static void clearTransientProjectFields(ObfuscationConfig configuration) {
+        configuration.setInput("");
+        configuration.setOutput("");
+        configuration.setLibs("");
+        configuration.getLibraries().setPaths(new ArrayList<>());
     }
 
     private static Properties loadProperties(Path file) {
@@ -259,30 +196,12 @@ public final class WorkspacePersistence implements AutoCloseable {
         }
     }
 
-    private static int parseInt(Properties properties, String key, int fallback) {
-        try {
-            return Integer.parseInt(properties.getProperty(key, Integer.toString(fallback)));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
     private static double parseDouble(Properties properties, String key, double fallback) {
         try {
             return Double.parseDouble(properties.getProperty(key, Double.toString(fallback)));
         } catch (NumberFormatException ignored) {
             return fallback;
         }
-    }
-
-    private static String encode(String value) {
-        String safe = value == null ? "" : value;
-        return Base64.getEncoder().encodeToString(safe.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String decode(String value) {
-        if (value == null || value.isBlank()) return "";
-        return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
     }
 
     private static void deleteQuietly(Path path) {
@@ -294,16 +213,14 @@ public final class WorkspacePersistence implements AutoCloseable {
 
     private void cancelPending() {
         if (pendingWorkspace != null) pendingWorkspace.cancel(false);
-        if (pendingActivity != null) pendingActivity.cancel(false);
         pendingWorkspace = null;
-        pendingActivity = null;
     }
 
     @Override
     public void close() {
         if (closed) return;
         closed = true;
-        saveNow();
+        if (started) saveNow();
         writer.shutdown();
         try {
             writer.awaitTermination(3, TimeUnit.SECONDS);
@@ -317,9 +234,11 @@ public final class WorkspacePersistence implements AutoCloseable {
             String profile,
             String goal,
             double outputSizeLimitMb,
-            double runtimeOverheadPreference,
-            boolean dirty
+            double runtimeOverheadPreference
     ) {}
 
-    private record ActivitySnapshot(List<BuildRecord> history, List<LogEntry> logs) {}
+    private record RestoreSnapshot(
+            ObfuscationConfig configuration,
+            Properties metadata
+    ) {}
 }

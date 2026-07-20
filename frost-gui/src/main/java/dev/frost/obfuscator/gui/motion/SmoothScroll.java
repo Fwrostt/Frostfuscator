@@ -43,6 +43,7 @@ public final class SmoothScroll {
         private void handle(ScrollEvent event) {
             if (themes.reducedMotionProperty().get()
                     || event.isInertia()
+                    || event.getTextDeltaYUnits() != ScrollEvent.VerticalTextScrollUnits.LINES
                     || event.getDeltaY() == 0
                     || Math.abs(event.getDeltaX()) > Math.abs(event.getDeltaY())
                     || scroll.getContent() == null) {
@@ -53,9 +54,7 @@ public final class SmoothScroll {
                     - scroll.getViewportBounds().getHeight();
             if (scrollableHeight <= 0) return;
 
-            double lineDelta = event.getTextDeltaYUnits() == ScrollEvent.VerticalTextScrollUnits.LINES
-                    ? event.getTextDeltaY()
-                    : event.getDeltaY() / PIXELS_PER_LINE;
+            double lineDelta = event.getTextDeltaY();
             if (lineDelta == 0) return;
 
             target = clamp(target - (lineDelta * PIXELS_PER_LINE / scrollableHeight), 0, 1);

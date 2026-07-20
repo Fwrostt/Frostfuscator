@@ -15,6 +15,8 @@ import dev.frost.obfuscator.gui.validation.ProjectValidator;
 import dev.frost.obfuscator.gui.validation.ValidationCoordinator;
 import javafx.stage.Stage;
 
+import java.util.ArrayList;
+
 public final class AppContext implements AutoCloseable {
     private final Stage stage;
     private final PreferencesStore preferences;
@@ -64,6 +66,19 @@ public final class AppContext implements AutoCloseable {
     }
 
     public static AppContext create(Stage stage, PreferencesStore preferences) {
+        return create(stage, preferences, true);
+    }
+
+    /**
+     * Creates the lightweight service graph used by the normal startup flow.
+     * Project paths and session activity deliberately begin empty. Reusable
+     * protection configuration is restored asynchronously by the startup flow.
+     */
+    public static AppContext createForStartup(Stage stage, PreferencesStore preferences) {
+        return create(stage, preferences, false);
+    }
+
+    private static AppContext create(Stage stage, PreferencesStore preferences, boolean restoreWorkspace) {
         ProjectState state = new ProjectState();
         ConfigurationBinder binder = new ConfigurationBinder(state);
         ThemeManager themes = new ThemeManager(preferences);
@@ -73,8 +88,15 @@ public final class AppContext implements AutoCloseable {
         ConsoleModel console = new ConsoleModel();
         WorkspacePersistence workspace =
                 new WorkspacePersistence(preferences.paths(), state, binder, console);
-        workspace.restore();
-        workspace.start();
+        if (restoreWorkspace) {
+            workspace.restore();
+            workspace.start();
+        } else {
+            state.configuration().setInput("");
+            state.configuration().setOutput("");
+            state.configuration().setLibs("");
+            state.configuration().getLibraries().setPaths(new ArrayList<>());
+        }
         ValidationCoordinator validation = new ValidationCoordinator(state, validator);
         BuildController builds = new BuildController(state, binder, console, validator);
         DialogService dialogs = new DialogService(stage, preferences);

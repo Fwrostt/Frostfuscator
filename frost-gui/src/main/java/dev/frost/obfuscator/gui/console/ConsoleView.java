@@ -3,26 +3,42 @@ package dev.frost.obfuscator.gui.console;
 import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.Ui;
-import javafx.animation.PauseTransition;
+import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.stage.FileChooser;
-import org.fxmisc.richtext.StyleClassedTextArea;
 import org.reactfx.EventStreams;
-import javafx.util.Duration;
 
 import java.nio.file.Files;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public final class ConsoleView {
+    private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+
     private final AppContext context;
     private final BorderPane root = new BorderPane();
     private final TextField search = new TextField();
@@ -31,12 +47,10 @@ public final class ConsoleView {
     private final CustomComboBox<String> transformer = new CustomComboBox<>(List.of("All transformers"));
     private final CheckBox autoScroll = new CheckBox("Auto-scroll");
     private final CheckBox wordWrap = new CheckBox("Word wrap");
-    private final StyleClassedTextArea output = new StyleClassedTextArea();
+    private final ListView<LogEntry> output = new ListView<>();
     private final FilteredList<LogEntry> filtered;
-    private final Label empty = Ui.label("Build output will appear here", "console-empty-title");
-    private final PauseTransition rebuildDelay = new PauseTransition(Duration.millis(40));
     private boolean active;
-    private boolean rebuildPending = true;
+    private boolean revealScrollPending;
 
     public ConsoleView(AppContext context) {
         this.context = context;
@@ -50,12 +64,16 @@ public final class ConsoleView {
         level.setPrefWidth(132);
         transformer.setMinWidth(180);
         transformer.setPrefWidth(210);
+
         autoScroll.setSelected(context.preferences().getBoolean("console.autoScroll", true));
         wordWrap.setSelected(context.preferences().getBoolean("console.wordWrap", true));
         autoScroll.selectedProperty().addListener((obs, old, value) ->
                 context.preferences().putBoolean("console.autoScroll", value));
-        wordWrap.selectedProperty().addListener((obs, old, value) ->
-                context.preferences().putBoolean("console.wordWrap", value));
+        wordWrap.selectedProperty().addListener((obs, old, value) -> {
+            context.preferences().putBoolean("console.wordWrap", value);
+            output.refresh();
+        });
+
         Button copy = Ui.button("Copy", "secondary-button", this::copy);
         Button export = Ui.button("Export", "secondary-button", this::export);
         Button clear = Ui.button("Clear", "secondary-button", context.consoleModel()::clear);
@@ -69,17 +87,11 @@ public final class ConsoleView {
         root.setTop(toolbar);
 
         filtered = new FilteredList<>(context.consoleModel().entries(), entry -> true);
-        output.setEditable(false);
-        output.wrapTextProperty().bind(wordWrap.selectedProperty());
-        output.getStyleClass().add("console-rich-area");
-        output.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2 && !output.getSelectedText().isBlank()) {
-                context.notifications().show("Selected console reference copied");
-                ClipboardContent content = new ClipboardContent();
-                content.putString(output.getSelectedText());
-                Clipboard.getSystemClipboard().setContent(content);
-            }
-        });
+        output.setItems(filtered);
+        output.setCellFactory(ignored -> new ConsoleCell());
+        output.getStyleClass().add("console-list");
+
+        Label empty = Ui.label("Build output will appear here", "console-empty-title");
         Label emptyCopy = Ui.label(
                 "Run validation or start a build. Use filters to focus on a transformer or log level.",
                 "console-empty-copy");
@@ -87,27 +99,21 @@ public final class ConsoleView {
         emptyCopy.setMaxWidth(560);
         VBox emptyState = new VBox(Ui.SPACE_2, empty, emptyCopy);
         emptyState.setAlignment(Pos.CENTER);
-        emptyState.visibleProperty().bind(javafx.beans.binding.Bindings.isEmpty(filtered));
+        emptyState.visibleProperty().bind(Bindings.isEmpty(filtered));
         emptyState.managedProperty().bind(emptyState.visibleProperty());
-        StackPane stack = new StackPane(output, emptyState);
-        root.setCenter(stack);
+        root.setCenter(new StackPane(output, emptyState));
 
         EventStreams.valuesOf(search.textProperty())
                 .successionEnds(java.time.Duration.ofMillis(180))
                 .subscribe(value -> applyFilter());
         level.valueProperty().addListener((obs, old, value) -> applyFilter());
         transformer.valueProperty().addListener((obs, old, value) -> applyFilter());
-        rebuildDelay.setOnFinished(event -> {
-            if (active) {
-                rebuildPending = false;
-                rebuildOutput();
-            }
-        });
-        filtered.addListener((javafx.collections.ListChangeListener<LogEntry>) change -> scheduleRebuild());
-        context.consoleModel().entries().addListener((javafx.collections.ListChangeListener<LogEntry>) change -> {
-            refreshTransformers();
-        });
-        rebuildOutput();
+        context.consoleModel().entries().addListener(
+                (javafx.collections.ListChangeListener<LogEntry>) change -> {
+                    refreshTransformers();
+                    scrollToLatest();
+                });
+        refreshTransformers();
     }
 
     private void applyFilter() {
@@ -118,6 +124,7 @@ public final class ConsoleView {
                 || entry.transformer().toLowerCase(Locale.ROOT).contains(query))
                 && (selectedLevel.equals("All levels") || entry.level().name().equalsIgnoreCase(selectedLevel))
                 && (selectedTransformer.equals("All transformers") || entry.transformer().equals(selectedTransformer)));
+        scrollToLatest();
     }
 
     private void refreshTransformers() {
@@ -130,86 +137,46 @@ public final class ConsoleView {
         if (selected != null && values.contains(selected)) transformer.setValue(selected);
     }
 
-    private void rebuildOutput() {
-        output.clear();
-        DateTimeFormatter clock = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        for (LogEntry entry : filtered) {
-            int timeStart = output.getLength();
-            String timestamp = entry.timestamp().format(clock);
-            output.appendText(timestamp);
-            output.setStyleClass(timeStart, output.getLength(), "console-time");
-
-            output.appendText("  ");
-            int levelStart = output.getLength();
-            String levelText = String.format("● %-7s", entry.level().name());
-            output.appendText(levelText);
-            output.setStyleClass(levelStart, output.getLength(),
-                    "console-" + entry.level().name().toLowerCase(Locale.ROOT));
-
-            if (!entry.transformer().isBlank()) {
-                output.appendText(" ");
-                int transformerStart = output.getLength();
-                output.appendText("[" + entry.transformer() + "]");
-                output.setStyleClass(transformerStart, output.getLength(), "console-transformer");
-            }
-
-            output.appendText("  ");
-            appendMessage(entry);
-            output.appendText(System.lineSeparator());
-        }
-        if (autoScroll.isSelected() && output.getLength() > 0) {
-            output.moveTo(output.getLength());
-            output.requestFollowCaret();
-        }
+    private void scrollToLatest() {
+        if (!active || !autoScroll.isSelected() || filtered.isEmpty()) return;
+        Platform.runLater(this::scrollWhenVisible);
     }
 
-    private void appendMessage(LogEntry entry) {
-        String message = displayMessage(entry);
-        String reference = entry.reference();
-        int referenceStart = reference.isBlank() ? -1 : message.indexOf(reference);
-        if (referenceStart < 0) {
-            appendStyled(message, "console-message");
+    private void scrollWhenVisible() {
+        if (!active || !autoScroll.isSelected() || filtered.isEmpty()) return;
+        Node application = root;
+        while (application.getParent() != null
+                && !application.getStyleClass().contains("window-root")) {
+            application = application.getParent();
+        }
+        if (application.getOpacity() < 0.99) {
+            if (revealScrollPending) return;
+            revealScrollPending = true;
+            Node observed = application;
+            ChangeListener<Number> listener = new ChangeListener<>() {
+                @Override
+                public void changed(javafx.beans.value.ObservableValue<? extends Number> observable,
+                                    Number oldValue, Number newValue) {
+                    if (newValue.doubleValue() < 0.99) return;
+                    observed.opacityProperty().removeListener(this);
+                    revealScrollPending = false;
+                    Platform.runLater(ConsoleView.this::scrollWhenVisible);
+                }
+            };
+            observed.opacityProperty().addListener(listener);
             return;
         }
-        appendStyled(message.substring(0, referenceStart), "console-message");
-        appendStyled(reference, "console-reference");
-        appendStyled(message.substring(referenceStart + reference.length()), "console-message");
-    }
-
-    private void appendStyled(String text, String styleClass) {
-        if (text.isEmpty()) return;
-        int start = output.getLength();
-        output.appendText(text);
-        output.setStyleClass(start, output.getLength(), styleClass);
-    }
-
-    private static String displayMessage(LogEntry entry) {
-        if (entry.transformer().isBlank()) return entry.message();
-        String prefix = "[" + entry.transformer() + "]";
-        return entry.message().startsWith(prefix)
-                ? entry.message().substring(prefix.length()).stripLeading()
-                : entry.message();
-    }
-
-    private void scheduleRebuild() {
-        rebuildPending = true;
-        if (!active) return;
-        rebuildDelay.playFromStart();
+        output.scrollTo(filtered.size() - 1);
     }
 
     public void setActive(boolean active) {
         this.active = active;
-        if (active && rebuildPending) {
-            rebuildDelay.stop();
-            rebuildPending = false;
-            rebuildOutput();
-        } else if (!active) {
-            rebuildDelay.stop();
-        }
+        if (active) scrollToLatest();
     }
 
     private void copy() {
-        String text = filtered.stream().map(this::format).collect(java.util.stream.Collectors.joining(System.lineSeparator()));
+        String text = filtered.stream().map(this::format)
+                .collect(Collectors.joining(System.lineSeparator()));
         ClipboardContent content = new ClipboardContent();
         content.putString(text);
         Clipboard.getSystemClipboard().setContent(content);
@@ -225,7 +192,7 @@ public final class ConsoleView {
         if (file == null) return;
         try {
             Files.writeString(file.toPath(), filtered.stream().map(this::format)
-                    .collect(java.util.stream.Collectors.joining(System.lineSeparator())));
+                    .collect(Collectors.joining(System.lineSeparator())));
             context.notifications().show("Console log exported");
         } catch (Exception exception) {
             context.dialogs().error("Could not export console", exception);
@@ -237,5 +204,96 @@ public final class ConsoleView {
                 + entry.level() + "] " + entry.message();
     }
 
-    public Node root() { return root; }
+    public Node root() {
+        return root;
+    }
+
+    private final class ConsoleCell extends ListCell<LogEntry> {
+        private final Label time = new Label();
+        private final Label severity = new Label();
+        private final Label source = new Label();
+        private final TextFlow message = new TextFlow();
+        private final HBox row = new HBox(Ui.SPACE_3, time, severity, source, message);
+
+        private ConsoleCell() {
+            time.getStyleClass().add("console-time");
+            time.setMinWidth(92);
+            severity.getStyleClass().add("console-level");
+            severity.setMinWidth(82);
+            source.getStyleClass().add("console-transformer");
+            source.setMaxWidth(210);
+            source.setMinWidth(Region.USE_PREF_SIZE);
+            message.getStyleClass().add("console-message-flow");
+            HBox.setHgrow(message, Priority.ALWAYS);
+            row.setAlignment(Pos.TOP_LEFT);
+            row.setMinWidth(0);
+            setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            setOnMouseClicked(event -> {
+                LogEntry entry = getItem();
+                if (event.getClickCount() == 2 && entry != null) {
+                    String value = entry.reference().isBlank() ? entry.message() : entry.reference();
+                    ClipboardContent content = new ClipboardContent();
+                    content.putString(value);
+                    Clipboard.getSystemClipboard().setContent(content);
+                    context.notifications().show(entry.reference().isBlank()
+                            ? "Console message copied" : "Console reference copied");
+                }
+            });
+        }
+
+        @Override
+        protected void updateItem(LogEntry entry, boolean empty) {
+            super.updateItem(entry, empty);
+            if (empty || entry == null) {
+                setGraphic(null);
+                return;
+            }
+
+            time.setText(entry.timestamp().format(CLOCK));
+            severity.setText("\u25CF " + entry.level().name());
+            severity.getStyleClass().removeAll(
+                    "console-debug", "console-info", "console-warning", "console-error", "console-success");
+            severity.getStyleClass().add("console-" + entry.level().name().toLowerCase(Locale.ROOT));
+            source.setText(entry.transformer().isBlank() ? "" : "[" + entry.transformer() + "]");
+            source.setManaged(!entry.transformer().isBlank());
+            source.setVisible(!entry.transformer().isBlank());
+            rebuildMessage(entry);
+
+            boolean wrap = wordWrap.isSelected();
+            message.setMinWidth(wrap ? 0 : Region.USE_PREF_SIZE);
+            setGraphic(row);
+        }
+
+        private void rebuildMessage(LogEntry entry) {
+            message.getChildren().clear();
+            String value = displayMessage(entry);
+            String reference = entry.reference();
+            int referenceStart = reference.isBlank() ? -1 : value.indexOf(reference);
+            if (referenceStart < 0) {
+                message.getChildren().add(styledText(value, "console-message"));
+                return;
+            }
+            addText(value.substring(0, referenceStart), "console-message");
+            addText(reference, "console-reference");
+            addText(value.substring(referenceStart + reference.length()), "console-message");
+        }
+
+        private void addText(String value, String styleClass) {
+            if (!value.isEmpty()) message.getChildren().add(styledText(value, styleClass));
+        }
+    }
+
+    private static Text styledText(String value, String styleClass) {
+        Text text = new Text(value);
+        text.getStyleClass().add(styleClass);
+        return text;
+    }
+
+    private static String displayMessage(LogEntry entry) {
+        if (entry.transformer().isBlank()) return entry.message();
+        String prefix = "[" + entry.transformer() + "]";
+        return entry.message().startsWith(prefix)
+                ? entry.message().substring(prefix.length()).stripLeading()
+                : entry.message();
+    }
 }

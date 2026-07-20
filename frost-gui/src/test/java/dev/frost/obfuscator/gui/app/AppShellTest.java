@@ -19,7 +19,6 @@ import javafx.stage.Stage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.kordamp.ikonli.javafx.FontIcon;
-import org.fxmisc.richtext.StyleClassedTextArea;
 import org.testfx.framework.junit5.ApplicationTest;
 import org.testfx.util.WaitForAsyncUtils;
 
@@ -61,6 +60,14 @@ class AppShellTest extends ApplicationTest {
         assertNotNull(lookup(".overview-page").query());
     }
 
+    @Test
+    void everyPageCanBeConstructedWithoutRepeatedSceneLayout() {
+        interact(() -> {
+            for (PageId page : PageId.values()) shell.preloadPage(page);
+        });
+        assertEquals(PageId.values().length, shell.preloadedPageCount());
+    }
+
     @AfterEach
     void closeContext() {
         if (context != null) context.close();
@@ -72,6 +79,9 @@ class AppShellTest extends ApplicationTest {
         assertNotNull(lookup(".title-bar").query());
         assertTrue(lookup(".page-scroll").query() instanceof ScrollPane);
         assertNotNull(lookup(".overview-page").query());
+        Node frame = lookup(".window-frame").query();
+        assertNotNull(frame.getClip());
+        assertTrue(((javafx.scene.shape.Rectangle) frame.getClip()).getArcWidth() > 0);
     }
 
     @Test
@@ -137,9 +147,11 @@ class AppShellTest extends ApplicationTest {
             shell.navigate(PageId.CONSOLE);
         });
         WaitForAsyncUtils.waitForFxEvents();
-        StyleClassedTextArea output = lookup(".console-rich-area").query();
-        assertTrue(output.getText().contains("Build started."));
-        assertTrue(output.getText().contains("Running transformer: class-rename"));
+        @SuppressWarnings("unchecked")
+        ListView<LogEntry> output = lookup(".console-list").query();
+        assertTrue(output.getItems().stream().anyMatch(entry -> entry.message().contains("Build started.")));
+        assertTrue(output.getItems().stream()
+                .anyMatch(entry -> entry.message().contains("Running transformer: class-rename")));
     }
 
     @Test

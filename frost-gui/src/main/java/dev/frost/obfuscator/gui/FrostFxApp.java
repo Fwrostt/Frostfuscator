@@ -3,19 +3,23 @@ package dev.frost.obfuscator.gui;
 import atlantafx.base.theme.PrimerDark;
 import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.app.AppShell;
+import dev.frost.obfuscator.gui.app.NativeStartupOverlay;
 import dev.frost.obfuscator.gui.app.StartupView;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
 import dev.frost.obfuscator.gui.console.LogEntry;
 import dev.frost.obfuscator.gui.navigation.PageId;
 import dev.frost.obfuscator.gui.state.PreferencesStore;
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.Duration;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +34,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class FrostFxApp extends Application {
     private AppContext context;
+    private NativeStartupOverlay nativeStartup;
 
     public static void launchApp(String[] args) {
         launch(args);
@@ -45,16 +50,32 @@ public final class FrostFxApp extends Application {
         stage.setMinWidth(1080);
         stage.setMinHeight(700);
 
-        StartupView startup = new StartupView();
+        StartupView startup = new StartupView(preferences.getBoolean("ui.reducedMotion", false));
         StackPane host = new StackPane(startup);
         host.getStyleClass().add("bootstrap-host");
+        Rectangle windowClip = new Rectangle();
+        windowClip.widthProperty().bind(host.widthProperty());
+        windowClip.heightProperty().bind(host.heightProperty());
+        windowClip.setSmooth(true);
         Scene scene = new Scene(host, 1480, 900);
         scene.setFill(Color.TRANSPARENT);
         scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
         stage.setScene(scene);
 
+        stage.maximizedProperty().addListener((obs, old, maximized) ->
+                applyWindowShape(host, windowClip, maximized));
         preferences.restoreWindow(stage);
+        applyWindowShape(host, windowClip, stage.isMaximized());
         stage.show();
+        nativeStartup = NativeStartupOverlay.show(
+                stage, preferences.getBoolean("ui.reducedMotion", false));
+        startup.setProgressMirror(nativeStartup::update);
+        Runnable syncStartupBounds = () -> nativeStartup.syncBounds(
+                stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
+        stage.xProperty().addListener((obs, old, value) -> syncStartupBounds.run());
+        stage.yProperty().addListener((obs, old, value) -> syncStartupBounds.run());
+        stage.widthProperty().addListener((obs, old, value) -> syncStartupBounds.run());
+        stage.heightProperty().addListener((obs, old, value) -> syncStartupBounds.run());
         long shownAt = System.nanoTime();
 
         stage.setOnCloseRequest(event -> {
@@ -62,6 +83,7 @@ public final class FrostFxApp extends Application {
             if (context != null) context.close();
             else preferences.close();
             startup.close();
+            if (nativeStartup != null) nativeStartup.close();
         });
 
         CompletableFuture.runAsync(this::loadFonts).whenComplete((ignored, fontFailure) ->
@@ -71,48 +93,89 @@ public final class FrostFxApp extends Application {
 
     private void initializeWorkspace(Stage stage, Scene scene, StackPane host, StartupView startup,
                                      PreferencesStore preferences, long shownAt) {
-        startup.update("Restoring workspace", 0.10);
-        context = AppContext.create(stage, preferences);
+        startup.update("", 0.12);
+        context = AppContext.createForStartup(stage, preferences);
+        startup.update("", 0.20);
+        context.workspacePersistence().restoreAsync().whenComplete((ignored, restoreFailure) ->
+                Platform.runLater(() -> {
+                    // Restore reusable configuration while transient input,
+                    // build, analysis, and console state stays launch-scoped.
+                    PauseTransition nextPulse = new PauseTransition(Duration.millis(48));
+                    nextPulse.setOnFinished(event -> initializeShell(
+                            stage, scene, host, startup, shownAt));
+                    nextPulse.play();
+                }));
+    }
+
+    private void initializeShell(Stage stage, Scene scene, StackPane host,
+                                 StartupView startup, long shownAt) {
+        long shellStarted = System.nanoTime();
         AppShell shell = new AppShell(context);
         context.themeManager().attach(scene, shell.root());
         applyMaximizedChrome(shell, stage.isMaximized());
         stage.maximizedProperty().addListener((obs, old, maximized) ->
                 applyMaximizedChrome(shell, maximized));
         startup.prepareApplication(host, shell.root());
+        long shellMillis = (System.nanoTime() - shellStarted) / 1_000_000L;
+        startup.update("", 0.30);
 
-        CompletableFuture<Optional<ProjectAnalysis>> analysis = restoreProjectAnalysis();
-        Map<PageId, Long> pageTimes = new EnumMap<>(PageId.class);
-        preloadNext(shell, startup, PageId.values(), 0, pageTimes, () ->
-                analysis.whenComplete((restored, failure) -> Platform.runLater(() -> {
-                    if (restored != null) restored.ifPresent(context.projectState()::setAnalysis);
-                    shell.showInitialPage();
-                    context.validationCoordinator().validateNow();
-                    host.applyCss();
-                    host.layout();
+        restoreProjectAnalysis().whenComplete((restored, failure) -> Platform.runLater(() -> {
+            long validationStarted = System.nanoTime();
+            if (restored != null) restored.ifPresent(context.projectState()::setAnalysis);
+            context.validationCoordinator().validateNow();
+            long validationMillis = (System.nanoTime() - validationStarted) / 1_000_000L;
+            startup.update("", 0.38);
+            Map<PageId, Long> pageTimes = new EnumMap<>(PageId.class);
+            preloadNextSmooth(shell, startup, PageId.values(), 0, pageTimes, () -> {
+                long initialPageStarted = System.nanoTime();
+                shell.showInitialPage();
+                long initialPageMillis = (System.nanoTime() - initialPageStarted) / 1_000_000L;
+                startup.update("", 0.96);
+
+                // Give the first page two clean pulses to CSS/layout behind the
+                // splash instead of forcing one long synchronous layout pass.
+                PauseTransition settle = new PauseTransition(Duration.millis(110));
+                settle.setOnFinished(event -> {
                     long totalMillis = (System.nanoTime() - shownAt) / 1_000_000L;
                     long pageMillis = pageTimes.values().stream().mapToLong(Long::longValue).sum();
+                    Map.Entry<PageId, Long> slowestPage = pageTimes.entrySet().stream()
+                            .max(Map.Entry.comparingByValue()).orElse(null);
+                    String slowest = slowestPage == null ? "none"
+                            : slowestPage.getKey().name().toLowerCase(java.util.Locale.ROOT)
+                                    + " " + slowestPage.getValue() + " ms";
                     context.consoleModel().append(LogEntry.Level.DEBUG,
-                            "Startup prepared " + shell.preloadedPageCount() + " pages in "
-                                    + pageMillis + " ms; workspace ready in " + totalMillis + " ms.");
+                            "Startup preloaded " + shell.preloadedPageCount() + " pages in "
+                                    + pageMillis + " ms; workspace ready in " + totalMillis
+                                    + " ms; slowest page " + slowest + "; longest animation frame "
+                                    + startup.largestFrameGapMillis() + " ms; shell " + shellMillis
+                                    + " ms; validation " + validationMillis + " ms; initial page "
+                                    + initialPageMillis + " ms.");
                     startup.reveal(host, shell.root(),
-                            context.themeManager().reducedMotionProperty().get());
-                })));
+                            context.themeManager().reducedMotionProperty().get(),
+                            nativeStartup == null ? () -> {
+                            } : nativeStartup::dismiss);
+                });
+                settle.play();
+            });
+        }));
     }
 
-    private void preloadNext(AppShell shell, StartupView startup, PageId[] pages, int index,
-                             Map<PageId, Long> timings, Runnable complete) {
+    private void preloadNextSmooth(AppShell shell, StartupView startup, PageId[] pages, int index,
+                                   Map<PageId, Long> timings, Runnable complete) {
         if (index >= pages.length) {
-            startup.update("Finishing workspace", 0.91);
+            startup.update("", 0.89);
             complete.run();
             return;
         }
-        PageId page = pages[index];
-        double progress = 0.18 + (0.68 * index / pages.length);
-        startup.update("Preparing " + page.label(), progress);
-        Platform.runLater(() -> {
-            timings.put(page, shell.preload(page));
-            preloadNext(shell, startup, pages, index + 1, timings, complete);
+
+        PauseTransition frameBudget = new PauseTransition(Duration.millis(index == 0 ? 52 : 38));
+        frameBudget.setOnFinished(event -> {
+            PageId page = pages[index];
+            timings.put(page, shell.preloadPage(page));
+            startup.update("", 0.38 + (0.52 * (index + 1) / pages.length));
+            preloadNextSmooth(shell, startup, pages, index + 1, timings, complete);
         });
+        frameBudget.play();
     }
 
     private CompletableFuture<Optional<ProjectAnalysis>> restoreProjectAnalysis() {
@@ -137,6 +200,18 @@ public final class FrostFxApp extends Application {
         shell.root().getStyleClass().remove("maximized");
         if (maximized) shell.root().getStyleClass().add("maximized");
         shell.setRoundedFrame(!maximized);
+    }
+
+    public static void applyWindowShape(StackPane host, Rectangle clip, boolean maximized) {
+        host.getStyleClass().remove("window-maximized");
+        if (maximized) {
+            host.getStyleClass().add("window-maximized");
+            host.setClip(null);
+        } else {
+            clip.setArcWidth(24);
+            clip.setArcHeight(24);
+            host.setClip(clip);
+        }
     }
 
     private void loadFonts() {

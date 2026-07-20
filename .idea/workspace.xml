@@ -6,25 +6,18 @@
   <component name="ChangeListManager">
     <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure">
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/configuration.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/configuration.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/gui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/gui.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/transformers.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transformers.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/resources/config.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureApp.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/integration/ComprehensivePassIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/integration/ComprehensivePassIntegrationTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/build.gradle" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppShell.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppShell.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/StartupView.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/StartupView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/console/ConsoleView.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/console/ConsoleView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/SmoothScroll.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/SmoothScroll.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/WorkspacePersistence.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/WorkspacePersistence.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/app/AppShellTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/app/AppShellTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/state/WorkspacePersistenceTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/state/WorkspacePersistenceTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

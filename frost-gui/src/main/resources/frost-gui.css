@@ -19,35 +19,105 @@
     -fx-font-weight: 500;
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
+    -fx-background-color: transparent;
 }
 
 .text {
     -fx-font-smoothing-type: gray;
 }
 
-.bootstrap-host,
+.bootstrap-host {
+    -fx-background-color: #000000;
+    -fx-background-radius: 12;
+}
+
 .startup-view {
     -fx-background-color: #000000;
+    -fx-background-radius: 12;
 }
 
-.startup-name {
-    -fx-text-fill: #e4e4e7;
-    -fx-font-size: 1.35em;
-    -fx-font-weight: 700;
+.bootstrap-host.window-maximized,
+.bootstrap-host.window-maximized .startup-view,
+.bootstrap-host.window-maximized .startup-backdrop {
+    -fx-background-radius: 0;
 }
 
-.startup-status {
-    -fx-text-fill: #a1a1aa;
-    -fx-font-weight: 500;
+.startup-backdrop {
+    -fx-background-color: linear-gradient(to bottom right, #000000 0%, #010202 58%, #020405 100%);
+    -fx-background-radius: 12;
 }
 
-.startup-mark {
-    -fx-scale-x: 1.35;
-    -fx-scale-y: 1.35;
+.startup-ambient {
+    -fx-opacity: 0.76;
 }
 
-.startup-progress {
-    -fx-pref-height: 4;
+.startup-minimal-content {
+    -fx-padding: 42;
+}
+
+.startup-emblem {
+    -fx-min-width: 300;
+    -fx-pref-width: 300;
+    -fx-max-width: 300;
+    -fx-min-height: 300;
+    -fx-pref-height: 300;
+    -fx-max-height: 300;
+}
+
+.startup-core-mark {
+    -fx-min-width: 64;
+    -fx-pref-width: 64;
+    -fx-max-width: 64;
+    -fx-min-height: 64;
+    -fx-pref-height: 64;
+    -fx-max-height: 64;
+}
+
+.startup-core-mark .brand-stroke {
+    -fx-background-color: #6F98A9;
+    -fx-min-width: 9;
+    -fx-pref-width: 9;
+    -fx-max-width: 9;
+    -fx-min-height: 35;
+    -fx-pref-height: 35;
+    -fx-max-height: 35;
+    -fx-background-radius: 4;
+}
+
+.startup-core-mark .brand-stroke-a {
+    -fx-translate-x: -10;
+    -fx-translate-y: -5;
+}
+
+.startup-core-mark .brand-stroke-b {
+    -fx-translate-x: 10;
+    -fx-translate-y: 7;
+}
+
+.startup-minimal-name {
+    -fx-text-fill: #C9D0D3;
+    -fx-font-size: 1.38em;
+    -fx-font-weight: 600;
+}
+
+.startup-minimal-progress {
+    -fx-min-width: 420;
+    -fx-pref-width: 420;
+    -fx-max-width: 420;
+    -fx-min-height: 5;
+    -fx-pref-height: 5;
+    -fx-max-height: 5;
+}
+
+.progress-bar.startup-minimal-progress > .track {
+    -fx-background-color: #13181A;
+    -fx-background-radius: 999;
+}
+
+.progress-bar.startup-minimal-progress > .bar {
+    -fx-background-color: linear-gradient(to right, #496876 0%, #648A9B 72%, #7799A6 100%);
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
 }
 
 .window-root {
@@ -995,6 +1065,14 @@
     -fx-background-color: -fx-surface-raised;
 }
 
+.console-list .list-cell:selected {
+    -fx-background-color: derive(-fx-surface-raised, 4%);
+}
+
+.console-message-flow {
+    -fx-line-spacing: 1;
+}
+
 .console-time {
     -fx-text-fill: -fx-text-muted;
     -fx-font-family: "Cascadia Mono", "Consolas", monospace;
@@ -1054,6 +1132,7 @@
 
 .console-message {
     -fx-text-fill: -fx-text;
+    -fx-fill: -fx-text;
     -fx-font-family: "Cascadia Mono", "Consolas", monospace;
 }
 
@@ -1065,6 +1144,7 @@
 .console-transformer,
 .console-reference {
     -fx-text-fill: -fx-accent-token;
+    -fx-fill: -fx-accent-token;
     -fx-font-family: "Cascadia Mono", "Consolas", monospace;
     -fx-font-weight: 700;
 }
