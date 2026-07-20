@@ -2,6 +2,7 @@ package dev.frost.obfuscator.transformer.encryption;
 
 import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
+import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.util.AccessHelper;
@@ -49,7 +50,19 @@ public class StringEncryptionTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
+        transformInternal(pool, mappings, config, null);
+    }
+
+    @Override
+    public void transform(Context context) {
+        transformInternal(context.pool(), context.mappings(), context.config(), context);
+    }
+
+    private void transformInternal(ClassPool pool, MappingCollector mappings,
+                                   TransformerConfig config, Context context) {
         String mode = config.getOption("mode", "medium").toLowerCase();
+        long encrypted = 0;
+        long materialized = 0;
 
         for (ClassNode classNode : pool.getClasses()) {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
@@ -61,6 +74,7 @@ public class StringEncryptionTransformer extends Transformer {
             }
 
             int materializedConstants = materializeStringConstantFields(classNode);
+            materialized += materializedConstants;
             int minLength = getIntOption(config, "min-length", 1);
             int maxMethodInstructions = getIntOption(config, "max-method-instructions", 6000);
             List<StringContext> contexts = collectStrings(classNode, minLength, maxMethodInstructions);
@@ -81,8 +95,13 @@ public class StringEncryptionTransformer extends Transformer {
             }
 
             pool.markDirty(classNode.name);
+            encrypted += contexts.size();
             log("Encrypted {} strings in {} (mode: {}, materialized fields: {})",
                     contexts.size(), classNode.name, mode, materializedConstants);
+        }
+        if (context != null) {
+            context.stats().add("encryptedStrings", encrypted);
+            context.stats().add("materializedStringFields", materialized);
         }
     }
 

@@ -98,7 +98,7 @@ public final class AppContext implements AutoCloseable {
             state.configuration().getLibraries().setPaths(new ArrayList<>());
         }
         ValidationCoordinator validation = new ValidationCoordinator(state, validator);
-        BuildController builds = new BuildController(state, binder, console, validator);
+        BuildController builds = new BuildController(state, binder, console, validator, analyzer);
         DialogService dialogs = new DialogService(stage, preferences);
         NotificationCenter notifications = new NotificationCenter();
         return new AppContext(stage, preferences, state, themes, binder, analyzer, recommendations,

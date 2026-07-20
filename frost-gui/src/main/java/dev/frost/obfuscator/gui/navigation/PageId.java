@@ -7,7 +7,7 @@ public enum PageId {
     RESOURCES("Resources", "fth-package"),
     BUILD("Build", "fth-play-circle"),
     VALIDATION("Validation", "fth-check-circle"),
-    REPORTS("Reports", "fth-bar-chart-2"),
+    REPORTS("Analytics", "fth-bar-chart-2"),
     CONSOLE("Console", "fth-terminal"),
     PRESETS("Presets", "fth-bookmark"),
     SETTINGS("Settings", "fth-settings");

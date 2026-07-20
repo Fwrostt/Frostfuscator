@@ -1,6 +1,7 @@
 package dev.frost.obfuscator.engine;
 
 import dev.frost.obfuscator.util.Logger;
+import dev.frost.obfuscator.util.ClassFileVersion;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -62,23 +63,30 @@ public class JarProcessor {
         try (JarFile jarFile = new JarFile(inputPath.toFile())) {
             manifest = jarFile.getManifest();
 
-            jarFile.stream().forEach(entry -> {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                byte[] data;
                 try (InputStream is = jarFile.getInputStream(entry)) {
-                    byte[] data = is.readAllBytes();
-
-                    if (entry.getName().endsWith(".class")) {
+                    data = is.readAllBytes();
+                }
+                if (entry.getName().endsWith(".class")) {
+                    ClassFileVersion.requireSupported(data, entry.getName());
+                    try {
                         ClassReader reader = new ClassReader(data);
                         ClassNode classNode = new ClassNode();
                         reader.accept(classNode, ClassReader.EXPAND_FRAMES);
                         originalClassBytes.put(classNode.name, data);
                         pool.addClass(classNode.name, classNode);
-                    } else if (!entry.getName().equals("META-INF/MANIFEST.MF")) {
-                        resources.put(entry.getName(), data);
+                    } catch (IllegalArgumentException exception) {
+                        throw new IOException("Could not parse " + entry.getName() + " (Java "
+                                + ClassFileVersion.javaVersion(ClassFileVersion.major(data))
+                                + " bytecode): " + exception.getMessage(), exception);
                     }
-                } catch (IOException e) {
-                    Logger.error("Failed to read entry: {}", entry.getName());
+                } else if (!entry.getName().equals("META-INF/MANIFEST.MF")) {
+                    resources.put(entry.getName(), data);
                 }
-            });
+            }
         }
 
         detectMainClass();
@@ -189,6 +197,11 @@ public class JarProcessor {
     }
 
     private void addLibraryClass(ClassPool pool, byte[] data, boolean runtime, LibraryLoadReport report) {
+        try {
+            ClassFileVersion.requireSupported(data, "Library class");
+        } catch (IOException exception) {
+            throw new IllegalArgumentException(exception.getMessage(), exception);
+        }
         ClassReader reader = new ClassReader(data);
         ClassNode classNode = new ClassNode();
         reader.accept(classNode, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);

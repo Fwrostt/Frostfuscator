@@ -2,6 +2,7 @@ package dev.frost.obfuscator.transformer.flow;
 
 import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
+import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.util.AccessHelper;
@@ -28,8 +29,19 @@ public class FlowOutlinerTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
+        transformInternal(pool, mappings, config, null);
+    }
+
+    @Override
+    public void transform(Context context) {
+        transformInternal(context.pool(), context.mappings(), context.config(), context);
+    }
+
+    private void transformInternal(ClassPool pool, MappingCollector mappings,
+                                   TransformerConfig config, Context context) {
         int probability = clamp(getIntOption(config, "probability", 25), 0, 100);
         int maxPerClass = Math.max(0, getIntOption(config, "max-per-class", 16));
+        long outlinedCount = 0;
 
         for (ClassNode classNode : pool.getClasses()) {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
@@ -53,9 +65,11 @@ public class FlowOutlinerTransformer extends Transformer {
             if (!additions.isEmpty()) {
                 classNode.methods.addAll(additions);
                 pool.markDirty(classNode.name);
+                outlinedCount += changed;
                 log("Outlined {} method bodies in {}", changed, classNode.name);
             }
         }
+        if (context != null) context.stats().add("outlinedMethods", outlinedCount);
     }
 
     private boolean canOutline(MethodNode method) {

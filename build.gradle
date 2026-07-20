@@ -7,7 +7,7 @@ group = 'dev.frost'
 version = '1.2.4'
 
 ext {
-    asmVersion = '9.7'
+    asmVersion = '9.9.1'
     javafxVersion = '21.0.5'
     junitVersion = '5.10.2'
 }

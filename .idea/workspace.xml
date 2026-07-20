@@ -4,20 +4,36 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure">
+    <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="Fixed class-version handling.&#10;Upgraded every ASM component from 9.7 to 9.9.1, verified consistently across runtime dependencies. Maven Central&#10;Java 25 bytecode—major version 69—now completes analysis, transformation, verification, and output writing.&#10;Original class versions are preserved in protected JARs.&#10;Supports class versions through Java 26.&#10;Future unsupported versions now report the exact class entry, Java release, and supported range.&#10;Added end-to-end Java 25 and future-version regression tests.">
+      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/ClassFileVersion.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/engine/ClassVersionCompatibilityTest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/BuildAnalytics.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/BytecodeInventory.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/PRODUCT.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowOutlinerTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowOutlinerTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/JarAnalyzer.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/JarAnalyzer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/ProjectAnalysis.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/ProjectAnalysis.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/Recommendation.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/Recommendation.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/RecommendationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/analysis/RecommendationEngine.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppContext.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppShell.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/AppShell.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/StartupView.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/app/StartupView.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/console/ConsoleView.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/console/ConsoleView.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/SmoothScroll.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/SmoothScroll.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/WorkspacePersistence.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/WorkspacePersistence.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/build/BuildController.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/build/BuildController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/Motion.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/motion/Motion.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/navigation/PageId.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/navigation/PageId.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/InputDependenciesPage.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/InputDependenciesPage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/OverviewPage.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/OverviewPage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/ReportsPage.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/page/ReportsPage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/ProjectState.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/state/ProjectState.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/validation/ProjectValidator.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/validation/ProjectValidator.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/analysis/JarAnalyzerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/analysis/JarAnalyzerTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/app/AppShellTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/app/AppShellTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/state/WorkspacePersistenceTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/test/java/dev/frost/obfuscator/gui/state/WorkspacePersistenceTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -267,7 +283,15 @@
       <option name="project" value="LOCAL" />
       <updated>1784455890542</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="GUI &amp; Core Upgrades">
+      <option name="closed" value="true" />
+      <created>1784550414588</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1784550414588</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -282,6 +306,8 @@
     <MESSAGE value="bump fix" />
     <MESSAGE value="bump hotfix" />
     <MESSAGE value="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure" />
-    <option name="LAST_COMMIT_MESSAGE" value="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure" />
+    <MESSAGE value="GUI &amp; Core Upgrades" />
+    <MESSAGE value="Fixed class-version handling.&#10;Upgraded every ASM component from 9.7 to 9.9.1, verified consistently across runtime dependencies. Maven Central&#10;Java 25 bytecode—major version 69—now completes analysis, transformation, verification, and output writing.&#10;Original class versions are preserved in protected JARs.&#10;Supports class versions through Java 26.&#10;Future unsupported versions now report the exact class entry, Java release, and supported range.&#10;Added end-to-end Java 25 and future-version regression tests." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed class-version handling.&#10;Upgraded every ASM component from 9.7 to 9.9.1, verified consistently across runtime dependencies. Maven Central&#10;Java 25 bytecode—major version 69—now completes analysis, transformation, verification, and output writing.&#10;Original class versions are preserved in protected JARs.&#10;Supports class versions through Java 26.&#10;Future unsupported versions now report the exact class entry, Java release, and supported range.&#10;Added end-to-end Java 25 and future-version regression tests." />
   </component>
 </project>

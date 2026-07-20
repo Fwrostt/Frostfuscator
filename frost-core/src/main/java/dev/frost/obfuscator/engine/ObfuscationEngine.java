@@ -17,6 +17,7 @@ import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.tree.ClassNode;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -30,7 +31,7 @@ public class ObfuscationEngine {
         this.cliTransformers = cliTransformers;
     }
 
-    public void run() throws IOException {
+    public ProtectionStats run() throws IOException {
         long startTime = System.currentTimeMillis();
         Path inputPath = Path.of(config.getInput());
         Path outputPath = Path.of(config.getOutput());
@@ -233,11 +234,15 @@ public class ObfuscationEngine {
         processor.writeJar(pool, outputPath);
 
         long elapsed = System.currentTimeMillis() - startTime;
+        stats.set("inputBytes", Files.size(inputPath));
+        stats.set("outputBytes", Files.size(outputPath));
+        stats.set("elapsedMs", elapsed);
         Logger.info("");
         Logger.info("===================================================");
         Logger.info("  Protection run completed in {}ms", elapsed);
         Logger.info("  Classes: {} | Mappings: {}", pool.size(), mappings.totalMappings());
         Logger.info("===================================================");
+        return stats;
     }
 
     private TransformerConfig resolveConfig(Transformer transformer) {

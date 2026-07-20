@@ -85,6 +85,17 @@ class AppShellTest extends ApplicationTest {
     }
 
     @Test
+    void analyticsPageExposesSearchableCompleteInventories() {
+        interact(() -> shell.navigate(PageId.REPORTS));
+        WaitForAsyncUtils.waitForFxEvents();
+        assertNotNull(lookup(".analytics-page").query());
+        assertEquals(4, lookup(".analytics-table").queryAll().size());
+        assertEquals(3, lookup(".analytics-search").queryAll().size());
+        assertNotNull(lookup("Apply recommended setup").queryButton());
+        assertNotNull(lookup("Post-build effectiveness").query());
+    }
+
+    @Test
     void sidebarUsesVectorIconsAndComboShowsInitialValue() {
         WaitForAsyncUtils.waitForFxEvents();
         assertFalse(lookup(".nav-icon").queryAll().isEmpty());

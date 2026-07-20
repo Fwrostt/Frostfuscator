@@ -27,12 +27,13 @@ public record ProjectAnalysis(
         List<String> exclusions,
         String suggestedOutput,
         String suggestedPackage,
-        String suggestedDictionary
+        String suggestedDictionary,
+        BytecodeInventory inventory
 ) {
     public static ProjectAnalysis empty() {
         return new ProjectAnalysis(null, 0, 0, 0, 0, 0, "", List.of(), List.of(), false,
                 Map.of(), false, false, false, false, List.of(), List.of(), List.of(),
-                List.of(), List.of(), "", "obf", "alphabet");
+                List.of(), List.of(), "", "obf", "alphabet", BytecodeInventory.empty());
     }
 
     public boolean analyzed() {

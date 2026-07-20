@@ -45,35 +45,26 @@ public final class Motion {
         for (Node child : host.getChildren()) resetPageNode(child);
         stop(next);
         if (previous != null) stop(previous);
-        if (themes.reducedMotionProperty().get() || previous == null || previous == next) {
-            host.getChildren().setAll(next);
-            resetPageNode(next);
-            return;
-        }
+        // Replace the scene graph atomically, then animate only properties on
+        // the entering page. Keeping outgoing and incoming virtualized controls
+        // under one parent during a pulse can invalidate JavaFX cached bounds.
+        host.getChildren().setAll(next);
+        resetPageNode(next);
+        if (themes.reducedMotionProperty().get() || previous == null || previous == next) return;
 
         next.setOpacity(0);
-        next.setTranslateX(14);
-        host.getChildren().setAll(previous, next);
-
-        FadeTransition outFade = new FadeTransition(Duration.millis(105), previous);
-        outFade.setToValue(0);
-        outFade.setInterpolator(easing);
-        TranslateTransition outMove = new TranslateTransition(Duration.millis(105), previous);
-        outMove.setToX(-6);
-        outMove.setInterpolator(easing);
-
-        FadeTransition inFade = new FadeTransition(Duration.millis(185), next);
+        next.setTranslateX(10);
+        FadeTransition inFade = new FadeTransition(Duration.millis(170), next);
         inFade.setToValue(1);
         inFade.setInterpolator(easing);
-        TranslateTransition inMove = new TranslateTransition(Duration.millis(185), next);
+        TranslateTransition inMove = new TranslateTransition(Duration.millis(170), next);
         inMove.setToX(0);
         inMove.setInterpolator(easing);
 
-        ParallelTransition transition = new ParallelTransition(outFade, outMove, inFade, inMove);
+        ParallelTransition transition = new ParallelTransition(inFade, inMove);
         transition.setOnFinished(event -> {
-            resetPageNode(previous);
+            if (pageTransition != transition) return;
             resetPageNode(next);
-            host.getChildren().setAll(next);
             active.remove(next);
             pageTransition = null;
         });

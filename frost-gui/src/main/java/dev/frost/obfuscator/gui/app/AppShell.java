@@ -109,6 +109,13 @@ public final class AppShell {
         long started = System.nanoTime();
         PageView view = cache.computeIfAbsent(page, pages::create);
         Node node = view.root();
+        // TableView skins maintain a virtualized child list across pulses.
+        // Attaching and detaching the analytics tables inside one synchronous
+        // warm-up pass can race their cached-bounds update. Construct them now
+        // and let their first real attachment perform CSS/layout.
+        if (page == PageId.REPORTS) {
+            return (System.nanoTime() - started) / 1_000_000L;
+        }
         content.getChildren().setAll(node);
         root.applyCss();
         root.layout();

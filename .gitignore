@@ -7,9 +7,8 @@ AGENTS.md
 updates/
 gui-backup-before-redesign/
 DESIGN.md
-PRODUCT.md
 .agents/
-
+PRODUCT.md
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

@@ -2,6 +2,7 @@ package dev.frost.obfuscator.gui.state;
 
 import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
+import dev.frost.obfuscator.gui.analysis.BuildAnalytics;
 import dev.frost.obfuscator.gui.build.BuildRecord;
 import dev.frost.obfuscator.gui.validation.Problem;
 import javafx.beans.property.*;
@@ -15,6 +16,8 @@ public final class ProjectState {
             new SimpleObjectProperty<>(this, "configuration", new ObfuscationConfig());
     private final ObjectProperty<ProjectAnalysis> analysis =
             new SimpleObjectProperty<>(this, "analysis", ProjectAnalysis.empty());
+    private final ObjectProperty<BuildAnalytics> buildAnalytics =
+            new SimpleObjectProperty<>(this, "buildAnalytics", BuildAnalytics.empty());
     private final StringProperty profile = new SimpleStringProperty(this, "profile", "Development");
     private final StringProperty goal = new SimpleStringProperty(this, "goal", "Best compatibility");
     private final DoubleProperty outputSizeLimitMb = new SimpleDoubleProperty(this, "outputSizeLimitMb", 0);
@@ -42,7 +45,13 @@ public final class ProjectState {
     public ProjectAnalysis analysis() { return analysis.get(); }
     public void setAnalysis(ProjectAnalysis value) {
         analysis.set(value == null ? ProjectAnalysis.empty() : value);
+        buildAnalytics.set(BuildAnalytics.empty());
         revision.set(revision.get() + 1);
+    }
+    public ObjectProperty<BuildAnalytics> buildAnalyticsProperty() { return buildAnalytics; }
+    public BuildAnalytics buildAnalytics() { return buildAnalytics.get(); }
+    public void setBuildAnalytics(BuildAnalytics value) {
+        buildAnalytics.set(value == null ? BuildAnalytics.empty() : value);
     }
 
     public StringProperty profileProperty() { return profile; }

@@ -235,6 +235,7 @@ public final class OverviewPage implements PageView {
             Button fix = Ui.button(problem.quickFixLabel(), "inline-button", () -> {
                 problem.quickFix().accept(context.projectState());
                 context.validationCoordinator().validateNow();
+                context.notifications().show("Applied: " + problem.quickFixLabel());
             });
             fix.setMinWidth(Region.USE_PREF_SIZE);
             fix.setMaxWidth(Region.USE_PREF_SIZE);

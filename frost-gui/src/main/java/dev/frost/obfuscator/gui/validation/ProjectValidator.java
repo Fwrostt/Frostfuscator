@@ -29,25 +29,46 @@ public final class ProjectValidator {
                     inputMissing(config) ? "Choose input JAR" : "", null));
         }
 
-        if (state.analysis().reflectionUsage() && renamingEnabled(config)) {
+        if (state.analysis().reflectionUsage() && renamingEnabled(config)
+                && missingRules(config, state.analysis().exclusions())) {
             problems.add(new Problem(Problem.Severity.WARNING, "reflection",
                     "Reflection-sensitive classes may be renamed",
                     "Runtime name lookup was detected. Apply the suggested exclusions before using aggressive renaming.",
                     "Add keep rules", current -> {
-                        List<String> rules = new ArrayList<>(current.configuration().getExclusions());
+                        List<String> rules = new ArrayList<>(current.configuration().getExclusions() == null
+                                ? List.of() : current.configuration().getExclusions());
                         for (String rule : current.analysis().exclusions()) if (!rules.contains(rule)) rules.add(rule);
                         current.configuration().setExclusions(rules);
                         current.touch();
                     }));
         }
-        if (state.analysis().serviceLoaders() && renamingEnabled(config)) {
+        if (state.analysis().reflectionUsage() && enabled(config, "dead-code-elimination")
+                && missingRules(config, state.analysis().exclusions())) {
+            problems.add(new Problem(Problem.Severity.WARNING, "reflection-dead-code",
+                    "Reflection can hide live private members",
+                    "Dead-code analysis cannot see members reached only through reflective names. Keep the affected types before removal.",
+                    "Add keep rules", current -> {
+                        List<String> rules = new ArrayList<>(current.configuration().getExclusions() == null
+                                ? List.of() : current.configuration().getExclusions());
+                        for (String rule : current.analysis().exclusions()) {
+                            if (!rules.contains(rule)) rules.add(rule);
+                        }
+                        current.configuration().setExclusions(rules);
+                        current.touch();
+                    }));
+        }
+        if (state.analysis().serviceLoaders() && renamingEnabled(config)
+                && missingRules(config, state.analysis().keepRules())) {
             problems.add(new Problem(Problem.Severity.WARNING, "services",
                     "Service provider names require preservation",
                     "ServiceLoader entrypoints are discovered by class name and can break after renaming.",
                     "Keep providers", current -> {
-                        List<String> includes = new ArrayList<>(current.configuration().getInclusions());
-                        for (String rule : current.analysis().keepRules()) if (!includes.contains(rule)) includes.add(rule);
-                        current.configuration().setInclusions(includes);
+                        List<String> exclusions = new ArrayList<>(current.configuration().getExclusions() == null
+                                ? List.of() : current.configuration().getExclusions());
+                        for (String rule : current.analysis().keepRules()) {
+                            if (!exclusions.contains(rule)) exclusions.add(rule);
+                        }
+                        current.configuration().setExclusions(exclusions);
                         current.touch();
                     }));
         }
@@ -92,7 +113,8 @@ public final class ProjectValidator {
         for (Recommendation recommendation : recommendations) {
             if (problems.stream().noneMatch(problem -> problem.id().equals(recommendation.id()))) {
                 problems.add(new Problem(Problem.Severity.RECOMMENDATION, recommendation.id(),
-                        recommendation.title(), recommendation.explanation(), recommendation.quickFix(), null));
+                        recommendation.title(), recommendation.explanation(), recommendation.quickFix(),
+                        recommendation.action()));
             }
         }
         return problems;
@@ -112,6 +134,11 @@ public final class ProjectValidator {
 
     private static boolean renamingEnabled(ObfuscationConfig config) {
         return enabled(config, "class-rename") || enabled(config, "field-rename") || enabled(config, "method-rename");
+    }
+
+    private static boolean missingRules(ObfuscationConfig config, List<String> rules) {
+        List<String> existing = config.getExclusions() == null ? List.of() : config.getExclusions();
+        return rules.stream().anyMatch(rule -> !existing.contains(rule));
     }
 
     private static boolean enabled(ObfuscationConfig config, String name) {

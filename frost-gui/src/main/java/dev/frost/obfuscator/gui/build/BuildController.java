@@ -3,6 +3,10 @@ package dev.frost.obfuscator.gui.build;
 import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.engine.ObfuscationEngine;
+import dev.frost.obfuscator.engine.ProtectionStats;
+import dev.frost.obfuscator.gui.analysis.BuildAnalytics;
+import dev.frost.obfuscator.gui.analysis.JarAnalyzer;
+import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
 import dev.frost.obfuscator.gui.config.ConfigurationBinder;
 import dev.frost.obfuscator.gui.console.ConsoleModel;
 import dev.frost.obfuscator.gui.console.LogEntry;
@@ -21,6 +25,7 @@ public final class BuildController implements AutoCloseable {
     private final ConfigurationBinder binder;
     private final ConsoleModel console;
     private final ProjectValidator validator;
+    private final JarAnalyzer analyzer;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "frostfuscator-build-controller");
         thread.setDaemon(true);
@@ -29,11 +34,12 @@ public final class BuildController implements AutoCloseable {
     private Future<?> running;
 
     public BuildController(ProjectState state, ConfigurationBinder binder, ConsoleModel console,
-                           ProjectValidator validator) {
+                           ProjectValidator validator, JarAnalyzer analyzer) {
         this.state = state;
         this.binder = binder;
         this.console = console;
         this.validator = validator;
+        this.analyzer = analyzer;
     }
 
     public void validate() {
@@ -81,18 +87,40 @@ public final class BuildController implements AutoCloseable {
             try {
                 ConfigLoader.validate(config);
                 Platform.runLater(() -> state.buildStatusProperty().set("Protecting classes"));
-                new ObfuscationEngine(config, null).run();
+                ProjectAnalysis inputAnalysis = state.analysis().analyzed()
+                        ? state.analysis() : analyzer.analyze(java.nio.file.Path.of(config.getInput()));
+                ProtectionStats stats = new ObfuscationEngine(config, null).run();
                 Duration duration = Duration.between(started, LocalDateTime.now());
+                BuildAnalytics measuredAnalytics;
+                try {
+                    ProjectAnalysis outputAnalysis = analyzer.analyze(java.nio.file.Path.of(config.getOutput()));
+                    measuredAnalytics = BuildAnalytics.compare(inputAnalysis, outputAnalysis,
+                            duration, stats.counters(), config);
+                } catch (Exception analyticsFailure) {
+                    measuredAnalytics = BuildAnalytics.empty();
+                    console.append(LogEntry.Level.WARNING,
+                            "Build completed, but post-build analytics could not inspect the output: "
+                                    + analyticsFailure.getMessage());
+                }
+                BuildAnalytics analytics = measuredAnalytics;
                 Platform.runLater(() -> {
                     state.busyProperty().set(false);
                     state.buildSuccessfulProperty().set(true);
                     state.buildProgressProperty().set(1);
                     state.buildStatusProperty().set("Build completed");
+                    state.setBuildAnalytics(analytics);
                     state.buildHistory().add(0, new BuildRecord(LocalDateTime.now(), BuildRecord.Status.SUCCESS,
                             state.outputPath(), duration, "Protected JAR created"));
                 });
                 console.append(LogEntry.Level.SUCCESS,
                         "Build completed in " + duration.toSeconds() + " seconds. Output: " + config.getOutput());
+                if (analytics.available()) {
+                    console.append(LogEntry.Level.SUCCESS,
+                            String.format(java.util.Locale.ROOT,
+                                    "Analytics: %.1f%% strings protected, %.1f%% methods transformed, output size %+.1f%%.",
+                                    analytics.stringProtectionPercent(), analytics.methodProtectionPercent(),
+                                    analytics.sizeGrowthPercent()));
+                }
             } catch (CancellationException exception) {
                 finishCancelled(started);
             } catch (Throwable throwable) {

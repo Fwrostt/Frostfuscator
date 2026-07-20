@@ -1,5 +1,10 @@
 package dev.frost.obfuscator.gui.analysis;
 
+import dev.frost.obfuscator.gui.config.ConfigurationBinder;
+import dev.frost.obfuscator.gui.state.ProjectState;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -44,8 +49,51 @@ class JarAnalyzerTest {
         assertTrue(analysis.nativeLibraries());
         assertTrue(analysis.signed());
         assertTrue(analysis.fatJar());
+        assertTrue(analysis.inventory().resourceEntries().stream()
+                .anyMatch(resource -> resource.name().equals("native/example.dll")));
         assertTrue(analysis.suggestedOutput().endsWith("sample-protected.jar"));
         assertFalse(analysis.keepRules().isEmpty());
+    }
+
+    @Test
+    void inventoriesEveryClassMethodFieldInstructionAndStringAndAppliesKeepRules() throws Exception {
+        Path jar = temporaryDirectory.resolve("inventory.jar");
+        try (OutputStream output = Files.newOutputStream(jar);
+             JarOutputStream archive = new JarOutputStream(output)) {
+            add(archive, "com/example/Inventory.class", inventoryClass());
+        }
+
+        ProjectAnalysis analysis = new JarAnalyzer().analyze(jar);
+        BytecodeInventory inventory = analysis.inventory();
+
+        assertEquals(1, analysis.classCount());
+        assertEquals(25, analysis.javaVersion());
+        assertEquals(1, inventory.fieldCount());
+        assertTrue(inventory.methodCount() >= 2);
+        assertTrue(inventory.instructionCount() > 0);
+        assertEquals(2, inventory.stringLiteralCount());
+        assertEquals(2, inventory.uniqueStringCount());
+        assertFalse(inventory.classes().isEmpty());
+        assertFalse(inventory.methods().isEmpty());
+        assertTrue(inventory.strings().stream().anyMatch(item -> item.value().equals("visible-secret")));
+        assertTrue(analysis.reflectionUsage());
+        assertTrue(inventory.compatibilitySignals().stream()
+                .anyMatch(signal -> signal.id().equals("reflection")));
+
+        ProjectState state = new ProjectState();
+        new ConfigurationBinder(state);
+        state.setAnalysis(analysis);
+        state.configuration().getTransformerConfig("class-rename").setEnabled(true);
+        Recommendation keep = new RecommendationEngine().recommend(analysis, state.configuration(),
+                        "Development", 0, 0.5).stream()
+                .filter(item -> item.id().equals("reflection-keep"))
+                .findFirst().orElseThrow();
+        assertTrue(keep.actionable());
+        keep.action().accept(state);
+        assertTrue(state.configuration().getExclusions().containsAll(analysis.exclusions()));
+        assertTrue(new RecommendationEngine().recommend(analysis, state.configuration(),
+                        "Development", 0, 0.5).stream()
+                .noneMatch(item -> item.id().equals("reflection-keep")));
     }
 
     private static void add(JarOutputStream archive, String name, byte[] value) throws Exception {
@@ -65,5 +113,33 @@ class JarAnalyzerTest {
         bytes[7] = (byte) major;
         System.arraycopy(suffix, 0, bytes, 8, suffix.length);
         return bytes;
+    }
+
+    private static byte[] inventoryClass() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(69, Opcodes.ACC_PUBLIC, "com/example/Inventory", null,
+                "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, "value",
+                "Ljava/lang/String;", null, "visible-secret").visitEnd();
+
+        MethodVisitor constructor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(0, 0);
+        constructor.visitEnd();
+
+        MethodVisitor lookup = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "lookup", "()Ljava/lang/Class;", null, new String[]{"java/lang/ClassNotFoundException"});
+        lookup.visitCode();
+        lookup.visitLdcInsn("com.example.Target");
+        lookup.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Class", "forName",
+                "(Ljava/lang/String;)Ljava/lang/Class;", false);
+        lookup.visitInsn(Opcodes.ARETURN);
+        lookup.visitMaxs(0, 0);
+        lookup.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
     }
 }

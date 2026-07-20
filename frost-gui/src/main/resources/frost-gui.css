@@ -1012,6 +1012,117 @@
     -fx-min-width: 300;
 }
 
+.analytics-page {
+    -fx-max-width: 1520;
+}
+
+.analytics-metric {
+    -fx-min-width: 176;
+    -fx-pref-width: 196;
+    -fx-min-height: 112;
+    -fx-background-color: -fx-surface-raised;
+    -fx-background-radius: 10;
+    -fx-padding: 16 18;
+}
+
+.analytics-metric-value {
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 1.28em;
+    -fx-font-weight: 700;
+}
+
+.analytics-metric-label {
+    -fx-text-fill: -fx-text;
+    -fx-font-weight: 700;
+}
+
+.analytics-metric-detail {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.9em;
+}
+
+.analytics-action-row,
+.analytics-signal-row {
+    -fx-background-color: -fx-surface-raised;
+    -fx-background-radius: 9;
+    -fx-padding: 14 16;
+}
+
+.analytics-action-row .status-chip,
+.analytics-signal-row .status-chip {
+    -fx-min-width: 92;
+}
+
+.analytics-tabs {
+    -fx-background-color: transparent;
+}
+
+.analytics-tabs > .tab-header-area {
+    -fx-padding: 0 0 8 0;
+}
+
+.analytics-tabs > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent;
+    -fx-padding: 9 16;
+}
+
+.analytics-tabs > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -fx-accent-soft;
+}
+
+.analytics-tabs > .tab-content-area {
+    -fx-background-color: transparent;
+}
+
+.analytics-search {
+    -fx-max-width: 620;
+}
+
+.analytics-table {
+    -fx-background-color: -fx-bg;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.analytics-table .column-header-background,
+.analytics-table .column-header,
+.analytics-table .filler {
+    -fx-background-color: -fx-surface-raised;
+}
+
+.analytics-table .column-header {
+    -fx-padding: 8 10;
+    -fx-border-color: transparent -fx-border -fx-border transparent;
+    -fx-border-width: 0 1 1 0;
+}
+
+.analytics-table .column-header .label {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-weight: 700;
+    -fx-alignment: center-left;
+}
+
+.analytics-table .table-row-cell {
+    -fx-background-color: -fx-bg;
+    -fx-border-color: transparent transparent -fx-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.analytics-table .table-row-cell:filled:hover {
+    -fx-background-color: -fx-surface-raised;
+}
+
+.analytics-table .table-row-cell:filled:selected {
+    -fx-background-color: -fx-accent-soft;
+}
+
+.analytics-table .table-cell {
+    -fx-text-fill: -fx-text;
+    -fx-padding: 9 10;
+    -fx-border-width: 0;
+}
+
 .profile-presets {
     -fx-padding: 4 0 0 0;
 }
