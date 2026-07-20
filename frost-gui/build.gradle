@@ -14,8 +14,23 @@ configurations {
     guiRuntime
 }
 
+def generatedVersionResources = layout.buildDirectory.dir('generated/version-resources')
+
+sourceSets {
+    main {
+        resources.srcDir(generatedVersionResources)
+    }
+}
+
 dependencies {
     implementation project(':frost-core')
+
+    implementation 'io.github.mkpaz:atlantafx-base:2.0.1'
+    implementation 'org.kordamp.ikonli:ikonli-javafx:12.4.0'
+    implementation 'org.kordamp.ikonli:ikonli-feather-pack:12.4.0'
+    implementation 'org.controlsfx:controlsfx:11.2.3'
+    implementation 'org.fxmisc.richtext:richtextfx:0.11.7'
+    implementation 'org.reactfx:reactfx:2.0-M6'
 
     compileOnly "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     compileOnly "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
@@ -24,6 +39,17 @@ dependencies {
     guiRuntime "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     guiRuntime "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     guiRuntime "org.openjfx:javafx-controls:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
+    testImplementation 'org.testfx:testfx-core:4.0.18'
+    testImplementation 'org.testfx:testfx-junit5:4.0.18'
+    testImplementation 'org.hamcrest:hamcrest:2.2'
+    testImplementation "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testImplementation "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testImplementation "org.openjfx:javafx-controls:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testRuntimeOnly "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testRuntimeOnly "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testRuntimeOnly "org.openjfx:javafx-controls:${rootProject.ext.javafxVersion}:${javafxPlatform}"
 }
 
 application {
@@ -40,9 +66,23 @@ shadowJar {
 
 tasks.register('runGui', JavaExec) {
     group = 'application'
-    description = 'Run the Frostfuscator desktop GUI'
+    description = 'Build required GUI classes and run the Frostfuscator desktop GUI'
     classpath = sourceSets.main.runtimeClasspath + configurations.guiRuntime
     mainClass = 'dev.frost.obfuscator.gui.GuiMain'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('generateVersionResource') {
+    outputs.file(generatedVersionResources.map { it.file('frost-version.properties') })
+    doLast {
+        def output = generatedVersionResources.get().file('frost-version.properties').asFile
+        output.parentFile.mkdirs()
+        output.text = "version=${project.version}\n"
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn 'generateVersionResource'
 }
 
 tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
@@ -54,6 +94,7 @@ tasks.register('guiShadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.
     manifest {
         attributes(
                 'Main-Class': 'dev.frost.obfuscator.gui.GuiMain',
+                'Implementation-Version': project.version,
                 'Enable-Native-Access': 'ALL-UNNAMED'
         )
     }

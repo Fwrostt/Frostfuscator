@@ -63,7 +63,11 @@ public final class Logger {
     private static void publish(String level, String message) {
         String line = "[" + level + "] " + message;
         for (Consumer<String> listener : LISTENERS) {
-            listener.accept(line);
+            try {
+                listener.accept(line);
+            } catch (RuntimeException exception) {
+                LOGGER.warn("Log listener failed and was isolated from the engine", exception);
+            }
         }
     }
 

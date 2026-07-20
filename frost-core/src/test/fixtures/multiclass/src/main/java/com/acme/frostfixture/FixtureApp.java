@@ -18,7 +18,11 @@ public final class FixtureApp {
         List<String> values = Arrays.asList(message, service.compute("alpha", score), LambdaUser.join("beta", score));
         TracePrinter.capture(new IllegalArgumentException("fixture trace"));
         ReflectionTarget target = new ReflectionTarget("fixture");
-        return values + ":" + target.publicName() + ":" + ResourceUser.readConfigMarker();
+        return values + ":" + target.publicName() + ":" + ResourceUser.readConfigMarker()
+                + ":" + StringSplittingCases.runtimeValue(seed % 2 == 0)
+                + ":" + ReflectionLookup.verifyNames()
+                + ":" + MbaCases.mix(score, seed)
+                + ":" + ApiHidingCases.probe();
     }
 
     public int inlineCandidate() {

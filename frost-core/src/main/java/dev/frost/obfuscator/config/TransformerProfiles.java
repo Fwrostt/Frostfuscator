@@ -59,7 +59,10 @@ public final class TransformerProfiles {
     private static void basic(ObfuscationConfig config) {
         noPasses(config);
         set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+        set(config, "string-splitting", false, stringSplittingOptions(2, 12, 4, 3, 0, 0));
         set(config, "string-encryption", true, options("mode", "lite", "min-length", 2, "max-method-instructions", 6000));
+        set(config, "mixed-boolean-arithmetic", false, mixedBooleanArithmeticOptions(70, 1, 64, 256));
+        set(config, "reflection-hiding", false, reflectionHidingOptions(70, 32, 128));
         set(config, "class-rename", true, options("mode", "safe"));
         set(config, "field-rename", true, options("mode", "safe"));
         set(config, "method-rename", true, options("mode", "safe"));
@@ -77,16 +80,19 @@ public final class TransformerProfiles {
         set(config, "method-rename", true, options("mode", "aggressive"));
         set(config, "local-variable-rename", true, options());
         set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+        set(config, "string-splitting", true, stringSplittingOptions(3, 20, 4, 4, 1, 1));
         set(config, "string-encryption", true, options("mode", "heavy", "min-length", 1, "max-method-instructions", 6000));
         set(config, "number-obfuscation", true, options("probability", 80, "max-per-method", 96, "max-per-class", 256, "max-method-instructions", 6000));
+        set(config, "mixed-boolean-arithmetic", true, mixedBooleanArithmeticOptions(45, 1, 48, 192));
         set(config, "parameter-encryption", true, options("probability", 30));
-        set(config, "flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 8, "max-predicates-per-method", 24, "min-method-instructions", 12, "max-method-instructions", 5000));
+        set(config, "flow-obfuscation", true, flowObfuscationOptions(8, 24, 45, 48, 96, 12000));
         set(config, "flow-outliner", true, options("probability", 25, "max-per-class", 16));
         set(config, "flow-range", true, options("probability", 35));
         set(config, "flow-condition", true, options("probability", 25, "max-per-method", 16));
         set(config, "flow-exception", true, options("strength", "GOOD"));
         set(config, "flow-switch", true, options("probability", 75));
         set(config, "stack-manipulation", true, options("probability", 8, "max-per-method", 16));
+        set(config, "reflection-hiding", true, reflectionHidingOptions(35, 24, 96));
         set(config, "invoke-dynamic", true, options("probability", 35, "mutable-callsites", true));
         set(config, "reference-hiding", true, options("probability", 45, "max-per-class", 96, "max-method-instructions", 6000));
         set(config, "access-modifier", true, options("synthetic", true, "bridge-methods", false, "relax-final", false));
@@ -96,15 +102,18 @@ public final class TransformerProfiles {
 
     private static void strong(ObfuscationConfig config) {
         balanced(config);
+        set(config, "string-splitting", true, stringSplittingOptions(4, 32, 3, 6, 1, 2));
         set(config, "string-encryption", true, options("mode", "condy", "min-length", 1, "max-method-instructions", 6000));
         set(config, "number-obfuscation", true, options("probability", 90, "max-per-method", 128, "max-per-class", 320, "max-method-instructions", 6000));
+        set(config, "mixed-boolean-arithmetic", true, mixedBooleanArithmeticOptions(75, 2, 96, 384));
         set(config, "parameter-encryption", true, options("probability", 45));
-        set(config, "flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 12, "max-predicates-per-method", 32, "min-method-instructions", 12, "max-method-instructions", 5000));
+        set(config, "flow-obfuscation", true, flowObfuscationOptions(12, 32, 70, 96, 160, 18000));
         set(config, "flow-outliner", true, options("probability", 35, "max-per-class", 22));
         set(config, "flow-range", true, options("probability", 48));
         set(config, "flow-condition", true, options("probability", 38, "max-per-method", 24));
         set(config, "flow-exception", true, options("strength", "AGGRESSIVE"));
         set(config, "stack-manipulation", true, options("probability", 11, "max-per-method", 22));
+        set(config, "reflection-hiding", true, reflectionHidingOptions(65, 40, 160));
         set(config, "invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
         set(config, "reference-hiding", true, options("probability", 65, "max-per-class", 144, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 12, "deprecated", true, "signatures", true));
@@ -116,15 +125,18 @@ public final class TransformerProfiles {
 
     private static void maximum(ObfuscationConfig config) {
         strong(config);
+        set(config, "string-splitting", true, stringSplittingOptions(4, 64, 2, 8, 2, 3));
         set(config, "string-encryption", true, options("mode", "polymorphic", "min-length", 1, "max-method-instructions", 6000));
         set(config, "number-obfuscation", true, options("probability", 100, "max-per-method", 160, "max-per-class", 512, "max-method-instructions", 6000));
+        set(config, "mixed-boolean-arithmetic", true, mixedBooleanArithmeticOptions(95, 2, 128, 512));
         set(config, "parameter-encryption", true, options("probability", 60));
-        set(config, "flow-obfuscation", true, options("mode", "heavy", "exception-guards", true, "stack-noise", true, "flatten", true, "predicate-rate", 16, "max-predicates-per-method", 40, "min-method-instructions", 12, "max-method-instructions", 5000));
+        set(config, "flow-obfuscation", true, flowObfuscationOptions(16, 40, 90, 160, 256, 24000));
         set(config, "flow-outliner", true, options("probability", 45, "max-per-class", 28));
         set(config, "flow-range", true, options("probability", 60));
         set(config, "flow-condition", true, options("probability", 50, "max-per-method", 32));
         set(config, "flow-switch", true, options("probability", 90));
         set(config, "stack-manipulation", true, options("probability", 14, "max-per-method", 28));
+        set(config, "reflection-hiding", true, reflectionHidingOptions(85, 64, 256));
         set(config, "invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
         set(config, "reference-hiding", true, options("probability", 80, "max-per-class", 192, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 18, "deprecated", true, "signatures", true));
@@ -166,6 +178,107 @@ public final class TransformerProfiles {
                 "timing-iterations", 1000000,
                 "timing-threshold-ms", 80,
                 "check-processes", processChecks
+        );
+    }
+
+    private static Map<String, Object> stringSplittingOptions(int minimumFragments,
+                                                              int maximumFragments,
+                                                              int maximumFragmentLength,
+                                                              int carrierClasses,
+                                                              int decoysPerString,
+                                                              int indirectionDepth) {
+        return options(
+                "min-length", 4,
+                "min-fragments", minimumFragments,
+                "max-fragments", maximumFragments,
+                "max-fragment-length", maximumFragmentLength,
+                "carrier-classes", carrierClasses,
+                "indirection-depth", indirectionDepth,
+                "decoys-per-string", decoysPerString,
+                "encode-fragments", true,
+                "preserve-reflection-strings", true,
+                "max-strings-per-class", 256,
+                "max-method-instructions", 6000,
+                "max-output-method-instructions", 12000,
+                "seed", 0
+        );
+    }
+
+    private static Map<String, Object> mixedBooleanArithmeticOptions(int probability,
+                                                                     int rounds,
+                                                                     int maximumPerMethod,
+                                                                     int maximumPerClass) {
+        return options(
+                "probability", probability,
+                "rounds", rounds,
+                "operations", "add,sub,and,or,xor,neg",
+                "max-per-method", maximumPerMethod,
+                "max-per-class", maximumPerClass,
+                "max-method-instructions", 6000,
+                "max-output-method-instructions", 12000,
+                "include-synthetic", false,
+                "seed", 0
+        );
+    }
+
+    private static Map<String, Object> reflectionHidingOptions(int probability,
+                                                               int maximumPerMethod,
+                                                               int maximumPerClass) {
+        return options(
+                "probability", probability,
+                "owner-prefixes", "java/io,java/net,java/nio/file,java/util/zip,java/util/jar",
+                "excluded-owners", "java/io/PrintStream,java/io/Console",
+                "max-per-method", maximumPerMethod,
+                "max-per-class", maximumPerClass,
+                "max-method-instructions", 6000,
+                "include-synthetic", false,
+                "seed", 0
+        );
+    }
+
+    private static Map<String, Object> flowObfuscationOptions(int predicateRate,
+                                                              int maximumPredicates,
+                                                              int flattenProbability,
+                                                              int maximumBlocks,
+                                                              int predicateCostBudget,
+                                                              int maximumOutputInstructions) {
+        boolean maximum = maximumBlocks >= 128;
+        boolean strong = maximumBlocks >= 64;
+        return options(
+                "mode", "heavy",
+                "exception-guards", true,
+                "stack-noise", true,
+                "flatten", true,
+                "flatten-probability", flattenProbability,
+                "flatten-min-blocks", 3,
+                "flatten-max-blocks", maximumBlocks,
+                "flatten-min-complexity", 8,
+                "flatten-cost-budget", strong ? 768 : 384,
+                "dispatcher-styles", strong
+                        ? "lookup,table,computed,nested,split"
+                        : "lookup,table,computed",
+                "partial-flattening-rate", maximum ? 20 : strong ? 30 : 45,
+                "partial-region-rate", 55,
+                "flatten-hot-loops", maximum,
+                "state-reencode-rate", maximum ? 100 : strong ? 80 : 60,
+                "fake-dispatcher-states", maximum ? 8 : strong ? 4 : 2,
+                "block-clone-rate", maximum ? 50 : strong ? 30 : 15,
+                "max-exception-handlers", 0,
+                "predicate-rate", predicateRate,
+                "max-predicates-per-method", maximumPredicates,
+                "predicate-families", "arithmetic,bitwise,reversible,modular,lookup-table,stateful,argument-derived,interprocedural",
+                "predicate-sources", "volatile,thread,environment,time",
+                "predicate-cost-budget", predicateCostBudget,
+                "predicate-camouflage-rate", maximum ? 55 : strong ? 40 : 25,
+                "predicate-local-rate", maximum ? 45 : strong ? 35 : 25,
+                "heavy-predicates-in-loops", maximum,
+                "hot-loop-max-predicate-cost", 2,
+                "volatile-predicate-state", true,
+                "min-method-instructions", 12,
+                "max-method-instructions", 5000,
+                "max-output-method-instructions", maximumOutputInstructions,
+                "include-synthetic", false,
+                "seed", 0
         );
     }
 

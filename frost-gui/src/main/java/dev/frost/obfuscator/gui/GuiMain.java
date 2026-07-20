@@ -1,5 +1,7 @@
 package dev.frost.obfuscator.gui;
 
+import dev.frost.obfuscator.gui.state.AppDataPaths;
+
 import javax.swing.JOptionPane;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -14,6 +16,10 @@ public final class GuiMain {
     }
 
     public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            Path logPath = writeCrashLog(throwable);
+            System.err.println("Unhandled exception on " + thread.getName() + ". Crash log: " + logPath);
+        });
         try {
             FrostFxApp.launchApp(args);
         } catch (Throwable throwable) {
@@ -24,7 +30,7 @@ public final class GuiMain {
     }
 
     private static Path writeCrashLog(Throwable throwable) {
-        Path logPath = Path.of(System.getProperty("user.home"), ".frostfuscator", "gui-crash.log");
+        Path logPath = AppDataPaths.systemDefault().logsDirectory().resolve("gui-crash.log");
         try {
             Files.createDirectories(logPath.getParent());
             StringWriter stackTrace = new StringWriter();

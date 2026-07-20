@@ -7,12 +7,14 @@ import dev.frost.obfuscator.transformer.cleanup.RemoveDebugTransformer;
 import dev.frost.obfuscator.transformer.encryption.NumberObfuscationTransformer;
 import dev.frost.obfuscator.transformer.encryption.ParameterEncryptionTransformer;
 import dev.frost.obfuscator.transformer.encryption.StringEncryptionTransformer;
+import dev.frost.obfuscator.transformer.encryption.StringSplittingTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowConditionTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowExceptionTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowObfuscationTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowOutlinerTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowRangeTransformer;
 import dev.frost.obfuscator.transformer.flow.FlowSwitchTransformer;
+import dev.frost.obfuscator.transformer.flow.MixedBooleanArithmeticTransformer;
 import dev.frost.obfuscator.transformer.flow.StackManipulationTransformer;
 import dev.frost.obfuscator.transformer.funsies.BannerInjectionTransformer;
 import dev.frost.obfuscator.transformer.funsies.ChineseModeTransformer;
@@ -23,6 +25,7 @@ import dev.frost.obfuscator.transformer.funsies.LanguageMixupTransformer;
 import dev.frost.obfuscator.transformer.funsies.TrollStackTracesTransformer;
 import dev.frost.obfuscator.transformer.indirection.InvokeDynamicTransformer;
 import dev.frost.obfuscator.transformer.indirection.ReferenceHidingTransformer;
+import dev.frost.obfuscator.transformer.indirection.ReflectionHidingTransformer;
 import dev.frost.obfuscator.transformer.license.LicenseGuardTransformer;
 import dev.frost.obfuscator.transformer.optimization.BytecodeOptimizerTransformer;
 import dev.frost.obfuscator.transformer.optimization.JarShrinkerTransformer;
@@ -64,6 +67,7 @@ public class TransformerRegistry {
 
     static {
         register(new LicenseGuardTransformer());
+        register(new StringSplittingTransformer());
         register(new LanguageMixupTransformer());
         register(new ClassRenameTransformer());
         register(new FieldRenameTransformer());
@@ -72,6 +76,7 @@ public class TransformerRegistry {
         register(new RemoveDebugTransformer());
         register(new StringEncryptionTransformer());
         register(new NumberObfuscationTransformer());
+        register(new MixedBooleanArithmeticTransformer());
         register(new ParameterEncryptionTransformer());
         register(new FlowObfuscationTransformer());
         register(new FlowOutlinerTransformer());
@@ -80,6 +85,7 @@ public class TransformerRegistry {
         register(new FlowExceptionTransformer());
         register(new FlowSwitchTransformer());
         register(new StackManipulationTransformer());
+        register(new ReflectionHidingTransformer());
         register(new InvokeDynamicTransformer());
         register(new ReferenceHidingTransformer());
         register(new AccessModifierTransformer());

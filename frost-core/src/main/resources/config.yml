@@ -328,6 +328,26 @@ transformers:
     exclusions: []
     inclusions: []
 
+  # Runs before rename collection, injects only into existing classes, and then
+  # participates in later rename, flow, indirection, and encryption passes.
+  string-splitting:
+    enabled: true
+    min-length: 4
+    min-fragments: 4
+    max-fragments: 32
+    max-fragment-length: 3
+    carrier-classes: 6
+    indirection-depth: 2
+    decoys-per-string: 1
+    encode-fragments: true
+    preserve-reflection-strings: true
+    max-strings-per-class: 256
+    max-method-instructions: 6000
+    max-output-method-instructions: 12000
+    seed: 0
+    exclusions: []
+    inclusions: []
+
   string-encryption:
     enabled: true
     mode: "heavy"
@@ -366,6 +386,20 @@ transformers:
     exclusions: []
     inclusions: []
 
+  mixed-boolean-arithmetic:
+    enabled: true
+    probability: 45
+    rounds: 1
+    operations: "add,sub,and,or,xor,neg"
+    max-per-method: 48
+    max-per-class: 192
+    max-method-instructions: 6000
+    max-output-method-instructions: 12000
+    include-synthetic: false
+    seed: 0
+    exclusions: []
+    inclusions: []
+
   parameter-encryption:
     enabled: true
     probability: 30
@@ -378,9 +412,34 @@ transformers:
     exception-guards: true
     stack-noise: true
     flatten: true
+    flatten-probability: 45
+    flatten-min-blocks: 3
+    flatten-max-blocks: 48
+    flatten-min-complexity: 8
+    flatten-cost-budget: 384
+    dispatcher-styles: "lookup,table,computed"
+    partial-flattening-rate: 45
+    partial-region-rate: 55
+    flatten-hot-loops: false
+    state-reencode-rate: 60
+    fake-dispatcher-states: 2
+    block-clone-rate: 15
+    max-exception-handlers: 0
     predicate-rate: 8
     max-predicates-per-method: 24
+    predicate-families: "arithmetic,bitwise,reversible,modular,lookup-table,stateful,argument-derived,interprocedural"
+    predicate-sources: "volatile,thread,environment,time"
+    predicate-cost-budget: 96
+    predicate-camouflage-rate: 25
+    predicate-local-rate: 25
+    heavy-predicates-in-loops: false
+    hot-loop-max-predicate-cost: 2
+    volatile-predicate-state: true
     min-method-instructions: 12
+    max-method-instructions: 5000
+    max-output-method-instructions: 12000
+    include-synthetic: false
+    seed: 0
     exclusions: []
     inclusions: []
 
@@ -388,6 +447,19 @@ transformers:
     enabled: true
     probability: 8
     max-per-method: 16
+    exclusions: []
+    inclusions: []
+
+  reflection-hiding:
+    enabled: true
+    probability: 35
+    owner-prefixes: "java/io,java/net,java/nio/file,java/util/zip,java/util/jar"
+    excluded-owners: "java/io/PrintStream,java/io/Console"
+    max-per-method: 24
+    max-per-class: 96
+    max-method-instructions: 6000
+    include-synthetic: false
+    seed: 0
     exclusions: []
     inclusions: []
 

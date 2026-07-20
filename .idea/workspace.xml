@@ -5,474 +5,26 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cedeb62b-6348-48a4-aa7a-550b1d019d3e" name="Changes" comment="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure">
-      <change afterPath="$PROJECT_DIR$/docs/testing.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-cli/build.gradle" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-cli/src/main/java/dev/frost/obfuscator/Main.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/build.gradle" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/FrostJNIConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/dictionary/AlphabetDictionary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/dictionary/Dictionary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/dictionary/FileDictionary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/dictionary/NumericDictionary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/dictionary/UnicodeDictionary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/ClassPool.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/LibraryLoadReport.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/LibraryOptions.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/engine/ProtectionStats.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/FrostJNIProtectionService.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/FrostJNIResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/NativeProtectionHook.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/NativeProtectionHooks.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/NativeProtectionRequest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/AbstractCompilerBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/Architecture.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CMakeBuildBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CMakeGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/ClangCompilerBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/ClangCompilerCommandBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilationResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerBackendFactory.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerCommand.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerCommandBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerDetector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerEnvironment.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerInput.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerKind.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/DetectedCompiler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/GccCompilerBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/GccCompilerCommandBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/JniEnvironment.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/JniRegistrationGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/JniSymbolRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/LibraryNameResolver.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/MsvcCompilerBackend.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/MsvcCompilerCommandBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/NativeBuildPipeline.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibrary.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibraryVerifier.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/NativeSourcePreparer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/NoOpNativeCompiler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/OperatingSystem.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/ProcessResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/ProcessRunner.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/SourceCollector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/SourceLayout.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/TargetPlatform.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/compiler/WindowsCppRuntimeDetector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/asm/AsmClassParser.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/asm/OpcodeNames.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/descriptor/DescriptorParser.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/descriptor/MethodDescriptor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/descriptor/TypeDescriptor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/descriptor/ValueType.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/ClassToIRConverter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/FrameValue.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/IRBlock.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/IRClass.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/IRInstruction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/IRMethod.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/IROpcode.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/ir/StackSlot.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/ClassModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/DynamicInvocationReference.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/FieldReference.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/InstructionKind.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/InstructionModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/LabelModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/MethodModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/MethodReference.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/SwitchModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/model/TryCatchModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/selection/NativeSelectionConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/selection/NativeSelector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/core/type/TypeUtils.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/desugar/InvokeDynamicDesugarer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/desugar/LambdaMetafactoryDesugarer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/desugar/ObjectMethodsDesugarer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppClassGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppInstructionGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppLabelGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppMethodGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppRuntimeGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppStringEscaper.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppTranslationContext.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/GeneratedCppClass.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/JniNameMangler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/LabelGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ArithmeticTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ArrayInstructionTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/BranchTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ComparisonTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ConstantTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ConversionTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/DynamicInvocationTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ExceptionFrame.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ExceptionTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/FieldTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/InstructionTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/MethodInvokeTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ReturnTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/StackTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/SwitchTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/SynchronizationTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/TypeInstructionTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/VariableTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/ClassCache.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/DescriptorUtils.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/ExceptionUtils.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/FieldCache.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/LibraryExtractor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/MethodCache.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/Native.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/NativeDescriptorLookup.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/NativeExceptionUtil.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/NativeLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/NativeStringConversion.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/RuntimeResource.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/RuntimeVerifier.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/loader/StringUtils.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/BridgeMetadataGenerator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/JarPatcher.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/LibraryLoaderInjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/MethodBodyRemover.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/MethodMappingRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodPlan.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/NativeModifierInjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/PatchPlan.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/jni/patcher/PatchResult.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/plugin/FrostPlugin.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/plugin/PluginContext.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/plugin/PluginDescriptor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/plugin/PluginLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/remapper/FrostRemapper.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/remapper/MappingCollector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/Context.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/cleanup/AccessModifierTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/cleanup/MetadataNoiseTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/cleanup/RemoveDebugTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/encryption/NumberObfuscationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/encryption/ParameterEncryptionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowConditionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowExceptionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowOutlinerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowRangeTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowSwitchTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/StackManipulationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/BannerInjectionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/ChineseModeTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/CopypastaInjectorTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/DecompilerZipTiesTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/EmojiHellTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/LanguageMixupTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/funsies/TrollStackTracesTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/indirection/InvokeDynamicTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/indirection/ReferenceHidingTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/license/LicenseGuardTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/optimization/AggressiveInliningTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/optimization/BytecodeOptimizerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/optimization/DeadCodeEliminationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/optimization/JarShrinkerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/AntiAttachTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDebugTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDecompilerTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/ArchiveExtractionCanaryTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/EncryptedClassLoaderTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/FakeApplicationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/FakeClassTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/IntegrityTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/JunkCodeTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/RuntimeRelocator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/RuntimeSelfChecksumTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/protection/StructuralHardeningTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/rename/ClassRenameTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/rename/FieldRenameTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/rename/LocalVariableRenameTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/rename/MethodRenameTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/reporting/StatisticsReportTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceCompressionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceEncryptionTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceSplittingTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceSteganographyTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/virtualization/VirtualizationTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/watermark/WatermarkTransformer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/ASMHelper.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/AccessHelper.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/ClassHierarchy.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/virtualisation/BytecodeTranslator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/virtualisation/OpcodeTable.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/virtualisation/VirtualConstant.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/virtualisation/VirtualizationEligibility.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/virtualisation/VirtualizationOptions.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/resources/config.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/main/resources/native/frostjni_runtime.hpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/AnnotatedEndpoint.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureApp.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureMarker.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FlowCases.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/GenericBox.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/LambdaUser.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/NativeBridge.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/PluginEntrypoint.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/ReflectionTarget.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/ResourceUser.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/ServiceApi.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/ServiceImpl.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/StringsAndNumbers.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/TracePrinter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/resources/fixture-config.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/resources/plugin.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/integration/ComprehensivePassIntegrationTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/testkit/FixtureJarFactory.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/transformer/NewPassesTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-gui/build.gradle" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/build.gradle" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/license/FrostLicenseRuntime.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/loader/Bootstrap.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/loader/DecryptedClassLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/loader/FrostVM.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/runtime/AntiAttachRuntime.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/runtime/SelfChecksumRuntime.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/runtime/SplitResourceLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frost-runtime/src/main/java/dev/frost/runtime/StegoResourceLoader.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tools/decompilers/bytecode-viewer/Bytecode-Viewer-2.13.0.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tools/decompilers/recaf-gui/recaf-gui-0.8.8.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_20-06-2026_15_28_[Changes]/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_20-06-2026_15_28__Changes_.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/configuration.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/configuration.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/gui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/gui.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/transformers.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transformers.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/license/FrostLicenseRuntime.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/loader/Bootstrap.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/loader/DecryptedClassLoader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/loader/FrostVM.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/Main.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigLoader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ConfigWriter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/FrostJNIConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/ObfuscationConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/AlphabetDictionary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/Dictionary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/FileDictionary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/NumericDictionary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/dictionary/UnicodeDictionary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ClassPool.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/JarProcessor.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/LibraryLoadReport.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/LibraryOptions.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ObfuscationEngine.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/engine/ProtectionStats.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/FrostJNIProtectionService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/FrostJNIResult.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/NativeProtectionHook.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/NativeProtectionHooks.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/NativeProtectionRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/AbstractCompilerBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/Architecture.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CMakeBuildBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CMakeGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/ClangCompilerBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/ClangCompilerCommandBuilder.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilationResult.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerBackendFactory.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerCommand.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerCommandBuilder.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerDetector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerEnvironment.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerInput.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerKind.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/CompilerResult.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/DetectedCompiler.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/GccCompilerBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/GccCompilerCommandBuilder.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/JniEnvironment.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/JniRegistrationGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/JniSymbolRegistry.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/LibraryNameResolver.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/MsvcCompilerBackend.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/MsvcCompilerCommandBuilder.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeBuildPipeline.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibrary.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeLibraryVerifier.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NativeSourcePreparer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/NoOpNativeCompiler.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/OperatingSystem.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/ProcessResult.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/ProcessRunner.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/SourceCollector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/SourceLayout.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/TargetPlatform.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/compiler/WindowsCppRuntimeDetector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/asm/AsmClassParser.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/asm/OpcodeNames.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/descriptor/DescriptorParser.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/descriptor/MethodDescriptor.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/descriptor/TypeDescriptor.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/descriptor/ValueType.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/ClassToIRConverter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/FrameValue.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/IRBlock.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/IRClass.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/IRInstruction.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/IRMethod.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/IROpcode.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/ir/StackSlot.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/ClassModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/DynamicInvocationReference.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/FieldReference.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/InstructionKind.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/InstructionModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/LabelModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/MethodModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/MethodReference.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/SwitchModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/model/TryCatchModel.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/selection/NativeSelectionConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/selection/NativeSelector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/core/type/TypeUtils.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/desugar/InvokeDynamicDesugarer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/desugar/LambdaMetafactoryDesugarer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/desugar/ObjectMethodsDesugarer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppClassGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppInstructionGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppLabelGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppMethodGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppRuntimeGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppStringEscaper.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/CppTranslationContext.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/GeneratedCppClass.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/JniNameMangler.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/LabelGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ArithmeticTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ArrayInstructionTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/BranchTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ComparisonTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ConstantTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ConversionTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/DynamicInvocationTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ExceptionFrame.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ExceptionTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/FieldTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/InstructionTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/MethodInvokeTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/ReturnTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/StackTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/SwitchTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/SynchronizationTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/TypeInstructionTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/generator/cpp/translator/VariableTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/ClassCache.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/DescriptorUtils.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/ExceptionUtils.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/FieldCache.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/LibraryExtractor.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/MethodCache.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/Native.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/NativeDescriptorLookup.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/NativeExceptionUtil.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/NativeLoader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/NativeStringConversion.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/RuntimeResource.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/RuntimeVerifier.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/loader/StringUtils.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/BridgeMetadataGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/JarPatcher.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/LibraryLoaderInjector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/MethodBodyRemover.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/MethodMappingRegistry.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodPlan.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeMethodTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/NativeModifierInjector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/PatchPlan.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/jni/patcher/PatchResult.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/plugin/FrostPlugin.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/plugin/PluginContext.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/plugin/PluginDescriptor.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/plugin/PluginLoader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/FrostRemapper.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/remapper/MappingCollector.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Context.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/Transformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/AccessModifierTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/MetadataNoiseTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/cleanup/RemoveDebugTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/NumberObfuscationTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/ParameterEncryptionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/encryption/StringEncryptionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowConditionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowExceptionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowOutlinerTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowRangeTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/FlowSwitchTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/flow/StackManipulationTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/funsies/BannerInjectionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/funsies/ChineseModeTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/funsies/CopypastaInjectorTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/funsies/EmojiHellTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/indirection/InvokeDynamicTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/indirection/ReferenceHidingTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/license/LicenseGuardTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/optimization/BytecodeOptimizerTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/optimization/JarShrinkerTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDebugTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/AntiDecompilerTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/EncryptedClassLoaderTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/FakeApplicationTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/FakeClassTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/IntegrityTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/protection/JunkCodeTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/ClassRenameTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/FieldRenameTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/LocalVariableRenameTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/rename/MethodRenameTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/reporting/StatisticsReportTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceCompressionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/resources/ResourceEncryptionTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/virtualization/VirtualizationTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/transformer/watermark/WatermarkTransformer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/ASMHelper.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/AccessHelper.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/ClassHierarchy.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/virtualisation/BytecodeTranslator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/virtualisation/OpcodeTable.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/virtualisation/VirtualConstant.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/virtualisation/VirtualizationEligibility.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/dev/frost/obfuscator/virtualisation/VirtualizationOptions.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/config.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/frost-gui.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/native/frostjni_runtime.hpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/config/TransformerProfiles.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/TransformerRegistry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/transformer/flow/FlowObfuscationTransformer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/Logger.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/java/dev/frost/obfuscator/util/Logger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/main/resources/config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/main/resources/config.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/test/fixtures/multiclass/src/main/java/com/acme/frostfixture/FixtureApp.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/integration/ComprehensivePassIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-core/src/test/java/dev/frost/obfuscator/integration/ComprehensivePassIntegrationTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/FrostFxApp.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/java/dev/frost/obfuscator/gui/GuiMain.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" beforeDir="false" afterPath="$PROJECT_DIR$/frost-gui/src/main/resources/frost-gui.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -533,6 +85,7 @@
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
     &quot;Gradle.Frostfuscator [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Frostfuscator [frost-gui:runGui].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.Frostfuscator [shadowJar guiShadowJar].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.Frostfuscator [shadowJar].executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -550,7 +103,7 @@
       <recent name="D:\Frostfuscator\build\libs\Testing" />
     </key>
   </component>
-  <component name="RunManager">
+  <component name="RunManager" selected="Gradle.Frostfuscator [frost-gui:runGui]">
     <configuration name="Frostfuscator [build]" type="GradleRunConfiguration" factoryName="Gradle" nameIsGenerated="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -573,6 +126,32 @@
       <RunAsTest>false</RunAsTest>
       <method v="2" />
     </configuration>
+    <configuration name="Frostfuscator [frost-gui:runGui]" type="GradleRunConfiguration" factoryName="Gradle" nameIsGenerated="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="frost-gui:runGui" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Gradle.Frostfuscator [build]" />
+      <item itemvalue="Gradle.Frostfuscator [frost-gui:runGui]" />
+    </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -687,7 +266,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782502380331</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Pass Suite, Runtime Hardening, Test Fixture, and Project Restructure">
+      <option name="closed" value="true" />
+      <created>1784455890542</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1784455890542</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

@@ -8,6 +8,10 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/frost-cli" />
+            <option value="$PROJECT_DIR$/frost-core" />
+            <option value="$PROJECT_DIR$/frost-gui" />
+            <option value="$PROJECT_DIR$/frost-runtime" />
           </set>
         </option>
       </GradleProjectSettings>

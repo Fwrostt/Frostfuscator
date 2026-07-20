@@ -15,6 +15,8 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -117,6 +119,137 @@ class ComprehensivePassIntegrationTest {
         }
     }
 
+    @Test
+    void stringSplittingAndEncryptionRunTogetherEndToEnd() throws Exception {
+        Path output = tempDir.resolve("out-string-splitting-encryption.jar");
+        ObfuscationConfig config = baseConfig(output);
+        enable(config, "string-splitting", options(
+                "min-length", 2,
+                "min-fragments", 3,
+                "max-fragments", 24,
+                "max-fragment-length", 3,
+                "carrier-classes", 6,
+                "decoys-per-string", 1,
+                "encode-fragments", true,
+                "seed", 42));
+        enable(config, "string-encryption", options(
+                "mode", "heavy",
+                "min-length", 1,
+                "max-method-instructions", 12_000));
+
+        new ObfuscationEngine(config, List.of("string-splitting", "string-encryption")).run();
+
+        try (JarFile jar = new JarFile(output.toFile())) {
+            assertReadableClassEntries(jar);
+            assertClassEntryCountEqualsFixture(jar);
+            assertNoClassBytesContain(jar, "split-unicode-");
+            assertNoClassBytesContain(jar, "split-field-literal");
+        }
+
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        try (URLClassLoader loader = new URLClassLoader(
+                new java.net.URL[]{output.toUri().toURL()},
+                ClassLoader.getPlatformClassLoader())) {
+            Thread.currentThread().setContextClassLoader(loader);
+            Class<?> app = Class.forName(FixtureJarFactory.MAIN_CLASS, true, loader);
+            Object instance = app.getConstructor().newInstance();
+            Method run = app.getMethod("run", String[].class);
+            String value = (String) run.invoke(instance, (Object) new String[]{"compatibility"});
+            assertTrue(value.contains("split-unicode-\u2744\uFE0F-\uD83D\uDD25-\uD83C\uDF19"));
+            assertTrue(value.contains("split-repeated-literal"));
+            assertTrue(value.contains("split-field-literal"));
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
+    }
+
+    @Test
+    void stringSplittingParticipatesInRenameAndIndirectionPipeline() throws Exception {
+        Path output = tempDir.resolve("out-string-splitting-full-stack.jar");
+        ObfuscationConfig config = baseConfig(output);
+        enable(config, "string-splitting", options(
+                "min-length", 2,
+                "min-fragments", 3,
+                "max-fragments", 16,
+                "max-fragment-length", 3,
+                "carrier-classes", 6,
+                "indirection-depth", 2,
+                "decoys-per-string", 1,
+                "encode-fragments", true,
+                "preserve-reflection-strings", true,
+                "seed", 73));
+        enable(config, "class-rename", options("mode", "aggressive"));
+        enable(config, "method-rename", options("mode", "aggressive"));
+        enable(config, "number-obfuscation", options(
+                "probability", 100,
+                "max-per-method", 128,
+                "max-per-class", 512,
+                "max-method-instructions", 12_000));
+        enable(config, "mixed-boolean-arithmetic", options(
+                "probability", 100,
+                "rounds", 2,
+                "operations", "add,sub,and,or,xor,neg",
+                "max-per-method", 128,
+                "max-per-class", 1024,
+                "max-method-instructions", 12_000,
+                "max-output-method-instructions", 24_000,
+                "include-synthetic", false,
+                "seed", 91));
+        enable(config, "string-encryption", options(
+                "mode", "heavy",
+                "min-length", 1,
+                "max-method-instructions", 12_000));
+        enable(config, "reflection-hiding", options(
+                "probability", 100,
+                "owner-prefixes", "java/io,java/net,java/nio/file",
+                "excluded-owners", "java/io/PrintStream,java/io/Console",
+                "max-per-method", 64,
+                "max-per-class", 256,
+                "max-method-instructions", 12_000,
+                "include-synthetic", false,
+                "seed", 92));
+        enable(config, "invoke-dynamic", options("probability", 100, "mutable-callsites", true));
+        enable(config, "reference-hiding", options(
+                "probability", 100,
+                "max-per-class", 256,
+                "max-method-instructions", 12_000));
+
+        new ObfuscationEngine(config, List.of(
+                "string-splitting",
+                "class-rename",
+                "method-rename",
+                "number-obfuscation",
+                "mixed-boolean-arithmetic",
+                "string-encryption",
+                "reflection-hiding",
+                "invoke-dynamic",
+                "reference-hiding"
+        )).run();
+
+        String mainClass;
+        try (JarFile jar = new JarFile(output.toFile())) {
+            assertReadableClassEntries(jar);
+            assertClassEntryCountEqualsFixture(jar);
+            mainClass = jar.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS);
+            assertNotEquals(FixtureJarFactory.MAIN_CLASS, mainClass);
+            assertNoClassBytesContain(jar, "split-unicode-");
+            assertNoClassBytesContain(jar, "split-field-literal");
+            assertNoClassBytesContain(jar, "getHost");
+        }
+
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        try (URLClassLoader loader = new URLClassLoader(
+                new java.net.URL[]{output.toUri().toURL()},
+                ClassLoader.getPlatformClassLoader())) {
+            Thread.currentThread().setContextClassLoader(loader);
+            Class<?> app = Class.forName(mainClass, true, loader);
+            Method main = app.getMethod("main", String[].class);
+            assertDoesNotThrow(() -> main.invoke(null, (Object) new String[]{"full-stack"}));
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
+    }
+
     private static Stream<PassCase> passCases() {
         return cases().values().stream();
     }
@@ -135,16 +268,51 @@ class ComprehensivePassIntegrationTest {
         add(cases, "method-rename", options("mode", "aggressive"), RunResult::assertBasicOutput);
         add(cases, "local-variable-rename", options(), RunResult::assertBasicOutput);
         add(cases, "remove-debug", options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true), RunResult::assertBasicOutput);
+        add(cases, "string-splitting", options("min-length", 2, "min-fragments", 2, "max-fragments", 12, "max-fragment-length", 4, "carrier-classes", 4, "indirection-depth", 1, "decoys-per-string", 1, "encode-fragments", true, "preserve-reflection-strings", true, "seed", 1), result -> assertClassEntryCountEqualsFixture(result.jar()));
         add(cases, "string-encryption", options("mode", "heavy", "min-length", 1, "max-method-instructions", 6000), RunResult::assertBasicOutput);
         add(cases, "number-obfuscation", options("probability", 100, "max-per-method", 128, "max-per-class", 512, "max-method-instructions", 6000), RunResult::assertBasicOutput);
+        add(cases, "mixed-boolean-arithmetic", options("probability", 100, "rounds", 2, "operations", "add,sub,and,or,xor,neg", "max-per-method", 128, "max-per-class", 1024, "max-method-instructions", 6000, "max-output-method-instructions", 16000, "include-synthetic", false, "seed", 1), RunResult::assertBasicOutput);
         add(cases, "parameter-encryption", options("probability", 100), RunResult::assertBasicOutput);
-        add(cases, "flow-obfuscation", options("mode", "lite", "exception-guards", true, "stack-noise", true, "flatten", false, "predicate-rate", 100, "max-predicates-per-method", 8, "min-method-instructions", 4, "max-method-instructions", 5000), RunResult::assertBasicOutput);
+        add(cases, "flow-obfuscation", options(
+                "mode", "heavy",
+                "exception-guards", true,
+                "stack-noise", true,
+                "flatten", true,
+                "flatten-probability", 100,
+                "flatten-min-blocks", 3,
+                "flatten-max-blocks", 96,
+                "flatten-min-complexity", 1,
+                "flatten-cost-budget", 2048,
+                "dispatcher-styles", "lookup,table,computed,nested,split",
+                "partial-flattening-rate", 35,
+                "partial-region-rate", 55,
+                "flatten-hot-loops", false,
+                "state-reencode-rate", 100,
+                "fake-dispatcher-states", 4,
+                "block-clone-rate", 50,
+                "max-exception-handlers", 0,
+                "predicate-rate", 100,
+                "max-predicates-per-method", 8,
+                "predicate-families", "arithmetic,bitwise,reversible,modular,lookup-table,stateful,argument-derived,interprocedural",
+                "predicate-sources", "volatile,thread,environment,time",
+                "predicate-cost-budget", 256,
+                "predicate-camouflage-rate", 50,
+                "predicate-local-rate", 35,
+                "heavy-predicates-in-loops", false,
+                "hot-loop-max-predicate-cost", 2,
+                "min-method-instructions", 4,
+                "max-method-instructions", 5000,
+                "max-output-method-instructions", 16000,
+                "include-synthetic", false,
+                "seed", 20260719
+        ), RunResult::assertBasicOutput);
         add(cases, "flow-outliner", options("probability", 100, "max-per-class", 8), RunResult::assertBasicOutput);
         add(cases, "flow-range", options("probability", 100), RunResult::assertBasicOutput);
         add(cases, "flow-condition", options("probability", 100, "max-per-method", 8), RunResult::assertBasicOutput);
         add(cases, "flow-exception", options("strength", "GOOD"), RunResult::assertBasicOutput);
         add(cases, "flow-switch", options("probability", 100), RunResult::assertBasicOutput);
         add(cases, "stack-manipulation", options("probability", 100, "max-per-method", 8), RunResult::assertBasicOutput);
+        add(cases, "reflection-hiding", options("probability", 100, "owner-prefixes", "java/io,java/net,java/nio/file", "excluded-owners", "java/io/PrintStream,java/io/Console", "max-per-method", 64, "max-per-class", 256, "max-method-instructions", 6000, "include-synthetic", false, "seed", 1), result -> assertNoClassBytesContain(result.jar(), "getHost"));
         add(cases, "invoke-dynamic", options("probability", 100, "mutable-callsites", true), RunResult::assertBasicOutput);
         add(cases, "reference-hiding", options("probability", 100, "max-per-class", 32, "max-method-instructions", 6000), RunResult::assertBasicOutput);
         add(cases, "access-modifier", options("synthetic", true, "bridge-methods", false, "relax-final", false), RunResult::assertBasicOutput);
@@ -255,6 +423,12 @@ class ComprehensivePassIntegrationTest {
         assertTrue(count > fixtureClassEntries.size(), "Expected generated classes to increase class entry count");
     }
 
+    private static void assertClassEntryCountEqualsFixture(JarFile jar) {
+        long count = jar.stream().filter(entry -> entry.getName().endsWith(".class")).count();
+        assertEquals(fixtureClassEntries.size(), count,
+                "String splitting should reuse existing classes rather than generate carrier classes");
+    }
+
     private static void assertAnyClassBytesContain(JarFile jar, String needle) throws IOException {
         byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
         for (JarEntry entry : jar.stream().filter(e -> e.getName().endsWith(".class")).toList()) {
@@ -265,6 +439,16 @@ class ComprehensivePassIntegrationTest {
             }
         }
         fail("No class entry contained '" + needle + "'");
+    }
+
+    private static void assertNoClassBytesContain(JarFile jar, String needle) throws IOException {
+        byte[] needleBytes = needle.getBytes(StandardCharsets.UTF_8);
+        for (JarEntry entry : jar.stream().filter(e -> e.getName().endsWith(".class")).toList()) {
+            try (var input = jar.getInputStream(entry)) {
+                assertFalse(contains(input.readAllBytes(), needleBytes),
+                        "Class entry still contains complete string '" + needle + "': " + entry.getName());
+            }
+        }
     }
 
     private static void assertAnyClassHasDeprecatedAccess(JarFile jar) throws IOException {

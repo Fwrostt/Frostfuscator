@@ -3,12 +3,31 @@
 The GUI is packaged as `frost-gui/build/libs/Frostfuscator-gui.jar`.
 
 ```bash
+./gradlew runGui
+```
+
+The root `runGui` task delegates to the GUI module, compiles anything stale, and starts the desktop application. To launch the packaged JAR instead:
+
+```bash
 java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 
 On Windows, use `frost-gui/build/libs/Frostfuscator-gui.cmd` for the smoothest double-click launch. It prefers a Java 21 install when one is available and starts the GUI without a console window.
 
-If double-clicking the JAR itself does nothing, Windows is usually pointing `.jar` files at the wrong Java runtime. Run `frost-gui/build/libs/Frostfuscator-gui-debug.cmd`; it keeps a console open and the GUI also writes startup failures to `%USERPROFILE%\.frostfuscator\gui-crash.log`.
+If double-clicking the JAR itself does nothing, Windows is usually pointing `.jar` files at the wrong Java runtime. Run `frost-gui/build/libs/Frostfuscator-gui-debug.cmd`; it keeps a console open and the GUI also writes startup failures to `%APPDATA%\.frostfuscator\logs\gui-crash.log`.
+
+## Application data and startup
+
+All desktop-owned data is kept below `%APPDATA%\.frostfuscator` on Windows. This includes:
+
+- appearance, density, font scale, reduced-motion, window, sidebar, navigation, console, and file-dialog preferences;
+- custom themes and recent projects;
+- the autosaved working configuration, selected profile, optimization goal, and project limits;
+- build history, the latest console session, and crash logs.
+
+Older GUI preferences are migrated once from the Windows Java Preferences store. User-selected output JARs, mapping files, manually saved configurations, and exported logs remain at the locations selected by the user.
+
+The startup screen restores the workspace, loads fonts, constructs and CSS/layout-warms every page, and re-analyzes a valid previously selected input JAR before revealing the shell. Page navigation therefore reuses prepared scene graphs instead of constructing them on the first click.
 
 ## Layout
 

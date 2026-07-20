@@ -61,6 +61,12 @@ tasks.register('guiShadowJar') {
     dependsOn ':frost-gui:guiShadowJar'
 }
 
+tasks.register('runGui') {
+    group = 'application'
+    description = 'Build required GUI classes and launch the Frostfuscator desktop GUI'
+    dependsOn ':frost-gui:runGui'
+}
+
 tasks.register('writeGuiLaunchers') {
     group = 'build'
     description = 'Write GUI launchers beside the GUI jar'

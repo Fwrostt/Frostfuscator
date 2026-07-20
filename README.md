@@ -66,6 +66,12 @@ java -jar Frostfuscator.jar --list-transforms
 ### GUI
 
 ```bash
+./gradlew runGui
+```
+
+Or run the packaged application directly:
+
+```bash
 java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 

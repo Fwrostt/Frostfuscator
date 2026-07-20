@@ -5,6 +5,10 @@ build/
 !**/src/test/**/build/
 AGENTS.md
 updates/
+gui-backup-before-redesign/
+DESIGN.md
+PROJECT.md
+.agents/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

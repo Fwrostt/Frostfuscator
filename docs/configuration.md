@@ -77,9 +77,83 @@ transformers:
     enabled: true
     mode: "safe"
 
+  string-splitting:
+    enabled: true
+    min-length: 4
+    min-fragments: 3
+    max-fragments: 32
+    max-fragment-length: 4
+    carrier-classes: 4
+    indirection-depth: 1
+    decoys-per-string: 1
+    encode-fragments: true
+    preserve-reflection-strings: true
+    max-strings-per-class: 256
+    max-method-instructions: 6000
+    max-output-method-instructions: 12000
+    seed: 0
+
   string-encryption:
     enabled: true
     mode: "lite"
+
+  mixed-boolean-arithmetic:
+    enabled: true
+    probability: 45
+    rounds: 1
+    operations: "add,sub,and,or,xor,neg"
+    max-per-method: 48
+    max-per-class: 192
+    max-method-instructions: 6000
+    max-output-method-instructions: 12000
+    include-synthetic: false
+    seed: 0
+
+  reflection-hiding:
+    enabled: true
+    probability: 35
+    owner-prefixes: "java/io,java/net,java/nio/file,java/util/zip,java/util/jar"
+    excluded-owners: "java/io/PrintStream,java/io/Console"
+    max-per-method: 24
+    max-per-class: 96
+    max-method-instructions: 6000
+    include-synthetic: false
+    seed: 0
+
+  flow-obfuscation:
+    enabled: true
+    mode: "heavy"
+    exception-guards: true
+    stack-noise: true
+    flatten: true
+    flatten-probability: 45
+    flatten-min-blocks: 3
+    flatten-max-blocks: 48
+    flatten-min-complexity: 8
+    flatten-cost-budget: 384
+    dispatcher-styles: "lookup,table,computed"
+    partial-flattening-rate: 45
+    partial-region-rate: 55
+    flatten-hot-loops: false
+    state-reencode-rate: 60
+    fake-dispatcher-states: 2
+    block-clone-rate: 15
+    max-exception-handlers: 0
+    predicate-rate: 8
+    max-predicates-per-method: 24
+    predicate-families: "arithmetic,bitwise,reversible,modular,lookup-table,stateful,argument-derived,interprocedural"
+    predicate-sources: "volatile,thread,environment,time"
+    predicate-cost-budget: 96
+    predicate-camouflage-rate: 25
+    predicate-local-rate: 25
+    heavy-predicates-in-loops: false
+    hot-loop-max-predicate-cost: 2
+    volatile-predicate-state: true
+    min-method-instructions: 12
+    max-method-instructions: 5000
+    max-output-method-instructions: 12000
+    include-synthetic: false
+    seed: 0
 
   classloader-encryption:
     enabled: false
@@ -292,6 +366,17 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 ## Notes
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
+- `mixed-boolean-arithmetic.rounds` is capped at 3, but one or two rounds are recommended because each round deliberately increases local-variable and instruction pressure. The pass handles `int` and `long` arithmetic only; floating-point identities are excluded because reassociation can change IEEE-754 results.
+- `reflection-hiding.owner-prefixes` and `excluded-owners` use JVM internal names such as `java/nio/file`. The transformer validates public methods against the build JVM before converting a site, skips constructors, and leaves non-public APIs direct. Keep `java/io/PrintStream` excluded unless hiding console output is worth the startup and diagnostic overhead.
+- `reflection-hiding` uses encrypted MethodHandle bootstraps rather than `Method.invoke`, preserving primitive signatures and avoiding reflective argument arrays. It is ordered before general invokedynamic/reference hiding and remains compatible when those passes are enabled.
+- `flow-obfuscation.predicate-families` accepts `arithmetic`, `bitwise`, `reversible`, `modular`, `lookup-table`, `stateful`, `argument-derived`, and `interprocedural`. Lightweight families receive higher selection weight, while the per-method cost budget limits table and helper-based variants.
+- Predicate inputs prefer existing primitive/reference arguments or `this`, optionally route them through randomized locals, and fall back to unique per-class material. Each class receives unique keys, optional volatile state, an optional lookup table, and an optional synthetic interprocedural helper.
+- `predicate-sources` accepts `volatile`, `thread`, `environment`, and `time`. A source is read once and cancelled with `x ^ x` or `x - x`; it is camouflage only and can never decide correctness. Real race-dependent outcomes are intentionally not generated.
+- Hot-loop detection is based on backward CFG edges. Heavy predicates and runtime camouflage are suppressed in those ranges unless `heavy-predicates-in-loops` is enabled.
+- `dispatcher-styles` accepts `lookup`, `table`, `computed`, `nested`, and `split`. Every transition stores state through reversible per-transition XOR/add codecs, with `state-reencode-rate` controlling how often fresh codec material is selected.
+- Partial flattening protects branch-heavy non-hot regions while leaving excluded loop blocks direct. The adaptive planner also considers CFG complexity, block limits, a flattening cost budget, and output size.
+- Fake states and cloned decoy blocks are structurally reachable to the verifier but never selected by legitimate encoded transitions. Decoy cloning is restricted to empty-stack, exception-free straight-line blocks.
+- Control-flow flattening requires empty operand stacks at dispatcher case boundaries. ASM frame analysis verifies this and initializes compatible non-argument locals before dispatch. Constructors, handler-bearing methods, legacy `jsr`/`ret`, incompatible reused local slots, and excessive growth remain unchanged.
 - `license-guard` runs before normal obfuscation, then later rename/string/flow passes can harden the injected verifier. It supports direct expiry/not-before rules, HWID hashes, current-machine binding, optional RSA/HMAC signed license tokens, feature checks, and clock rollback state.
 - For Bukkit/Paper plugins, `license-guard.coverage: entrypoints` injects into `onLoad`/`onEnable` and class initialization when those methods/classes exist, without depending on the Bukkit API at build time.
 - Use `license-guard.bind-current-machine: true` only for customer-specific builds. For reusable releases, prefer `token` with `token-public-key` and put customer/HWID/feature/expiry claims in the signed token.
