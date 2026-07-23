@@ -311,9 +311,15 @@ class ComprehensivePassIntegrationTest {
         add(cases, "flow-condition", options("probability", 100, "max-per-method", 8), RunResult::assertBasicOutput);
         add(cases, "flow-exception", options("strength", "GOOD"), RunResult::assertBasicOutput);
         add(cases, "flow-switch", options("probability", 100), RunResult::assertBasicOutput);
+        add(cases, "control-flow-shuffling", options("probability", 100, "seed", 1), RunResult::assertBasicOutput);
+        add(cases, "line-number-mutation", options("min-line", 1000, "max-line", 9999, "seed", 1), RunResult::assertBasicOutput);
+        add(cases, "method-salting", options("max-salts", 3, "probability", 100, "seed", 1), RunResult::assertBasicOutput);
+        add(cases, "class-salting", options("fields-per-class", 2, "seed", 1), RunResult::assertBasicOutput);
+        add(cases, "polymorphic-instruction", options("probability", 100, "seed", 1), RunResult::assertBasicOutput);
         add(cases, "stack-manipulation", options("probability", 100, "max-per-method", 8), RunResult::assertBasicOutput);
         add(cases, "reflection-hiding", options("probability", 100, "owner-prefixes", "java/io,java/net,java/nio/file", "excluded-owners", "java/io/PrintStream,java/io/Console", "max-per-method", 64, "max-per-class", 256, "max-method-instructions", 6000, "include-synthetic", false, "seed", 1), result -> assertNoClassBytesContain(result.jar(), "getHost"));
         add(cases, "invoke-dynamic", options("probability", 100, "mutable-callsites", true), RunResult::assertBasicOutput);
+        add(cases, "condy-indirection", options("probability", 100), RunResult::assertBasicOutput);
         add(cases, "reference-hiding", options("probability", 100, "max-per-class", 32, "max-method-instructions", 6000), RunResult::assertBasicOutput);
         add(cases, "access-modifier", options("synthetic", true, "bridge-methods", false, "relax-final", false), RunResult::assertBasicOutput);
         add(cases, "metadata-noise", options("strings-per-class", 3, "deprecated", true, "signatures", true), result -> assertAnyClassHasDeprecatedAccess(result.jar()));
@@ -324,6 +330,8 @@ class ComprehensivePassIntegrationTest {
             assertNoEntry(result.jar(), "dev/frost/runtime/AntiAttachRuntime.class");
             assertAnyClassBytesContain(result.jar(), "-xx:+disableattachmechanism");
         });
+        add(cases, "anti-agent", options(), result -> assertAnyClassBytesContain(result.jar(), "AntiAgentRuntime"));
+        add(cases, "decompiler-crasher", options("probability", 100), RunResult::assertBasicOutput);
         add(cases, "runtime-self-checksum", options("coverage", "entrypoints", "max-classes", 8, "failure-action", "throw"), result -> {
             assertNoEntry(result.jar(), "dev/frost/runtime/SelfChecksumRuntime.class");
             assertHasEntry(result.jar(), "META-INF/frostfuscator/runtime-checksums.tsv");
@@ -482,6 +490,40 @@ class ComprehensivePassIntegrationTest {
 
     private static String safeName(String value) {
         return value.replaceAll("[^A-Za-z0-9_.-]", "_");
+    }
+
+    @Test
+    void writeProtectedTestJarsToBuildDirectory() throws Exception {
+        Path testJarsDir = Path.of("build", "test-jars");
+        Files.createDirectories(testJarsDir);
+        Path inputJar = testJarsDir.resolve("frostfuscator-test-input.jar");
+        Path protectedJar = testJarsDir.resolve("frostfuscator-test-input-protected.jar");
+
+        Path generated = FixtureJarFactory.buildMulticlassJar(tempDir);
+        Files.copy(generated, inputJar, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+        ObfuscationConfig config = new ObfuscationConfig();
+        config.setInput(inputJar.toString());
+        config.setOutput(protectedJar.toString());
+        config.getLibraries().setRuntime(true);
+
+        List<String> active = new java.util.ArrayList<>();
+        for (String transformerName : TransformerRegistry.getAllNames()) {
+            if ("banner-injection".equals(transformerName) || "chinese-mode".equals(transformerName)
+                    || "copypasta-injector".equals(transformerName) || "emoji-hell".equals(transformerName)
+                    || "decompiler-zip-ties".equals(transformerName) || "license-guard".equals(transformerName)
+                    || "anti-attach".equals(transformerName) || "encrypted-classloader".equals(transformerName)
+                    || "frostjni".equals(transformerName)) {
+                continue;
+            }
+            enable(config, transformerName, Map.of());
+            active.add(transformerName);
+        }
+
+        new ObfuscationEngine(config, active).run();
+
+        assertTrue(Files.exists(protectedJar));
+        assertTrue(Files.size(protectedJar) > 0);
     }
 
     private record PassCase(String name, Map<String, Object> options, JarAssertion assertion) {

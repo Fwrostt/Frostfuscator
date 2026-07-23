@@ -1,5 +1,6 @@
 package dev.frost.obfuscator.engine;
 
+import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.util.Logger;
 import dev.frost.obfuscator.util.ClassFileVersion;
 import org.objectweb.asm.ClassReader;
@@ -7,6 +8,13 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.yaml.snakeyaml.Yaml;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 
 import java.io.*;
 import java.net.URI;
@@ -33,6 +41,143 @@ public class JarProcessor {
     private final Set<String> runtimeChecksumClasses = new LinkedHashSet<>();
     private Manifest manifest;
     private String detectedMainClass;
+    private final Set<String> detectedFabricEntrypoints = new LinkedHashSet<>();
+    private final List<String> detectedFabricMixins = new ArrayList<>();
+    private boolean isFabricMod = false;
+    private final Map<String, NestedJarData> nestedJars = new LinkedHashMap<>();
+
+    public static class NestedJarData {
+        public String resourcePath;
+        public Map<String, String> classNameToPath = new LinkedHashMap<>();
+        public Map<String, byte[]> innerResources = new LinkedHashMap<>();
+        public Manifest innerManifest;
+    }
+
+    private boolean isNestedJarEntry(String name) {
+        return (name.startsWith("BOOT-INF/lib/") || name.startsWith("WEB-INF/lib/") || name.startsWith("META-INF/jars/"))
+                && name.endsWith(".jar");
+    }
+
+    private boolean isNestedClass(String className) {
+        for (NestedJarData data : nestedJars.values()) {
+            if (data.classNameToPath.containsKey(className)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void unpackNestedJar(String resourcePath, byte[] jarBytes, ClassPool pool) {
+        try {
+            NestedJarData nestedData = new NestedJarData();
+            nestedData.resourcePath = resourcePath;
+
+            try (java.util.jar.JarInputStream jis = new java.util.jar.JarInputStream(new java.io.ByteArrayInputStream(jarBytes))) {
+                nestedData.innerManifest = jis.getManifest();
+                java.util.jar.JarEntry entry;
+                while ((entry = jis.getNextJarEntry()) != null) {
+                    byte[] data = jis.readAllBytes();
+                    if (entry.getName().endsWith(".class")) {
+                        try {
+                            ClassFileVersion.requireSupported(data, entry.getName());
+                            ClassReader reader = new ClassReader(data);
+                            ClassNode classNode = new ClassNode();
+                            reader.accept(classNode, ClassReader.EXPAND_FRAMES);
+                            originalClassBytes.put(classNode.name, data);
+                            pool.addClass(classNode.name, classNode);
+                            nestedData.classNameToPath.put(classNode.name, entry.getName());
+                        } catch (Exception ignored) {}
+                    } else if (!entry.getName().equals("META-INF/MANIFEST.MF")) {
+                        nestedData.innerResources.put(entry.getName(), data);
+                    }
+                }
+            }
+            if (!nestedData.classNameToPath.isEmpty()) {
+                nestedJars.put(resourcePath, nestedData);
+                Logger.info("Unpacked nested Fat JAR {} with {} classes", resourcePath, nestedData.classNameToPath.size());
+            }
+        } catch (Exception exception) {
+            Logger.warn("Failed to unpack nested Fat JAR {}: {}", resourcePath, exception.getMessage());
+        }
+    }
+
+    private byte[] buildClassBytes(ClassPool pool, ClassNode node) {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS) {
+            @Override
+            protected String getCommonSuperClass(String type1, String type2) {
+                try {
+                    ClassNode c1 = pool.getClass(type1);
+                    if (c1 == null) c1 = pool.getLibraryClasses().get(type1);
+                    ClassNode c2 = pool.getClass(type2);
+                    if (c2 == null) c2 = pool.getLibraryClasses().get(type2);
+
+                    if (c1 != null && c2 != null) {
+                        if (isAssignableFrom(pool, type2, type1)) return type1;
+                        if (isAssignableFrom(pool, type1, type2)) return type2;
+                        String current = type1;
+                        while (current != null && !current.equals("java/lang/Object")) {
+                            if (isAssignableFrom(pool, type2, current)) return current;
+                            ClassNode cn = pool.getClass(current);
+                            if (cn == null) cn = pool.getLibraryClasses().get(current);
+                            current = (cn != null) ? cn.superName : null;
+                        }
+                    }
+                } catch (Exception ignored) {}
+                return "java/lang/Object";
+            }
+        };
+        node.accept(writer);
+        return writer.toByteArray();
+    }
+
+    private void repackNestedJars(ClassPool pool) throws IOException {
+        for (NestedJarData nestedData : nestedJars.values()) {
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            try (java.util.jar.JarOutputStream jos = nestedData.innerManifest != null
+                    ? new java.util.jar.JarOutputStream(baos, nestedData.innerManifest)
+                    : new java.util.jar.JarOutputStream(baos)) {
+
+                for (Map.Entry<String, String> entry : nestedData.classNameToPath.entrySet()) {
+                    String className = entry.getKey();
+                    String innerPath = entry.getValue();
+
+                    ClassNode node = pool.getClass(className);
+                    byte[] classBytes = originalClassBytes.get(className);
+                    if (node != null && (pool.isDirty(node.name) || !node.name.equals(className))) {
+                        classBytes = buildClassBytes(pool, node);
+                    }
+
+                    java.util.jar.JarEntry jarEntry = new java.util.jar.JarEntry(innerPath);
+                    jos.putNextEntry(jarEntry);
+                    if (classBytes != null) {
+                        jos.write(classBytes);
+                    }
+                    jos.closeEntry();
+                }
+
+                for (Map.Entry<String, byte[]> resEntry : nestedData.innerResources.entrySet()) {
+                    java.util.jar.JarEntry jarEntry = new java.util.jar.JarEntry(resEntry.getKey());
+                    jos.putNextEntry(jarEntry);
+                    jos.write(resEntry.getValue());
+                    jos.closeEntry();
+                }
+            }
+            resources.put(nestedData.resourcePath, baos.toByteArray());
+            Logger.info("Repacked nested Fat JAR {}", nestedData.resourcePath);
+        }
+    }
+
+    public boolean isFabricMod() {
+        return isFabricMod;
+    }
+
+    public Set<String> getDetectedFabricEntrypoints() {
+        return Collections.unmodifiableSet(detectedFabricEntrypoints);
+    }
+
+    public List<String> getDetectedFabricMixins() {
+        return Collections.unmodifiableList(detectedFabricMixins);
+    }
 
     public Map<String, byte[]> getResources() {
         return resources;
@@ -55,6 +200,16 @@ public class JarProcessor {
         if (classNames != null) {
             runtimeChecksumClasses.addAll(classNames);
         }
+    }
+
+    public void updateRuntimeChecksumClasses(MappingCollector mappings) {
+        if (runtimeChecksumClasses.isEmpty() || mappings == null) return;
+        Set<String> remapped = new LinkedHashSet<>();
+        for (String className : runtimeChecksumClasses) {
+            remapped.add(mappings.getMappedClass(className));
+        }
+        runtimeChecksumClasses.clear();
+        runtimeChecksumClasses.addAll(remapped);
     }
 
     public ClassPool loadJar(Path inputPath) throws IOException {
@@ -83,6 +238,9 @@ public class JarProcessor {
                                 + ClassFileVersion.javaVersion(ClassFileVersion.major(data))
                                 + " bytecode): " + exception.getMessage(), exception);
                     }
+                } else if (isNestedJarEntry(entry.getName())) {
+                    resources.put(entry.getName(), data);
+                    unpackNestedJar(entry.getName(), data, pool);
                 } else if (!entry.getName().equals("META-INF/MANIFEST.MF")) {
                     resources.put(entry.getName(), data);
                 }
@@ -246,6 +404,224 @@ public class JarProcessor {
                 Logger.warn("Failed to parse plugin.yml for main class detection");
             }
         }
+
+        detectFabricMod();
+    }
+
+    private void detectFabricMod() {
+        byte[] fabricJson = resources.get("fabric.mod.json");
+        if (fabricJson == null) return;
+        isFabricMod = true;
+        try {
+            JsonObject obj = JsonParser.parseString(new String(fabricJson, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (obj.has("entrypoints") && obj.get("entrypoints").isJsonObject()) {
+                JsonObject entrypointsObj = obj.getAsJsonObject("entrypoints");
+                for (Map.Entry<String, JsonElement> entry : entrypointsObj.entrySet()) {
+                    extractClassesFromJsonElement(entry.getValue(), detectedFabricEntrypoints);
+                }
+            }
+            if (obj.has("mixins") && obj.get("mixins").isJsonArray()) {
+                for (JsonElement elem : obj.getAsJsonArray("mixins")) {
+                    if (elem.isJsonPrimitive()) {
+                        detectedFabricMixins.add(elem.getAsString());
+                    } else if (elem.isJsonObject() && elem.getAsJsonObject().has("config")) {
+                        detectedFabricMixins.add(elem.getAsJsonObject().get("config").getAsString());
+                    }
+                }
+            }
+            if (detectedMainClass == null && !detectedFabricEntrypoints.isEmpty()) {
+                detectedMainClass = detectedFabricEntrypoints.iterator().next();
+            }
+            Logger.info("Detected Fabric mod with {} entrypoint class(es)", detectedFabricEntrypoints.size());
+        } catch (Exception e) {
+            Logger.warn("Failed to parse fabric.mod.json: {}", e.getMessage());
+        }
+    }
+
+    private void extractClassesFromJsonElement(JsonElement element, Set<String> target) {
+        if (element == null) return;
+        if (element.isJsonPrimitive()) {
+            String str = element.getAsString();
+            String className = extractClassNameFromEntrypointString(str);
+            if (className != null && !className.isBlank()) {
+                target.add(className);
+            }
+        } else if (element.isJsonObject()) {
+            JsonObject obj = element.getAsJsonObject();
+            if (obj.has("value")) {
+                extractClassesFromJsonElement(obj.get("value"), target);
+            }
+        } else if (element.isJsonArray()) {
+            for (JsonElement child : element.getAsJsonArray()) {
+                extractClassesFromJsonElement(child, target);
+            }
+        }
+    }
+
+    private String extractClassNameFromEntrypointString(String entry) {
+        if (entry == null || entry.isBlank()) return null;
+        int idx = entry.indexOf("::");
+        if (idx != -1) {
+            return entry.substring(0, idx).trim();
+        }
+        return entry.trim();
+    }
+
+    public void updateFabricModJson(MappingCollector mappings) {
+        if (mappings == null) return;
+        byte[] fabricData = resources.get("fabric.mod.json");
+        if (fabricData != null) {
+            try {
+                String content = new String(fabricData, StandardCharsets.UTF_8);
+                JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+
+                if (root.has("entrypoints") && root.get("entrypoints").isJsonObject()) {
+                    JsonObject entrypointsObj = root.getAsJsonObject("entrypoints");
+                    for (Map.Entry<String, JsonElement> category : entrypointsObj.entrySet()) {
+                        remapEntrypointElement(category.getValue(), mappings);
+                    }
+                }
+
+                if (root.has("languageAdapters") && root.get("languageAdapters").isJsonObject()) {
+                    JsonObject adapters = root.getAsJsonObject("languageAdapters");
+                    for (Map.Entry<String, JsonElement> adapter : adapters.entrySet()) {
+                        if (adapter.getValue().isJsonPrimitive()) {
+                            String oldClass = adapter.getValue().getAsString();
+                            String newClass = remapClassNameDot(oldClass, mappings);
+                            if (!oldClass.equals(newClass)) {
+                                adapters.addProperty(adapter.getKey(), newClass);
+                            }
+                        }
+                    }
+                }
+
+                Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+                String updatedJson = gson.toJson(root);
+                resources.put("fabric.mod.json", updatedJson.getBytes(StandardCharsets.UTF_8));
+                Logger.info("Updated fabric.mod.json with remapped class names");
+            } catch (Exception e) {
+                Logger.warn("Failed to update fabric.mod.json: {}", e.getMessage());
+            }
+        }
+
+        updateFabricMixinConfigs(mappings);
+    }
+
+    private void remapEntrypointElement(JsonElement element, MappingCollector mappings) {
+        if (element == null) return;
+        if (element.isJsonArray()) {
+            JsonArray array = element.getAsJsonArray();
+            for (int i = 0; i < array.size(); i++) {
+                JsonElement child = array.get(i);
+                if (child.isJsonPrimitive()) {
+                    String str = child.getAsString();
+                    String remapped = remapEntrypointString(str, mappings);
+                    if (!str.equals(remapped)) {
+                        array.set(i, new JsonPrimitive(remapped));
+                    }
+                } else if (child.isJsonObject()) {
+                    remapEntrypointJsonObject(child.getAsJsonObject(), mappings);
+                }
+            }
+        } else if (element.isJsonPrimitive()) {
+            // string entrypoint directly under category key
+        } else if (element.isJsonObject()) {
+            remapEntrypointJsonObject(element.getAsJsonObject(), mappings);
+        }
+    }
+
+    private void remapEntrypointJsonObject(JsonObject obj, MappingCollector mappings) {
+        if (obj.has("value") && obj.get("value").isJsonPrimitive()) {
+            String str = obj.get("value").getAsString();
+            String remapped = remapEntrypointString(str, mappings);
+            if (!str.equals(remapped)) {
+                obj.addProperty("value", remapped);
+            }
+        }
+        if (obj.has("adapter") && obj.get("adapter").isJsonPrimitive()) {
+            String str = obj.get("adapter").getAsString();
+            String remapped = remapClassNameDot(str, mappings);
+            if (!str.equals(remapped)) {
+                obj.addProperty("adapter", remapped);
+            }
+        }
+    }
+
+    private String remapEntrypointString(String entrypoint, MappingCollector mappings) {
+        if (entrypoint == null || entrypoint.isBlank()) return entrypoint;
+        int idx = entrypoint.indexOf("::");
+        if (idx != -1) {
+            String className = entrypoint.substring(0, idx);
+            String methodPart = entrypoint.substring(idx);
+            String remappedClass = remapClassNameDot(className, mappings);
+            return remappedClass + methodPart;
+        } else {
+            return remapClassNameDot(entrypoint, mappings);
+        }
+    }
+
+    private String remapClassNameDot(String classNameDot, MappingCollector mappings) {
+        String internalName = classNameDot.replace('.', '/');
+        String mappedInternal = mappings.getMappedClass(internalName);
+        return mappedInternal.replace('/', '.');
+    }
+
+    private void updateFabricMixinConfigs(MappingCollector mappings) {
+        Set<String> mixinConfigFiles = new LinkedHashSet<>(detectedFabricMixins);
+        for (String resourceName : resources.keySet()) {
+            if (resourceName.endsWith(".mixins.json") || resourceName.endsWith(".mixin.json")) {
+                mixinConfigFiles.add(resourceName);
+            }
+        }
+
+        for (String fileName : mixinConfigFiles) {
+            byte[] data = resources.get(fileName);
+            if (data == null) continue;
+            try {
+                String jsonContent = new String(data, StandardCharsets.UTF_8);
+                JsonObject mixinRoot = JsonParser.parseString(jsonContent).getAsJsonObject();
+                boolean modified = false;
+
+                String pkg = mixinRoot.has("package") ? mixinRoot.get("package").getAsString() : "";
+
+                modified |= remapMixinClassArray(mixinRoot, "mixins", pkg, mappings);
+                modified |= remapMixinClassArray(mixinRoot, "client", pkg, mappings);
+                modified |= remapMixinClassArray(mixinRoot, "server", pkg, mappings);
+
+                if (modified) {
+                    Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+                    resources.put(fileName, gson.toJson(mixinRoot).getBytes(StandardCharsets.UTF_8));
+                    Logger.info("Updated mixin config {}", fileName);
+                }
+            } catch (Exception e) {
+                Logger.warn("Failed to parse mixin config {}: {}", fileName, e.getMessage());
+            }
+        }
+    }
+
+    private boolean remapMixinClassArray(JsonObject root, String arrayKey, String basePackage, MappingCollector mappings) {
+        if (!root.has(arrayKey) || !root.get(arrayKey).isJsonArray()) return false;
+        JsonArray array = root.getAsJsonArray(arrayKey);
+        boolean modified = false;
+        for (int i = 0; i < array.size(); i++) {
+            JsonElement elem = array.get(i);
+            if (elem.isJsonPrimitive()) {
+                String relName = elem.getAsString();
+                String fullClassDot = basePackage.isEmpty() ? relName : (basePackage + "." + relName);
+                String mappedClassDot = remapClassNameDot(fullClassDot, mappings);
+                if (!fullClassDot.equals(mappedClassDot)) {
+                    String newRelName;
+                    if (!basePackage.isEmpty() && mappedClassDot.startsWith(basePackage + ".")) {
+                        newRelName = mappedClassDot.substring(basePackage.length() + 1);
+                    } else {
+                        newRelName = mappedClassDot;
+                    }
+                    array.set(i, new JsonPrimitive(newRelName));
+                    modified = true;
+                }
+            }
+        }
+        return modified;
     }
 
     public void updatePluginMainClass(String oldMainClass, String newMainClass) {
@@ -348,6 +724,9 @@ public class JarProcessor {
 
             for (Map.Entry<String, ClassNode> entry : pool.getClassMap().entrySet()) {
                 ClassNode classNode = entry.getValue();
+                if (isNestedClass(classNode.name)) {
+                    continue;
+                }
                 byte[] bytes;
                 String originalName = pool.getOriginalName(classNode.name);
 
@@ -469,6 +848,10 @@ public class JarProcessor {
             if (!writtenClassBytes.isEmpty()) {
                 resources.put("META-INF/frostfuscator/runtime-checksums.tsv",
                         buildRuntimeChecksumIndex(writtenClassBytes));
+            }
+
+            if (!nestedJars.isEmpty()) {
+                repackNestedJars(pool);
             }
 
             for (Map.Entry<String, byte[]> entry : resources.entrySet()) {

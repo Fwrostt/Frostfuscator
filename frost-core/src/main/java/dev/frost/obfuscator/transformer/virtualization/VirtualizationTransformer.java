@@ -94,7 +94,7 @@ public class VirtualizationTransformer extends Transformer {
                         null
                     ));
 
-                    injectClinitFieldInit(cn, bytecodeFieldName, constPoolFieldName, tm, options, random);
+                    injectClinitFieldInit(cn, bytecodeFieldName, constPoolFieldName, tm, options, random, context.mappings());
 
                     rebuildAsStub(cn, mn, bytecodeFieldName, constPoolFieldName, tm);
 
@@ -144,7 +144,7 @@ public class VirtualizationTransformer extends Transformer {
         log("Virtualized {} methods ({} unsupported/skipped by safety gate).", virtualizedCount, skippedUnsupported);
     }
 
-    private void injectClinitFieldInit(ClassNode cn, String bytecodeFieldName, String constPoolFieldName, BytecodeTranslator.TranslatedMethod tm, VirtualizationOptions options, Random random) {
+    private void injectClinitFieldInit(ClassNode cn, String bytecodeFieldName, String constPoolFieldName, BytecodeTranslator.TranslatedMethod tm, VirtualizationOptions options, Random random, MappingCollector mappings) {
         MethodNode clinit = null;
         for (MethodNode methodNode : cn.methods) {
             if (methodNode.name.equals("<clinit>")) {
@@ -220,12 +220,16 @@ public class VirtualizationTransformer extends Transformer {
             } else if (val instanceof Double) {
                 list.add(new LdcInsnNode(val));
                 boxPrimitive(list, Type.DOUBLE_TYPE);
-            } else if (val instanceof String) {
-                list.add(new LdcInsnNode(val));
+            } else if (val instanceof String text) {
+                String mappedClass = mappings != null ? mappings.getMappedClass(text) : text;
+                String mappedMethod = mappings != null ? mappings.getMappedMethodByName(mappedClass) : mappedClass;
+                String mappedField = mappings != null ? mappings.getMappedFieldByName(mappedMethod) : mappedMethod;
+                list.add(new LdcInsnNode(mappedField));
             } else if (val instanceof VirtualConstant.ClassRef ref) {
+                String mappedClass = mappings != null ? mappings.getMappedClass(ref.name()) : ref.name();
                 list.add(new TypeInsnNode(Opcodes.NEW, "dev/frost/loader/FrostVM$ClassRef"));
                 list.add(new InsnNode(Opcodes.DUP));
-                list.add(new LdcInsnNode(ref.name()));
+                list.add(new LdcInsnNode(mappedClass));
                 list.add(new MethodInsnNode(
                     Opcodes.INVOKESPECIAL,
                     "dev/frost/loader/FrostVM$ClassRef",
@@ -234,11 +238,15 @@ public class VirtualizationTransformer extends Transformer {
                     false
                 ));
             } else if (val instanceof VirtualConstant.FieldRef ref) {
+                dev.frost.obfuscator.remapper.FrostRemapper remapper = mappings != null ? new dev.frost.obfuscator.remapper.FrostRemapper(mappings) : null;
+                String mappedClass = mappings != null ? mappings.getMappedClass(ref.className()) : ref.className();
+                String mappedField = mappings != null ? mappings.getMappedField(ref.className(), ref.name(), ref.desc()) : ref.name();
+                String mappedDesc = remapper != null ? remapper.mapDesc(ref.desc()) : ref.desc();
                 list.add(new TypeInsnNode(Opcodes.NEW, "dev/frost/loader/FrostVM$FieldRef"));
                 list.add(new InsnNode(Opcodes.DUP));
-                list.add(new LdcInsnNode(ref.className()));
-                list.add(new LdcInsnNode(ref.name()));
-                list.add(new LdcInsnNode(ref.desc()));
+                list.add(new LdcInsnNode(mappedClass));
+                list.add(new LdcInsnNode(mappedField));
+                list.add(new LdcInsnNode(mappedDesc));
                 list.add(new MethodInsnNode(
                     Opcodes.INVOKESPECIAL,
                     "dev/frost/loader/FrostVM$FieldRef",
@@ -247,11 +255,15 @@ public class VirtualizationTransformer extends Transformer {
                     false
                 ));
             } else if (val instanceof VirtualConstant.MethodRef ref) {
+                dev.frost.obfuscator.remapper.FrostRemapper remapper = mappings != null ? new dev.frost.obfuscator.remapper.FrostRemapper(mappings) : null;
+                String mappedClass = mappings != null ? mappings.getMappedClass(ref.className()) : ref.className();
+                String mappedMethod = mappings != null ? mappings.getMappedMethod(ref.className(), ref.name(), ref.desc()) : ref.name();
+                String mappedDesc = remapper != null ? remapper.mapMethodDesc(ref.desc()) : ref.desc();
                 list.add(new TypeInsnNode(Opcodes.NEW, "dev/frost/loader/FrostVM$MethodRef"));
                 list.add(new InsnNode(Opcodes.DUP));
-                list.add(new LdcInsnNode(ref.className()));
-                list.add(new LdcInsnNode(ref.name()));
-                list.add(new LdcInsnNode(ref.desc()));
+                list.add(new LdcInsnNode(mappedClass));
+                list.add(new LdcInsnNode(mappedMethod));
+                list.add(new LdcInsnNode(mappedDesc));
                 list.add(getIntInsn(ref.isInterface() ? 1 : 0));
                 list.add(new MethodInsnNode(
                     Opcodes.INVOKESPECIAL,

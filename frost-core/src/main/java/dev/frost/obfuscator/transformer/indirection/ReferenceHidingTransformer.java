@@ -42,6 +42,7 @@ public class ReferenceHidingTransformer extends Transformer {
             }
 
             List<ProxyRequest> requests = new ArrayList<>();
+            List<FieldProxyRequest> fieldRequests = new ArrayList<>();
             Set<String> usedNames = usedMethodNames(classNode);
             for (MethodNode method : classNode.methods) {
                 if (method.instructions == null || AccessHelper.isInitializer(method)) continue;
@@ -49,7 +50,7 @@ public class ReferenceHidingTransformer extends Transformer {
                 AbstractInsnNode insn = method.instructions.getFirst();
                 while (insn != null) {
                     AbstractInsnNode next = insn.getNext();
-                    if (requests.size() >= maxPerClass) break;
+                    if (requests.size() + fieldRequests.size() >= maxPerClass) break;
                     if (insn instanceof MethodInsnNode call && canProxy(pool, classNode.name, call)
                             && RANDOM.nextInt(100) < probability) {
                         String proxyName = uniqueMethodName(usedNames);
@@ -57,20 +58,87 @@ public class ReferenceHidingTransformer extends Transformer {
                         requests.add(new ProxyRequest(proxyName, proxyDesc, call));
                         method.instructions.set(call, new MethodInsnNode(Opcodes.INVOKESTATIC,
                                 classNode.name, proxyName, proxyDesc, false));
+                    } else if (insn instanceof FieldInsnNode fieldInsn && canProxyField(pool, classNode.name, fieldInsn)
+                            && RANDOM.nextInt(100) < probability) {
+                        String proxyName = uniqueMethodName(usedNames);
+                        String proxyDesc = fieldProxyDescriptor(fieldInsn);
+                        fieldRequests.add(new FieldProxyRequest(proxyName, proxyDesc, fieldInsn));
+                        method.instructions.set(fieldInsn, new MethodInsnNode(Opcodes.INVOKESTATIC,
+                                classNode.name, proxyName, proxyDesc, false));
                     }
                     insn = next;
                 }
-                if (requests.size() >= maxPerClass) break;
+                if (requests.size() + fieldRequests.size() >= maxPerClass) break;
             }
 
             for (ProxyRequest request : requests) {
                 classNode.methods.add(buildProxy(request));
             }
-            if (!requests.isEmpty()) {
+            for (FieldProxyRequest request : fieldRequests) {
+                classNode.methods.add(buildFieldProxy(request));
+            }
+            if (!requests.isEmpty() || !fieldRequests.isEmpty()) {
                 pool.markDirty(classNode.name);
-                log("Inserted {} method reference proxies in {}", requests.size(), classNode.name);
+                log("Inserted {} method and {} field reference proxies in {}", requests.size(), fieldRequests.size(), classNode.name);
             }
         }
+    }
+
+    private boolean canProxyField(ClassPool pool, String caller, FieldInsnNode field) {
+        if (field.owner.startsWith("java/lang/")) return false;
+        ClassNode owner = pool.getClass(field.owner);
+        if (owner == null) owner = pool.getLibraryClasses().get(field.owner);
+        if (owner == null) return false;
+        return true;
+    }
+
+    private String fieldProxyDescriptor(FieldInsnNode field) {
+        Type ownerType = Type.getObjectType(field.owner);
+        Type fieldType = Type.getType(field.desc);
+        return switch (field.getOpcode()) {
+            case Opcodes.GETSTATIC -> Type.getMethodDescriptor(fieldType);
+            case Opcodes.PUTSTATIC -> Type.getMethodDescriptor(Type.VOID_TYPE, fieldType);
+            case Opcodes.GETFIELD -> Type.getMethodDescriptor(fieldType, ownerType);
+            case Opcodes.PUTFIELD -> Type.getMethodDescriptor(Type.VOID_TYPE, ownerType, fieldType);
+            default -> field.desc;
+        };
+    }
+
+    private MethodNode buildFieldProxy(FieldProxyRequest request) {
+        FieldInsnNode field = request.field;
+        MethodNode proxy = new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC,
+                request.name, request.desc, null, null);
+        InsnList il = proxy.instructions;
+
+        Type ownerType = Type.getObjectType(field.owner);
+        Type fieldType = Type.getType(field.desc);
+
+        switch (field.getOpcode()) {
+            case Opcodes.GETSTATIC -> {
+                il.add(new FieldInsnNode(Opcodes.GETSTATIC, field.owner, field.name, field.desc));
+                il.add(new InsnNode(fieldType.getOpcode(Opcodes.IRETURN)));
+            }
+            case Opcodes.PUTSTATIC -> {
+                il.add(new VarInsnNode(fieldType.getOpcode(Opcodes.ILOAD), 0));
+                il.add(new FieldInsnNode(Opcodes.PUTSTATIC, field.owner, field.name, field.desc));
+                il.add(new InsnNode(Opcodes.RETURN));
+            }
+            case Opcodes.GETFIELD -> {
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new FieldInsnNode(Opcodes.GETFIELD, field.owner, field.name, field.desc));
+                il.add(new InsnNode(fieldType.getOpcode(Opcodes.IRETURN)));
+            }
+            case Opcodes.PUTFIELD -> {
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(fieldType.getOpcode(Opcodes.ILOAD), ownerType.getSize()));
+                il.add(new FieldInsnNode(Opcodes.PUTFIELD, field.owner, field.name, field.desc));
+                il.add(new InsnNode(Opcodes.RETURN));
+            }
+        }
+
+        proxy.maxLocals = Type.getArgumentsAndReturnSizes(request.desc) >> 2;
+        proxy.maxStack = Math.max(2, fieldType.getSize() + ownerType.getSize());
+        return proxy;
     }
 
     private boolean canProxy(ClassPool pool, String caller, MethodInsnNode call) {
@@ -178,5 +246,8 @@ public class ReferenceHidingTransformer extends Transformer {
     }
 
     private record ProxyRequest(String name, String desc, MethodInsnNode call) {
+    }
+
+    private record FieldProxyRequest(String name, String desc, FieldInsnNode field) {
     }
 }

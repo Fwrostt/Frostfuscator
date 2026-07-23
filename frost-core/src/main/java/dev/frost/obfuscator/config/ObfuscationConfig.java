@@ -11,6 +11,7 @@ public class ObfuscationConfig {
     private String dictionary = "alphabet";
     private List<String> exclusions = new ArrayList<>();
     private List<String> inclusions = new ArrayList<>();
+    private List<String> presets = new ArrayList<>();
     private String libs;
     private String packageMode = "keep";
     private String flattenPackage = "obf";
@@ -62,6 +63,14 @@ public class ObfuscationConfig {
 
     public void setInclusions(List<String> inclusions) {
         this.inclusions = inclusions != null ? inclusions : new ArrayList<>();
+    }
+
+    public List<String> getPresets() {
+        return presets;
+    }
+
+    public void setPresets(List<String> presets) {
+        this.presets = presets != null ? presets : new ArrayList<>();
     }
 
     public String getLibs() {

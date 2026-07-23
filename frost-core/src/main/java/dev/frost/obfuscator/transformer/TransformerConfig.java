@@ -60,4 +60,31 @@ public class TransformerConfig {
         Object val = options.get(key);
         return val != null ? val.toString() : defaultValue;
     }
+
+    public int getOptionInt(String key, int defaultValue) {
+        Object val = options.get(key);
+        if (val instanceof Number n) return n.intValue();
+        if (val != null) {
+            try { return Integer.parseInt(val.toString().trim()); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
+    }
+
+    public long getOptionLong(String key, long defaultValue) {
+        Object val = options.get(key);
+        if (val instanceof Number n) return n.longValue();
+        if (val != null) {
+            try { return Long.parseLong(val.toString().trim()); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
+    }
+
+    public boolean getOptionBoolean(String key, boolean defaultValue) {
+        Object val = options.get(key);
+        if (val instanceof Boolean b) return b;
+        if (val != null) {
+            return Boolean.parseBoolean(val.toString().trim());
+        }
+        return defaultValue;
+    }
 }

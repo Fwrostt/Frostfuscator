@@ -99,7 +99,10 @@ public final class RuntimeSelfChecksumTransformer extends Transformer {
         if (classNode.name.startsWith("dev/frost/runtime/")) {
             return false;
         }
-        if ((classNode.access & Opcodes.ACC_ANNOTATION) != 0) {
+        if ((classNode.access & (Opcodes.ACC_ANNOTATION | Opcodes.ACC_INTERFACE | Opcodes.ACC_SYNTHETIC)) != 0) {
+            return false;
+        }
+        if (classNode.name.contains("$")) {
             return false;
         }
         return shouldProcess(classNode.name, context.config(),

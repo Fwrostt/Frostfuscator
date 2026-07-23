@@ -1,5 +1,6 @@
 package dev.frost.obfuscator.plugin;
 
+import dev.frost.api.event.EventBus;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.util.Logger;
 import org.yaml.snakeyaml.Yaml;
@@ -10,17 +11,17 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.jar.JarFile;
 
 public final class PluginLoader {
     private static final List<ClassLoader> ACTIVE_LOADERS = new ArrayList<>();
+    private static final EventBus GLOBAL_EVENT_BUS = new EventBus();
+
+    public static EventBus globalEventBus() {
+        return GLOBAL_EVENT_BUS;
+    }
 
     public List<PluginDescriptor> loadDirectories(List<Path> directories, Consumer<Transformer> transformerRegistrar) {
         List<PluginDescriptor> loaded = new ArrayList<>();
@@ -46,7 +47,7 @@ public final class PluginLoader {
         return loaded;
     }
 
-    private java.util.Optional<PluginDescriptor> loadJar(Path jarPath, Consumer<Transformer> transformerRegistrar) {
+    private Optional<PluginDescriptor> loadJar(Path jarPath, Consumer<Transformer> transformerRegistrar) {
         try {
             URLClassLoader loader = new URLClassLoader(
                     new URL[]{jarPath.toUri().toURL()},
@@ -62,13 +63,44 @@ public final class PluginLoader {
                 registered++;
             }
 
+            ServiceLoader<dev.frost.api.transformer.PluginTransformer> apiServiceLoader =
+                    ServiceLoader.load(dev.frost.api.transformer.PluginTransformer.class, loader);
+            for (dev.frost.api.transformer.PluginTransformer apiTransformer : apiServiceLoader) {
+                transformerRegistrar.accept(new PluginTransformerAdapter(apiTransformer));
+                registered++;
+            }
+
             if (!descriptor.main().isBlank()) {
                 Class<?> type = Class.forName(descriptor.main(), true, loader);
                 Object plugin = type.getDeclaredConstructor().newInstance();
-                if (!(plugin instanceof FrostPlugin frostPlugin)) {
-                    throw new IllegalArgumentException(descriptor.main() + " does not implement FrostPlugin");
+
+                dev.frost.api.PluginLogger pluginLogger = new dev.frost.api.PluginLogger() {
+                    @Override public void info(String message, Object... args) { Logger.info("[" + descriptor.name() + "] " + message, args); }
+                    @Override public void warn(String message, Object... args) { Logger.warn("[" + descriptor.name() + "] " + message, args); }
+                    @Override public void error(String message, Object... args) { Logger.error("[" + descriptor.name() + "] " + message, args); }
+                    @Override public void debug(String message, Object... args) { Logger.debug("[" + descriptor.name() + "] " + message, args); }
+                    @Override public void trace(String message, Object... args) { Logger.debug("[" + descriptor.name() + "] " + message, args); }
+                };
+
+                dev.frost.api.PluginDescriptor apiDescriptor = new dev.frost.api.PluginDescriptor(
+                        descriptor.name(), descriptor.version(), descriptor.main(), descriptor.description(), descriptor.authors(), descriptor.transformers()
+                );
+
+                dev.frost.api.PluginContext apiContext = new dev.frost.api.PluginContext(
+                        apiDescriptor, jarPath.getParent(), pluginLogger, GLOBAL_EVENT_BUS
+                );
+
+                if (plugin instanceof dev.frost.api.FrostPlugin apiPlugin) {
+                    apiPlugin.onLoad(apiContext);
+                    apiPlugin.onEnable(apiContext);
+                    GLOBAL_EVENT_BUS.registerListener(apiPlugin);
+                    for (dev.frost.api.transformer.PluginTransformer pluginTransformer : apiContext.registeredTransformers()) {
+                        transformerRegistrar.accept(new PluginTransformerAdapter(pluginTransformer));
+                        registered++;
+                    }
+                } else if (plugin instanceof FrostPlugin legacyPlugin) {
+                    legacyPlugin.onLoad(new PluginContext(descriptor, jarPath, transformerRegistrar));
                 }
-                frostPlugin.onLoad(new PluginContext(descriptor, jarPath, transformerRegistrar));
             }
 
             Logger.info("Loaded plugin {} v{} from {} ({} service transformer{})",
@@ -77,10 +109,10 @@ public final class PluginLoader {
                     jarPath.getFileName(),
                     registered,
                     registered == 1 ? "" : "s");
-            return java.util.Optional.of(descriptor);
+            return Optional.of(descriptor);
         } catch (Exception exception) {
             Logger.warn("Failed to load plugin {}: {}", jarPath, exception.getMessage());
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
     }
 
@@ -106,11 +138,12 @@ public final class PluginLoader {
         }
 
         try (JarFile jar = new JarFile(jarPath.toFile())) {
-            if (jar.getEntry("META-INF/services/" + Transformer.class.getName()) != null) {
+            if (jar.getEntry("META-INF/services/" + Transformer.class.getName()) != null ||
+                jar.getEntry("META-INF/services/" + dev.frost.api.transformer.PluginTransformer.class.getName()) != null) {
                 return new PluginDescriptor(jarPath.getFileName().toString(), "0.0.0", "", "", List.of(), List.of());
             }
         }
-        throw new IOException("missing frost-plugin.yml or Transformer ServiceLoader provider");
+        throw new IOException("missing frost-plugin.yml or PluginTransformer ServiceLoader provider");
     }
 
     private String string(Map<?, ?> map, String key, String fallback) {
@@ -123,7 +156,7 @@ public final class PluginLoader {
             return list.stream().map(Object::toString).toList();
         }
         if (value instanceof String string && !string.isBlank()) {
-            return java.util.Arrays.stream(string.split(","))
+            return Arrays.stream(string.split(","))
                     .map(String::trim)
                     .filter(item -> !item.isEmpty())
                     .toList();

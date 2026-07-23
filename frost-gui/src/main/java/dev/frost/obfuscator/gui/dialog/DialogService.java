@@ -54,6 +54,24 @@ public final class DialogService {
         return remember(optional(chooser.showSaveDialog(owner)), "jar");
     }
 
+    public Optional<Path> saveZip(String suggestedName) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Choose output ZIP archive");
+        chooser.setInitialFileName(suggestedName);
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ZIP archives", "*.zip"));
+        restoreDirectory(chooser, "export");
+        return remember(optional(chooser.showSaveDialog(owner)), "export");
+    }
+
+    public Optional<Path> saveFile(String title, String suggestedName, String filterLabel, String... extensions) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.setInitialFileName(suggestedName);
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(filterLabel, extensions));
+        restoreDirectory(chooser, "export");
+        return remember(optional(chooser.showSaveDialog(owner)), "export");
+    }
+
     public Optional<Path> chooseDirectory(String title) {
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle(title);

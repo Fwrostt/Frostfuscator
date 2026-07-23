@@ -1,5 +1,9 @@
 package dev.frost.obfuscator.engine;
 
+import dev.frost.api.event.events.ClassTransformEvent;
+import dev.frost.api.event.events.PostObfuscationEvent;
+import dev.frost.api.event.events.PreObfuscationEvent;
+import dev.frost.obfuscator.plugin.PluginLoader;
 import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.jni.FrostJNIProtectionService;
@@ -63,6 +67,14 @@ public class ObfuscationEngine {
         ClassPool pool = processor.loadJar(inputPath);
         stats.set("classes", pool.size());
 
+        PreObfuscationEvent preEvent = PluginLoader.globalEventBus().post(
+                new PreObfuscationEvent(inputPath, pool.getClassMap(), processor.getResources(), Map.of())
+        );
+        if (preEvent != null && preEvent.isCancelled()) {
+            Logger.warn("PreObfuscationEvent was cancelled by a plugin. Aborting obfuscation pass.");
+            return stats;
+        }
+
         LibraryLoadReport libraryReport = processor.loadLibraries(pool, libraryOptions());
         stats.set("libraryClasses", libraryReport.loadedClasses());
         stats.set("libraryRuntimeClasses", libraryReport.runtimeClasses());
@@ -72,6 +84,22 @@ public class ObfuscationEngine {
         stats.set("libraryProblems", libraryReport.problems().size());
 
         List<String> exclusions = new ArrayList<>(config.getExclusions() != null ? config.getExclusions() : List.of());
+        if (config.getPresets() != null && !config.getPresets().isEmpty()) {
+            dev.frost.obfuscator.config.preset.ExclusionPresetRegistry presetRegistry =
+                    new dev.frost.obfuscator.config.preset.ExclusionPresetRegistry(config.getPresets());
+            List<String> presetExclusions = presetRegistry.getCombinedPackageExclusions();
+            exclusions.addAll(presetExclusions);
+            Logger.info("Applied {} preset(s): {} (expanded {} package pattern exclusions)",
+                    presetRegistry.getActivePresets().size(),
+                    config.getPresets(),
+                    presetExclusions.size());
+
+            for (ClassNode node : pool.getClasses()) {
+                if (presetRegistry.isClassExcludedByPreset(node)) {
+                    exclusions.add(node.name.replace('/', '.'));
+                }
+            }
+        }
 
         String detectedMainClass = processor.getDetectedMainClass();
         String mainClassInternal = null;
@@ -79,7 +107,7 @@ public class ObfuscationEngine {
         String manifestMainClassInternal = null;
         if (detectedMainClass != null) {
             mainClassInternal = detectedMainClass.replace('.', '/');
-            Logger.info("Detected plugin main class: {} (will be renamed, plugin.yml will be updated)", detectedMainClass);
+            Logger.info("Detected main class / entrypoint: {} (will be renamed if obfuscated)", detectedMainClass);
         }
         if (manifestMainClass != null) {
             manifestMainClassInternal = manifestMainClass.replace('.', '/');
@@ -138,6 +166,7 @@ public class ObfuscationEngine {
         Logger.info("Total mappings collected: {}", mappings.totalMappings());
 
         applyRemapping(pool, mappings);
+        processor.updateRuntimeChecksumClasses(mappings);
         processor.snapshotPreFlowClasses(pool);
 
         if (detectedMainClass != null && mainClassInternal != null) {
@@ -152,6 +181,9 @@ public class ObfuscationEngine {
             if (!newMainInternal.equals(manifestMainClassInternal)) {
                 processor.updateManifestMainClass(manifestMainClass, newMainInternal.replace('/', '.'));
             }
+        }
+        if (processor.isFabricMod()) {
+            processor.updateFabricModJson(mappings);
         }
 
         if (!postRemap.isEmpty()) {
@@ -231,6 +263,14 @@ public class ObfuscationEngine {
             }
         }
 
+        PostObfuscationEvent postEvent = PluginLoader.globalEventBus().post(
+                new PostObfuscationEvent(outputPath, Map.of(), processor.getResources())
+        );
+        if (postEvent != null && postEvent.isCancelled()) {
+            Logger.warn("PostObfuscationEvent was cancelled by a plugin. Output JAR writing aborted.");
+            return stats;
+        }
+
         processor.writeJar(pool, outputPath);
 
         long elapsed = System.currentTimeMillis() - startTime;
@@ -283,7 +323,7 @@ public class ObfuscationEngine {
 
             remappedClasses.put(remapped.name, remapped);
             pool.setOriginalName(remapped.name, entry.getKey());
-            if (!remapped.name.equals(entry.getKey()) || mappings.hasAnyMappingForClass(entry.getKey())) {
+            if (!remapped.name.equals(entry.getKey()) || mappings.hasAnyMappingForClass(entry.getKey()) || mappings.totalMappings() > 0) {
                 pool.markDirty(remapped.name);
             }
         }

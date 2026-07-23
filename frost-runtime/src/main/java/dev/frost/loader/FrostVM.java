@@ -1042,19 +1042,25 @@ public class FrostVM {
                     stack[sp-1] = Double.valueOf(((Number) stack[sp-1]).doubleValue());
                     stack[sp++] = null;
                     break;
-                case OP_L2I:
+                case OP_L2I: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Integer.valueOf(((Number) stack[sp]).intValue());
+                    stack[sp++] = Integer.valueOf(val.intValue());
                     break;
-                case OP_L2F:
+                }
+                case OP_L2F: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Float.valueOf(((Number) stack[sp]).floatValue());
+                    stack[sp++] = Float.valueOf(val.floatValue());
                     break;
-                case OP_L2D:
+                }
+                case OP_L2D: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Double.valueOf(((Number) stack[sp]).doubleValue());
+                    stack[sp++] = Double.valueOf(val.doubleValue());
                     stack[sp++] = null;
                     break;
+                }
                 case OP_F2I:
                     stack[sp-1] = Integer.valueOf(((Number) stack[sp-1]).intValue());
                     break;
@@ -1066,19 +1072,25 @@ public class FrostVM {
                     stack[sp-1] = Double.valueOf(((Number) stack[sp-1]).doubleValue());
                     stack[sp++] = null;
                     break;
-                case OP_D2I:
+                case OP_D2I: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Integer.valueOf(((Number) stack[sp]).intValue());
+                    stack[sp++] = Integer.valueOf(val.intValue());
                     break;
-                case OP_D2L:
+                }
+                case OP_D2L: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Long.valueOf(((Number) stack[sp]).longValue());
+                    stack[sp++] = Long.valueOf(val.longValue());
                     stack[sp++] = null;
                     break;
-                case OP_D2F:
+                }
+                case OP_D2F: {
+                    Number val = (Number) stack[sp - 2];
                     sp -= 2;
-                    stack[sp++] = Float.valueOf(((Number) stack[sp]).floatValue());
+                    stack[sp++] = Float.valueOf(val.floatValue());
                     break;
+                }
                 case OP_I2B:
                     stack[sp-1] = Byte.valueOf(((Number) stack[sp-1]).byteValue());
                     break;

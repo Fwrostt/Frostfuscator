@@ -62,10 +62,23 @@ public final class FrostFxApp extends Application {
         scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
         stage.setScene(scene);
 
-        stage.maximizedProperty().addListener((obs, old, maximized) ->
-                applyWindowShape(host, windowClip, maximized));
         preferences.restoreWindow(stage);
-        applyWindowShape(host, windowClip, stage.isMaximized());
+        if (preferences.getBoolean("window.maximized", false)) {
+            Platform.runLater(() -> {
+                if (context != null) {
+                    dev.frost.obfuscator.gui.titlebar.CustomTitleBar.toggleMaximize(context, host);
+                } else {
+                    javafx.geometry.Rectangle2D vis = javafx.stage.Screen.getScreensForRectangle(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight()).get(0).getVisualBounds();
+                    stage.setX(vis.getMinX());
+                    stage.setY(vis.getMinY());
+                    stage.setWidth(vis.getWidth());
+                    stage.setHeight(vis.getHeight());
+                    applyWindowShape(host, windowClip, true);
+                }
+            });
+        } else {
+            applyWindowShape(host, windowClip, false);
+        }
         stage.show();
         nativeStartup = NativeStartupOverlay.show(
                 stage, preferences.getBoolean("ui.reducedMotion", false));
@@ -203,25 +216,36 @@ public final class FrostFxApp extends Application {
     }
 
     public static void applyWindowShape(StackPane host, Rectangle clip, boolean maximized) {
-        host.getStyleClass().remove("window-maximized");
-        if (maximized) {
-            host.getStyleClass().add("window-maximized");
-            host.setClip(null);
-        } else {
-            clip.setArcWidth(24);
-            clip.setArcHeight(24);
-            host.setClip(clip);
+        if (host != null) {
+            host.getStyleClass().removeAll("window-maximized", "maximized");
+            if (maximized) {
+                host.getStyleClass().addAll("window-maximized", "maximized");
+                host.setClip(null);
+            } else {
+                if (clip != null) {
+                    clip.setArcWidth(24);
+                    clip.setArcHeight(24);
+                    host.setClip(clip);
+                }
+            }
         }
     }
 
     private void loadFonts() {
         for (String resource : new String[] {
+                "/fonts/JetBrainsMono-Regular.ttf",
+                "/fonts/JetBrainsMono-Bold.ttf",
                 "/fonts/extras/otf/Inter-Regular.otf",
                 "/fonts/extras/otf/Inter-Medium.otf",
                 "/fonts/extras/otf/Inter-SemiBold.otf",
                 "/fonts/extras/otf/Inter-Bold.otf"
         }) {
-            Font.loadFont(getClass().getResource(resource).toExternalForm(), 13.5);
+            try {
+                var url = getClass().getResource(resource);
+                if (url != null) {
+                    Font.loadFont(url.toExternalForm(), 13.5);
+                }
+            } catch (Exception ignored) {}
         }
     }
 }

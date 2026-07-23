@@ -76,6 +76,9 @@ public class Main implements Callable<Integer> {
     @CommandLine.Option(names = {"--exclude"}, split = ",", description = "Global exclusion regex. Can be repeated or comma-separated.")
     private List<String> exclusions = new ArrayList<>();
 
+    @CommandLine.Option(names = {"-p", "--presets", "--preset"}, split = ",", description = "Exclusion presets (e.g. spigot, fabric, forge, gson, jackson, spring, jpa, sponge)")
+    private List<String> presets = new ArrayList<>();
+
     @CommandLine.Option(names = {"--list-transforms", "--list-transformers"}, description = "List transforms and exit")
     private boolean listTransformers;
 
@@ -209,6 +212,7 @@ public class Main implements Callable<Integer> {
         }
         addAll(config.getInclusions(), inclusions);
         addAll(config.getExclusions(), exclusions);
+        addAll(config.getPresets(), presets);
         for (String name : clean(enableTransformers)) {
             config.getTransformers().computeIfAbsent(name, key -> new TransformerConfig()).setEnabled(true);
         }

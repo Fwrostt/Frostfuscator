@@ -66,6 +66,11 @@ public class ConfigLoader {
             config.setInclusions(list.stream().map(Object::toString).toList());
         }
 
+        Object presetsObj = raw.get("presets");
+        if (presetsObj instanceof List<?> list) {
+            config.setPresets(list.stream().map(Object::toString).toList());
+        }
+
         Object transformersObj = raw.get("transformers");
         if (transformersObj instanceof Map<?, ?> transformersMap) {
             Map<String, TransformerConfig> transformerConfigs = new LinkedHashMap<>();

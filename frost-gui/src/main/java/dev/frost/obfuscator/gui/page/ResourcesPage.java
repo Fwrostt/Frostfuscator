@@ -10,7 +10,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
-import java.util.List;
+import java.util.*;
 
 public final class ResourcesPage implements PageView {
     private final AppContext context;
@@ -47,6 +47,26 @@ public final class ResourcesPage implements PageView {
                 "Optional regex rules that limit processing to matching classes");
         TextArea exclusions = area(String.join("\n", config.getExclusions()),
                 "Regex rules for classes that must remain unchanged");
+
+        FlowPane presetPane = new FlowPane(Ui.SPACE_2, Ui.SPACE_2);
+        for (dev.frost.obfuscator.config.preset.ExclusionPreset preset : dev.frost.obfuscator.config.preset.ExclusionPreset.values()) {
+            String pName = preset.name().toLowerCase(java.util.Locale.ROOT);
+            javafx.scene.control.ToggleButton chip = new javafx.scene.control.ToggleButton(preset.getDisplayName());
+            chip.setSelected(config.getPresets().contains(pName) || config.getPresets().contains(preset.name()));
+            chip.setOnAction(event -> {
+                List<String> list = new ArrayList<>(config.getPresets());
+                if (chip.isSelected()) {
+                    if (!list.contains(pName)) list.add(pName);
+                } else {
+                    list.remove(pName);
+                    list.remove(preset.name());
+                }
+                config.setPresets(list);
+                touch();
+            });
+            presetPane.getChildren().add(chip);
+        }
+
         FlowPane suggested = new FlowPane(Ui.SPACE_2, Ui.SPACE_2);
         context.projectState().analysis().exclusions().forEach(rule -> {
             Button chip = new Button("+ " + rule);
@@ -54,8 +74,9 @@ public final class ResourcesPage implements PageView {
             chip.setOnAction(event -> addLine(exclusions, rule));
             suggested.getChildren().add(chip);
         });
-        VBox rules = Ui.section("Class rules",
+        VBox rules = Ui.section("Class rules & framework presets",
                 "Keep reflection, serialization, plugins, service providers, and framework entrypoints safe.",
+                Ui.fieldRow("Framework Presets", presetPane),
                 Ui.fieldRow("Inclusions", inclusions),
                 Ui.fieldRow("Exclusions", exclusions),
                 Ui.label("Suggested by analysis", "field-label"),

@@ -20,6 +20,7 @@ public final class PageFactory {
             case INPUT -> new InputDependenciesPage(context);
             case PROTECTION -> new ProtectionPage(context);
             case RESOURCES -> new ResourcesPage(context);
+            case BYTECODE -> new BytecodeViewerPage(context, navigation);
             case BUILD -> new BuildPage(context);
             case VALIDATION -> new ValidationPage(context, navigation);
             case REPORTS -> new ReportsPage(context);

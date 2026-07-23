@@ -10,10 +10,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class FieldRenameTransformer extends Transformer {
 
@@ -30,6 +27,8 @@ public class FieldRenameTransformer extends Transformer {
         Dictionary dictionary = Dictionary.create(config.getDictionary());
         Map<String, Set<String>> usedNamesPerClass = new HashMap<>();
 
+        Set<String> reflectiveFieldNames = collectReflectiveFieldNames(pool);
+
         for (ClassNode classNode : pool.getClasses()) {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
                 continue;
@@ -41,7 +40,7 @@ public class FieldRenameTransformer extends Transformer {
             }
 
             for (FieldNode field : classNode.fields) {
-                if (isExcludedMember(field.name, config)) {
+                if (field.name.startsWith("frost$") || field.name.startsWith("__frost") || isExcludedMember(field.name, config)) {
                     continue;
                 }
 
@@ -80,5 +79,21 @@ public class FieldRenameTransformer extends Transformer {
         } while (used.contains(name));
         used.add(name);
         return name;
+    }
+
+    private Set<String> collectReflectiveFieldNames(ClassPool pool) {
+        Set<String> names = new HashSet<>();
+        for (ClassNode classNode : pool.getClasses()) {
+            if (classNode.methods == null) continue;
+            for (org.objectweb.asm.tree.MethodNode method : classNode.methods) {
+                if (method.instructions == null) continue;
+                for (org.objectweb.asm.tree.AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn instanceof org.objectweb.asm.tree.LdcInsnNode ldc && ldc.cst instanceof String value) {
+                        names.add(value);
+                    }
+                }
+            }
+        }
+        return names;
     }
 }

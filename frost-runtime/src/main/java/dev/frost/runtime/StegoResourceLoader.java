@@ -21,6 +21,7 @@ public final class StegoResourceLoader {
     private static final int MAGIC = 0x46525A53;
 
     private StegoResourceLoader() {
+
     }
 
     public static byte[] read(String resourceName, String password) throws IOException {

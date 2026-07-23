@@ -1,10 +1,8 @@
 # Frostfuscator
 
-Frostfuscator is a Java bytecode obfuscator built with ASM. I originally made it for protecting Minecraft plugins and mods, but it works with any Java application.
+Frostfuscator is a Java bytecode obfuscator built with ASM. Originally made for protecting Minecraft plugins and mods, it works with any Java application.
 
-The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, JNI native protection, and other techniques to make reverse engineering harder.
-
-Alongside the obfuscation passes, Frostfuscator includes some extra tools for shrinking, reporting, resource handling, and custom plugins.
+The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, JNI native protection, and a standalone Plugin API (`frost-api`).
 
 ## Documentation
 
@@ -15,39 +13,32 @@ Alongside the obfuscation passes, Frostfuscator includes some extra tools for sh
 * [Transformers](docs/transformers.md)
 * [Plugins](docs/plugins.md)
 * [Update Log](updates/README.md)
+* [Unified Update Log (July 23–24)](updates/2026-07-24-unified-update-log-july-23-24.md)
 
 ## Features
 
-### Obfuscation
-
+### Obfuscation & Protection
 * Rename classes, methods, fields, local variables, and parameters.
-* Encrypt strings and mutate numeric constants.
-* Apply control-flow transformations, opaque predicates, switch rewriting, exception-based flow, outlining, and stack noise.
-* Hide method calls through proxies or `invokedynamic`.
-* Remove debug information and add metadata noise.
+* Encrypt strings (with inline anti-tamper stack checks) and mutate numeric constants.
+* Control-flow transformations, opaque predicates, switch rewriting, basic-block shuffling, exception-based flow, outlining, and polymorphic instruction substitution.
+* ConstantDynamic (Condy) indirection & invokedynamic proxies for method and field reference hiding.
+* Anti-debug, anti-agent (javaagent/ByteBuddy detector), and decompiler parser crashers (Jadx, CFR, Procyon, Fernflower).
+* Convert selected Java methods into native JNI stubs through FrostJNI.
+* Junk members, class/method salting, line number spoofing, and metadata noise.
 
-### Protection
+### Plugin API & Extensions (`frost-api`)
+* Standalone `frost-api` module with priority-aware `EventBus` (`PreObfuscationEvent`, `ClassTransformEvent`, `PostObfuscationEvent`).
+* Extension interfaces for custom obfuscation transformers (`PluginTransformer`), string encryptors (`StringEncryptorPlugin`), symbol name generators (`NameGeneratorPlugin`), decompiler backends (`CustomDecompilerProvider`), and GUI extensions (`UiExtensionPoint`).
+* In-decompiler IDE editing mode with in-memory Java compiler (`InJarJavaCompiler`), ASM bytecode assembler (`BytecodeAssembler`), and staged workspace.
 
-* Add watermarks for ownership or build identification.
-* Generate SHA-256 integrity metadata.
-* Optional anti-debug checks.
-* Add decompiler-unfriendly but verifier-safe patterns.
-* Convert selected Java methods into native JNI stubs with embedded platform libraries through FrostJNI.
-* Add junk members and decoy classes to increase static-analysis noise.
-* Optional Funsies passes for custom banners and full Chinese-name chaos mode.
-
-### Resources And Output
-
-* Compress resources.
-* Store encrypted resource copies for applications with a matching resource loader.
-* Strip debug tables and source information.
-* Generate JSON or HTML reports.
-* Support custom plugin jars through `plugins/`, `frost-plugin.yml`, and Java `ServiceLoader`.
+### Resources & Containers
+* Fabric Mod (`fabric.mod.json`) parsing and Mixin remapping.
+* Built-in framework exclusion presets (`spigot`, `fabric`, `forge`, `gson`, `jackson`, `spring`, `jpa`, `sponge`).
+* Nested Fat JAR support (`BOOT-INF/lib/*.jar`, `WEB-INF/lib/*.jar`, `META-INF/jars/*.jar`).
 
 ## Quick Start
 
 ### Requirements
-
 * Java 21 or newer
 * Optional for FrostJNI: Clang or GCC/MinGW native C++ toolchain
 
@@ -75,15 +66,13 @@ Or run the packaged application directly:
 java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 
-On systems with Java 21 or newer installed and `.jar` files associated with Java, the GUI can also be opened by double-clicking `frost-gui/build/libs/Frostfuscator-gui.jar`. The GUI starts with no transformers enabled. You can load a preset or enable passes manually through the different categories.
-
 ## Building
 
 ```bash
 ./gradlew clean build
 ```
 
-The runnable CLI JAR is written to `frost-cli/build/libs/Frostfuscator.jar`. The runnable GUI JAR and launchers are written to `frost-gui/build/libs/`. The generated multi-class test input JAR is written to `frost-core/build/test-jars/frostfuscator-test-input.jar`.
+The runnable CLI JAR is written to `frost-cli/build/libs/Frostfuscator.jar`. The runnable GUI JAR and launchers are written to `frost-gui/build/libs/`.
 
 ## License
 

@@ -31,6 +31,10 @@ dependencies {
     implementation 'org.controlsfx:controlsfx:11.2.3'
     implementation 'org.fxmisc.richtext:richtextfx:0.11.7'
     implementation 'org.reactfx:reactfx:2.0-M6'
+    implementation 'org.vineflower:vineflower:1.12.0'
+    implementation 'org.benf:cfr:0.152'
+    implementation 'org.bitbucket.mstrobel:procyon-compilertools:0.6.0'
+    implementation "org.ow2.asm:asm-util:${rootProject.ext.asmVersion}"
 
     compileOnly "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     compileOnly "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
@@ -47,9 +51,11 @@ dependencies {
     testImplementation "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     testImplementation "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     testImplementation "org.openjfx:javafx-controls:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testImplementation "org.openjfx:javafx-swing:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     testRuntimeOnly "org.openjfx:javafx-base:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     testRuntimeOnly "org.openjfx:javafx-graphics:${rootProject.ext.javafxVersion}:${javafxPlatform}"
     testRuntimeOnly "org.openjfx:javafx-controls:${rootProject.ext.javafxVersion}:${javafxPlatform}"
+    testRuntimeOnly "org.openjfx:javafx-swing:${rootProject.ext.javafxVersion}:${javafxPlatform}"
 }
 
 application {

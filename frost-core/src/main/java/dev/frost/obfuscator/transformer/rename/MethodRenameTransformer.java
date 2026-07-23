@@ -9,10 +9,7 @@ import dev.frost.obfuscator.util.AccessHelper;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class MethodRenameTransformer extends Transformer {
 
@@ -57,10 +54,6 @@ public class MethodRenameTransformer extends Transformer {
                     continue;
                 }
 
-                if (reflectiveMethodNames.contains(method.name)) {
-                    continue;
-                }
-
                 if (safe && shouldKeepSafe(method, classNode)) {
                     continue;
                 }
@@ -97,26 +90,14 @@ public class MethodRenameTransformer extends Transformer {
     private Set<String> collectReflectiveMethodNames(ClassPool pool) {
         Set<String> names = new HashSet<>();
         for (ClassNode classNode : pool.getClasses()) {
-            boolean usesMethodReflection = false;
-            Set<String> classStrings = new HashSet<>();
-
+            if (classNode.methods == null) continue;
             for (MethodNode method : classNode.methods) {
                 if (method.instructions == null) continue;
-                AbstractInsnNode insn = method.instructions.getFirst();
-                while (insn != null) {
+                for (AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
                     if (insn instanceof LdcInsnNode ldc && ldc.cst instanceof String value) {
-                        classStrings.add(value);
-                    } else if (insn instanceof MethodInsnNode call
-                            && call.owner.equals("java/lang/Class")
-                            && (call.name.equals("getMethod") || call.name.equals("getDeclaredMethod"))) {
-                        usesMethodReflection = true;
+                        names.add(value);
                     }
-                    insn = insn.getNext();
                 }
-            }
-
-            if (usesMethodReflection) {
-                names.addAll(classStrings);
             }
         }
         return names;

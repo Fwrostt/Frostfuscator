@@ -42,6 +42,13 @@ public class MappingCollector {
             if (mapped != null) return mapped;
         }
 
+        for (Map.Entry<String, String> entry : classMappings.entrySet()) {
+            if (entry.getValue().equals(owner)) {
+                mapped = fieldMappings.get(fieldKey(entry.getKey(), oldName, desc));
+                if (mapped != null) return mapped;
+            }
+        }
+
         return oldName;
     }
 
@@ -53,6 +60,13 @@ public class MappingCollector {
         if (mappedOwner != null) {
             mapped = methodMappings.get(methodKey(mappedOwner, oldName, desc));
             if (mapped != null) return mapped;
+        }
+
+        for (Map.Entry<String, String> entry : classMappings.entrySet()) {
+            if (entry.getValue().equals(owner)) {
+                mapped = methodMappings.get(methodKey(entry.getKey(), oldName, desc));
+                if (mapped != null) return mapped;
+            }
         }
 
         return oldName;
@@ -89,6 +103,40 @@ public class MappingCollector {
 
     public Map<String, String> getMethodMappings() {
         return Collections.unmodifiableMap(methodMappings);
+    }
+
+    public String getMappedMethodByName(String oldName) {
+        for (Map.Entry<String, String> entry : methodMappings.entrySet()) {
+            String key = entry.getKey();
+            int dot = key.indexOf('.');
+            if (dot != -1) {
+                int paren = key.indexOf('(', dot);
+                if (paren != -1) {
+                    String name = key.substring(dot + 1, paren);
+                    if (name.equals(oldName)) {
+                        return entry.getValue();
+                    }
+                }
+            }
+        }
+        return oldName;
+    }
+
+    public String getMappedFieldByName(String oldName) {
+        for (Map.Entry<String, String> entry : fieldMappings.entrySet()) {
+            String key = entry.getKey();
+            int dot = key.indexOf('.');
+            if (dot != -1) {
+                int colon = key.indexOf(':', dot);
+                if (colon != -1) {
+                    String name = key.substring(dot + 1, colon);
+                    if (name.equals(oldName)) {
+                        return entry.getValue();
+                    }
+                }
+            }
+        }
+        return oldName;
     }
 
     public void exportMappings(Path outputPath) {

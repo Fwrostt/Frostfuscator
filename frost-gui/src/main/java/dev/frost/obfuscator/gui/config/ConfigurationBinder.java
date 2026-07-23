@@ -74,6 +74,7 @@ public final class ConfigurationBinder {
         target.setPlugins(new ArrayList<>(source.getPlugins()));
         target.setInclusions(new ArrayList<>(source.getInclusions()));
         target.setExclusions(new ArrayList<>(source.getExclusions()));
+        target.setPresets(new ArrayList<>(source.getPresets()));
         ObfuscationConfig.LibraryConfig libraries = new ObfuscationConfig.LibraryConfig();
         libraries.setPaths(new ArrayList<>(source.getLibraries().getPaths()));
         libraries.setRecursive(source.getLibraries().isRecursive());

@@ -122,4 +122,30 @@ public class ClassRenameTransformer extends Transformer {
         }
         return flattenPackage.replace('.', '/').replaceAll("[^a-zA-Z0-9_/]", "");
     }
+
+    private Set<String> collectReflectiveClassNames(ClassPool pool) {
+        Set<String> names = new HashSet<>();
+        for (ClassNode classNode : pool.getClasses()) {
+            if (classNode.methods == null) continue;
+            for (org.objectweb.asm.tree.MethodNode method : classNode.methods) {
+                if (method.instructions == null) continue;
+                for (org.objectweb.asm.tree.AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn instanceof org.objectweb.asm.tree.LdcInsnNode ldc) {
+                        String className = null;
+                        if (ldc.cst instanceof String value) {
+                            className = value.replace('.', '/');
+                        } else if (ldc.cst instanceof org.objectweb.asm.Type type) {
+                            if (type.getSort() == org.objectweb.asm.Type.OBJECT) {
+                                className = type.getInternalName();
+                            }
+                        }
+                        if (className != null && pool.contains(className)) {
+                            names.add(className);
+                        }
+                    }
+                }
+            }
+        }
+        return names;
+    }
 }

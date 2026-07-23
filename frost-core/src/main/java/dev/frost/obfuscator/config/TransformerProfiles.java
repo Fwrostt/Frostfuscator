@@ -91,11 +91,14 @@ public final class TransformerProfiles {
         set(config, "flow-condition", true, options("probability", 25, "max-per-method", 16));
         set(config, "flow-exception", true, options("strength", "GOOD"));
         set(config, "flow-switch", true, options("probability", 75));
+        set(config, "control-flow-shuffling", true, options("probability", 50));
+        set(config, "line-number-mutation", true, options("min-line", 1000, "max-line", 9999));
+        set(config, "method-salting", true, options("max-salts", 3, "probability", 60));
+        set(config, "class-salting", true, options("fields-per-class", 2));
+        set(config, "polymorphic-instruction", true, options("probability", 40));
         set(config, "stack-manipulation", true, options("probability", 8, "max-per-method", 16));
         set(config, "reflection-hiding", true, reflectionHidingOptions(35, 24, 96));
         set(config, "invoke-dynamic", true, options("probability", 35, "mutable-callsites", true));
-        set(config, "reference-hiding", true, options("probability", 45, "max-per-class", 96, "max-method-instructions", 6000));
-        set(config, "access-modifier", true, options("synthetic", true, "bridge-methods", false, "relax-final", false));
         set(config, "metadata-noise", true, options("strings-per-class", 8, "deprecated", true, "signatures", true));
         commonProtection(config, true);
     }

@@ -22,6 +22,14 @@ public class FrostRemapper extends Remapper {
             if (mapped != null) {
                 return mapped;
             }
+            String mappedMethod = mappings.getMappedMethodByName(text);
+            if (!mappedMethod.equals(text)) {
+                return mappedMethod;
+            }
+            String mappedField = mappings.getMappedFieldByName(text);
+            if (!mappedField.equals(text)) {
+                return mappedField;
+            }
         }
         return super.mapValue(value);
     }

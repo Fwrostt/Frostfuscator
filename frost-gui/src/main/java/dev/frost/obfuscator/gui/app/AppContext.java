@@ -13,6 +13,7 @@ import dev.frost.obfuscator.gui.state.WorkspacePersistence;
 import dev.frost.obfuscator.gui.theme.ThemeManager;
 import dev.frost.obfuscator.gui.validation.ProjectValidator;
 import dev.frost.obfuscator.gui.validation.ValidationCoordinator;
+import dev.frost.obfuscator.gui.viewer.BytecodeViewerService;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ public final class AppContext implements AutoCloseable {
     private final DialogService dialogs;
     private final NotificationCenter notifications;
     private final WorkspacePersistence workspacePersistence;
+    private final BytecodeViewerService bytecodeViewerService;
 
     private AppContext(
             Stage stage,
@@ -47,7 +49,8 @@ public final class AppContext implements AutoCloseable {
             BuildController buildController,
             DialogService dialogs,
             NotificationCenter notifications,
-            WorkspacePersistence workspacePersistence
+            WorkspacePersistence workspacePersistence,
+            BytecodeViewerService bytecodeViewerService
     ) {
         this.stage = stage;
         this.preferences = preferences;
@@ -63,6 +66,7 @@ public final class AppContext implements AutoCloseable {
         this.dialogs = dialogs;
         this.notifications = notifications;
         this.workspacePersistence = workspacePersistence;
+        this.bytecodeViewerService = bytecodeViewerService;
     }
 
     public static AppContext create(Stage stage, PreferencesStore preferences) {
@@ -101,8 +105,9 @@ public final class AppContext implements AutoCloseable {
         BuildController builds = new BuildController(state, binder, console, validator, analyzer);
         DialogService dialogs = new DialogService(stage, preferences);
         NotificationCenter notifications = new NotificationCenter();
+        BytecodeViewerService viewer = new BytecodeViewerService();
         return new AppContext(stage, preferences, state, themes, binder, analyzer, recommendations,
-                validator, validation, console, builds, dialogs, notifications, workspace);
+                validator, validation, console, builds, dialogs, notifications, workspace, viewer);
     }
 
     public Stage stage() { return stage; }
@@ -119,12 +124,14 @@ public final class AppContext implements AutoCloseable {
     public DialogService dialogs() { return dialogs; }
     public NotificationCenter notifications() { return notifications; }
     public WorkspacePersistence workspacePersistence() { return workspacePersistence; }
+    public BytecodeViewerService bytecodeViewerService() { return bytecodeViewerService; }
 
     @Override
     public void close() {
         validationCoordinator.close();
         buildController.close();
         workspacePersistence.close();
+        bytecodeViewerService.close();
         preferences.close();
     }
 }

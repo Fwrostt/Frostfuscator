@@ -51,7 +51,8 @@ public class WatermarkTransformer extends Transformer {
                 classNode.invisibleAnnotations.add(mark);
             }
 
-            if (stringField && classNode.fields.stream().noneMatch(f -> fieldName.equals(f.name))) {
+            if (stringField && (classNode.access & (Opcodes.ACC_INTERFACE | Opcodes.ACC_ANNOTATION)) == 0
+                    && classNode.fields.stream().noneMatch(f -> fieldName.equals(f.name))) {
                 classNode.fields.add(new FieldNode(
                         Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
                         fieldName,

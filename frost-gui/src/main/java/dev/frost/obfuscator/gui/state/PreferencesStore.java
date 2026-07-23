@@ -107,12 +107,13 @@ public final class PreferencesStore implements AutoCloseable {
         } else {
             stage.centerOnScreen();
         }
-        stage.setMaximized(getBoolean("window.maximized", false));
+        // Custom visual bounds maximize handled by app shell
     }
 
     public void saveWindow(Stage stage) {
-        putBoolean("window.maximized", stage.isMaximized());
-        if (!stage.isMaximized()) {
+        boolean isMax = dev.frost.obfuscator.gui.titlebar.CustomTitleBar.isCustomMaximized(stage);
+        putBoolean("window.maximized", isMax);
+        if (!isMax) {
             putDouble("window.x", stage.getX());
             putDouble("window.y", stage.getY());
             putDouble("window.width", stage.getWidth());

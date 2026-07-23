@@ -6,7 +6,9 @@ import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.util.AccessHelper;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.HashSet;
@@ -111,5 +113,41 @@ public final class LanguageMixupTransformer extends Transformer {
     private boolean booleanOption(TransformerConfig config, String key, boolean fallback) {
         Object value = config.getOptions().get(key);
         return value == null ? fallback : Boolean.parseBoolean(value.toString());
+    }
+
+    private Set<String> collectReflectiveClassNames(ClassPool pool) {
+        Set<String> names = new HashSet<>();
+        for (ClassNode classNode : pool.getClasses()) {
+            if (classNode.methods == null) continue;
+            for (MethodNode method : classNode.methods) {
+                if (method.instructions == null) continue;
+                for (AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn instanceof LdcInsnNode ldc) {
+                        if (ldc.cst instanceof String value) {
+                            names.add(value.replace('.', '/'));
+                        } else if (ldc.cst instanceof org.objectweb.asm.Type type && type.getSort() == org.objectweb.asm.Type.OBJECT) {
+                            names.add(type.getInternalName());
+                        }
+                    }
+                }
+            }
+        }
+        return names;
+    }
+
+    private Set<String> collectReflectiveMethodNames(ClassPool pool) {
+        Set<String> names = new HashSet<>();
+        for (ClassNode classNode : pool.getClasses()) {
+            if (classNode.methods == null) continue;
+            for (MethodNode method : classNode.methods) {
+                if (method.instructions == null) continue;
+                for (AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn instanceof LdcInsnNode ldc && ldc.cst instanceof String value) {
+                        names.add(value);
+                    }
+                }
+            }
+        }
+        return names;
     }
 }

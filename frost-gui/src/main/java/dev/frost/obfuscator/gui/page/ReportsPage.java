@@ -44,6 +44,14 @@ public final class ReportsPage implements PageView {
         SmoothScroll.install(root, context.themeManager());
         content.getStyleClass().addAll("page", "reports-page", "analytics-page");
         content.setPadding(Ui.pageInsets());
+        content.setMinWidth(0);
+        content.setMaxWidth(Double.MAX_VALUE);
+        root.viewportBoundsProperty().addListener((obs, old, bounds) -> {
+            double width = bounds.getWidth();
+            if (width > 100) {
+                content.setPrefWidth(width - 48);
+            }
+        });
 
         Button apply = Ui.button("Apply recommended setup", "primary-button", () -> {
             int count = context.recommendationEngine().applyRecommendedSetup(context.projectState());
@@ -58,6 +66,7 @@ public final class ReportsPage implements PageView {
                         "Bytecode-level inventory, compatibility evidence, transformer coverage, and post-build impact."),
                 Ui.spacer(), apply);
         heading.setAlignment(Pos.TOP_LEFT);
+        heading.setMaxWidth(Double.MAX_VALUE);
 
         configureTables();
         TabPane details = new TabPane(
@@ -68,29 +77,52 @@ public final class ReportsPage implements PageView {
         );
         details.getStyleClass().add("analytics-tabs");
         details.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        details.setMaxWidth(Double.MAX_VALUE);
+
+        VBox recSection = Ui.section("Recommended transformer setup",
+                "Every action updates the real transformer configuration and re-validates compatibility.",
+                recommendations);
+        recSection.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(recSection, Priority.ALWAYS);
+
+        VBox compSection = Ui.section("Compatibility & conflicts",
+                "Evidence from call sites, metadata, archive layout, and the selected pass combination.",
+                compatibility);
+        compSection.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(compSection, Priority.ALWAYS);
 
         GridPane intelligence = new GridPane();
         intelligence.setHgap(Ui.SPACE_6);
         intelligence.setVgap(Ui.SPACE_6);
         intelligence.getColumnConstraints().addAll(percent(54), percent(46));
-        intelligence.add(Ui.section("Recommended transformer setup",
-                "Every action updates the real transformer configuration and re-validates compatibility.",
-                recommendations), 0, 0);
-        intelligence.add(Ui.section("Compatibility & conflicts",
-                "Evidence from call sites, metadata, archive layout, and the selected pass combination.",
-                compatibility), 1, 0);
+        intelligence.setMaxWidth(Double.MAX_VALUE);
+        intelligence.add(recSection, 0, 0);
+        intelligence.add(compSection, 1, 0);
 
+        VBox archiveSection = Ui.section("Archive inventory",
+                "Counts come from parsed JVM structures—not byte-pattern estimates.", inventorySummary);
+        archiveSection.setMaxWidth(Double.MAX_VALUE);
+
+        VBox bytecodeSection = Ui.section("Complete bytecode inventory",
+                "Search every class, method, string literal, and resource discovered in the archive.", details);
+        bytecodeSection.setMaxWidth(Double.MAX_VALUE);
+
+        VBox postBuildSection = Ui.section("Post-build effectiveness",
+                "Exact transformer counters and structural before/after comparison appear after a successful build.",
+                postBuild);
+        postBuildSection.setMaxWidth(Double.MAX_VALUE);
+
+        Node settingsSection = reportSettings();
+        if (settingsSection instanceof Region reg) reg.setMaxWidth(Double.MAX_VALUE);
+
+        content.setFillWidth(true);
         content.getChildren().addAll(
                 heading,
-                Ui.section("Archive inventory",
-                        "Counts come from parsed JVM structures—not byte-pattern estimates.", inventorySummary),
+                archiveSection,
                 intelligence,
-                Ui.section("Complete bytecode inventory",
-                        "Search every class, method, string literal, and resource discovered in the archive.", details),
-                Ui.section("Post-build effectiveness",
-                        "Exact transformer counters and structural before/after comparison appear after a successful build.",
-                        postBuild),
-                reportSettings()
+                bytecodeSection,
+                postBuildSection,
+                settingsSection
         );
 
         searchDelay.setOnFinished(event -> {
@@ -109,6 +141,11 @@ public final class ReportsPage implements PageView {
 
     @SuppressWarnings("unchecked")
     private void configureTables() {
+        classTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        methodTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        stringTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        resourceTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+
         classTable.getColumns().addAll(
                 column("Class", 330, BytecodeInventory.ClassInsight::name),
                 column("Kind", 110, BytecodeInventory.ClassInsight::kind),
@@ -359,6 +396,7 @@ public final class ReportsPage implements PageView {
         copy.setWrapText(true);
         VBox metric = new VBox(Ui.SPACE_1, number, name, copy);
         metric.getStyleClass().add("analytics-metric");
+        metric.setMaxWidth(Double.MAX_VALUE);
         return metric;
     }
 

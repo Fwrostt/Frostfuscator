@@ -25,7 +25,8 @@ public final class SelfChecksumRuntime {
             fail("Missing runtime checksum for " + internalName, failureAction);
             return;
         }
-        try (InputStream input = anchor.getResourceAsStream('/' + anchor.getSimpleName() + ".class")) {
+        String classFileName = internalName.substring(internalName.lastIndexOf('/') + 1) + ".class";
+        try (InputStream input = anchor.getResourceAsStream(classFileName)) {
             if (input == null) {
                 fail("Missing runtime class bytes for " + internalName, failureAction);
                 return;

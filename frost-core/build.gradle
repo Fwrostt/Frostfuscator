@@ -5,6 +5,7 @@ plugins {
 description = 'Core Frostfuscator engine, transformers, config, JNI, and tests.'
 
 dependencies {
+    api project(':frost-api')
     api project(':frost-runtime')
 
     api "org.ow2.asm:asm:${rootProject.ext.asmVersion}"
@@ -16,6 +17,7 @@ dependencies {
     implementation 'info.picocli:picocli:4.7.5'
     implementation 'org.slf4j:slf4j-simple:2.0.13'
     implementation 'org.yaml:snakeyaml:2.2'
+    implementation 'com.google.code.gson:gson:2.11.0'
 
     testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
 }

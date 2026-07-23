@@ -177,7 +177,7 @@ public class StringEncryptionTransformer extends Transformer {
     private void applyLite(ClassNode classNode, List<StringContext> contexts) {
         int classKey = randomKey();
         String decryptName = randomMethodName(classNode);
-        addLiteDecryptMethod(classNode, decryptName, classKey);
+        addLiteDecryptMethod(classNode, decryptName, classKey, true);
 
         for (StringContext ctx : contexts) {
             byte[] encrypted = xor(ctx.value.getBytes(StandardCharsets.UTF_8), classKey);
@@ -189,10 +189,15 @@ public class StringEncryptionTransformer extends Transformer {
         }
     }
 
-    private void addLiteDecryptMethod(ClassNode classNode, String name, int key) {
+    private void addLiteDecryptMethod(ClassNode classNode, String name, int key, boolean antiTamper) {
         MethodNode mn = new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, name,
                 "([BI)Ljava/lang/String;", null, null);
         InsnList il = mn.instructions;
+
+        if (antiTamper) {
+            injectAntiTamperCheck(classNode, il);
+        }
+
         il.add(new VarInsnNode(Opcodes.ILOAD, 1));
         il.add(new VarInsnNode(Opcodes.ISTORE, 2));
         il.add(new VarInsnNode(Opcodes.ALOAD, 0));
@@ -231,6 +236,33 @@ public class StringEncryptionTransformer extends Transformer {
         mn.maxStack = 5;
         mn.maxLocals = 5;
         classNode.methods.add(mn);
+    }
+
+    private void injectAntiTamperCheck(ClassNode classNode, InsnList il) {
+        String expectedClassName = classNode.name.replace('/', '.');
+        LabelNode safeLabel = new LabelNode(new Label());
+
+        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Thread", "getStackTrace", "()[Ljava/lang/StackTraceElement;", false));
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new InsnNode(Opcodes.ARRAYLENGTH));
+        il.add(new InsnNode(Opcodes.ICONST_2));
+        il.add(new JumpInsnNode(Opcodes.IF_ICMPLT, safeLabel));
+
+        il.add(new InsnNode(Opcodes.ICONST_2));
+        il.add(new InsnNode(Opcodes.AALOAD));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/StackTraceElement", "getClassName", "()Ljava/lang/String;", false));
+        il.add(new LdcInsnNode(expectedClassName));
+        il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false));
+        il.add(new JumpInsnNode(Opcodes.IFNE, safeLabel));
+
+        il.add(new TypeInsnNode(Opcodes.NEW, "java/lang/IllegalStateException"));
+        il.add(new InsnNode(Opcodes.DUP));
+        il.add(new LdcInsnNode("Tamper detected: invalid caller"));
+        il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/lang/IllegalStateException", "<init>", "(Ljava/lang/String;)V", false));
+        il.add(new InsnNode(Opcodes.ATHROW));
+
+        il.add(safeLabel);
     }
 
     // endregion

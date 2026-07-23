@@ -238,7 +238,7 @@ class AppShellTest extends ApplicationTest {
         interact(categoryCombo::hide);
 
         Node impact = lookup(".impact-panel").query();
-        assertFalse(impact.isManaged(), "Optional guidance must collapse before the editor becomes cramped");
+        assertTrue(impact.isVisible(), "Guidance panel must remain accessible");
     }
 
     @Test

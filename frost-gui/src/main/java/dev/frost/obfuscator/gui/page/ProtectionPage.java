@@ -33,6 +33,8 @@ public final class ProtectionPage implements PageView {
             new CustomComboBox<>(List.of(TransformerCatalog.Category.values()), TransformerCatalog.Category::display);
     private final VBox editor = new VBox(Ui.SPACE_8);
     private final VBox impactPanel = new VBox(Ui.SPACE_4);
+    private VBox right;
+    private HBox workspace;
     private Label enabledPassValue;
     private ProgressBar enabledPassProgress;
     private TransformerCatalog.Descriptor selected;
@@ -58,20 +60,44 @@ public final class ProtectionPage implements PageView {
         editor.setMinWidth(0);
         editor.setFillWidth(true);
         editor.getStyleClass().add("transformer-editor");
-        VBox right = Ui.section("Compatibility & impact",
+        right = Ui.section("Compatibility & impact",
                 "Project-aware guidance for the selected transformer.", impactPanel);
         right.getStyleClass().add("impact-panel");
-        right.setMinWidth(300);
-        right.setPrefWidth(320);
+        right.setMinWidth(260);
+        right.setPrefWidth(300);
         right.setMaxWidth(340);
 
-        HBox workspace = new HBox(Ui.SPACE_6, left, editorScroll, right);
+        workspace = new HBox(Ui.SPACE_6, left, editorScroll, right);
         workspace.getStyleClass().add("protection-workspace");
         workspace.setMinWidth(0);
         HBox.setHgrow(editorScroll, Priority.ALWAYS);
         root.setCenter(workspace);
-        right.visibleProperty().bind(root.widthProperty().greaterThanOrEqualTo(1450));
-        right.managedProperty().bind(right.visibleProperty());
+
+        Runnable updateLayout = () -> {
+            boolean wide = root.getWidth() >= 1320;
+            right.setVisible(true);
+            right.setManaged(true);
+            if (wide) {
+                if (editor.getChildren().contains(right)) {
+                    editor.getChildren().remove(right);
+                }
+                if (!workspace.getChildren().contains(right)) {
+                    workspace.getChildren().add(right);
+                }
+                right.setMinWidth(260);
+                right.setMaxWidth(340);
+            } else {
+                if (workspace.getChildren().contains(right)) {
+                    workspace.getChildren().remove(right);
+                }
+                if (!editor.getChildren().contains(right)) {
+                    editor.getChildren().add(right);
+                }
+                right.setMinWidth(0);
+                right.setMaxWidth(Double.MAX_VALUE);
+            }
+        };
+        root.widthProperty().addListener((obs, old, val) -> updateLayout.run());
 
         search.textProperty().addListener((obs, old, value) -> refreshList());
         category.valueProperty().addListener((obs, old, value) -> {
@@ -267,6 +293,16 @@ public final class ProtectionPage implements PageView {
         VBox settingsRegion = new VBox(Ui.SPACE_6, settingsHeading, settings);
         settingsRegion.getStyleClass().add("transformer-settings-region");
         editor.getChildren().addAll(protectionSummary, header, settingsRegion);
+        if (root.getWidth() < 1320 && root.getWidth() > 0) {
+            if (workspace.getChildren().contains(right)) {
+                workspace.getChildren().remove(right);
+            }
+            if (!editor.getChildren().contains(right)) {
+                editor.getChildren().add(right);
+            }
+            right.setMinWidth(0);
+            right.setMaxWidth(Double.MAX_VALUE);
+        }
         refreshEnabledPassCount();
         refreshImpact();
         if (!initializing) motion.pageIn(editor);

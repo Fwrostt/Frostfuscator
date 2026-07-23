@@ -5,6 +5,7 @@ public enum PageId {
     INPUT("Input", "fth-download-cloud"),
     PROTECTION("Protection", "fth-shield"),
     RESOURCES("Resources", "fth-package"),
+    BYTECODE("Bytecode", "fth-code"),
     BUILD("Build", "fth-play-circle"),
     VALIDATION("Validation", "fth-check-circle"),
     REPORTS("Analytics", "fth-bar-chart-2"),

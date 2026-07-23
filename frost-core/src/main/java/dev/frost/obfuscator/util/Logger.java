@@ -12,7 +12,7 @@ public final class Logger {
     private static final List<Consumer<String>> LISTENERS = new CopyOnWriteArrayList<>();
 
     private static final String BANNER = """
-            Frostfuscator v1.2.3
+            Frostfuscator 
             Java obfuscation toolkit
             """;
 
