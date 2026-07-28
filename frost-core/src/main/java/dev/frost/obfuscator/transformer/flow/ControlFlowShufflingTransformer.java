@@ -9,6 +9,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.*;
+import java.util.concurrent.atomic.LongAdder;
 
 public class ControlFlowShufflingTransformer extends Transformer {
 
@@ -24,16 +25,16 @@ public class ControlFlowShufflingTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int shuffledMethods = 0;
+        LongAdder shuffledMethods = new LongAdder();
         int probability = config.getOptionInt("probability", 50);
         long globalSeed = config.getOptionLong("seed", 1337L);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
             if ((classNode.access & Opcodes.ACC_INTERFACE) != 0) {
-                continue;
+                return;
             }
 
             for (MethodNode method : classNode.methods) {
@@ -45,12 +46,12 @@ public class ControlFlowShufflingTransformer extends Transformer {
                 if (random.nextInt(100) >= probability) continue;
 
                 if (shuffleControlFlow(method, random)) {
-                    shuffledMethods++;
+                    shuffledMethods.increment();
                 }
             }
-        }
+        });
 
-        Logger.info("Shuffled control flow basic blocks in {} method(s)", shuffledMethods);
+        Logger.info("Shuffled control flow basic blocks in {} method(s)", shuffledMethods.sum());
     }
 
     private boolean shuffleControlFlow(MethodNode method, Random random) {
@@ -81,10 +82,12 @@ public class ControlFlowShufflingTransformer extends Transformer {
 
         InsnList newInsns = new InsnList();
         for (AbstractInsnNode node : entryBlock.instructions) {
+            insns.remove(node);
             newInsns.add(node);
         }
         for (BasicBlock block : rest) {
             for (AbstractInsnNode node : block.instructions) {
+                insns.remove(node);
                 newInsns.add(node);
             }
         }

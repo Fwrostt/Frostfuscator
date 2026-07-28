@@ -6,6 +6,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
+import java.util.concurrent.atomic.LongAdder;
 
 public class BytecodeOptimizerTransformer extends Transformer {
 
@@ -21,10 +22,10 @@ public class BytecodeOptimizerTransformer extends Transformer {
 
     @Override
     public void transform(Context context) {
-        int removed = 0;
-        for (ClassNode classNode : context.pool().getClasses()) {
+        LongAdder removed = new LongAdder();
+        context.pool().forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
             boolean classChanged = false;
             for (MethodNode method : classNode.methods) {
@@ -35,7 +36,7 @@ public class BytecodeOptimizerTransformer extends Transformer {
                     AbstractInsnNode next = insn.getNext();
                     if (insn.getOpcode() == Opcodes.NOP) {
                         method.instructions.remove(insn);
-                        removed++;
+                        removed.increment();
                         classChanged = true;
                     }
                     insn = next;
@@ -44,8 +45,8 @@ public class BytecodeOptimizerTransformer extends Transformer {
             if (classChanged) {
                 context.pool().markDirty(classNode.name);
             }
-        }
-        context.stats().add("nopInstructionsRemoved", removed);
-        log("Removed {} NOP instructions", removed);
+        });
+        context.stats().add("nopInstructionsRemoved", removed.sum());
+        log("Removed {} NOP instructions", removed.sum());
     }
 }

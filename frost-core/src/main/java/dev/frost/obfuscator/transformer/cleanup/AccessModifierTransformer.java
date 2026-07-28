@@ -28,12 +28,12 @@ public class AccessModifierTransformer extends Transformer {
         boolean bridge = getBooleanOption(config, "bridge-methods", false);
         boolean relaxFinal = getBooleanOption(config, "relax-final", false);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
             if (AccessHelper.isAnnotation(classNode.access) || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             if (synthetic) {
@@ -61,7 +61,7 @@ public class AccessModifierTransformer extends Transformer {
             if (synthetic || bridge || relaxFinal) {
                 pool.markDirty(classNode.name);
             }
-        }
+        });
     }
 
     private boolean getBooleanOption(TransformerConfig config, String key, boolean defaultValue) {

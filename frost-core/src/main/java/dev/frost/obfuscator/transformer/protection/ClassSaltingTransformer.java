@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 
 import java.util.Random;
+import java.util.concurrent.atomic.LongAdder;
 
 public class ClassSaltingTransformer extends Transformer {
 
@@ -25,15 +26,15 @@ public class ClassSaltingTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int saltedClasses = 0;
+        LongAdder saltedClasses = new LongAdder();
         int fieldsPerClass = config.getOptionInt("fields-per-class", 2);
         long seed = config.getOptionLong("seed", 9999L);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
-            if ((classNode.access & Opcodes.ACC_INTERFACE) != 0) continue;
+            if ((classNode.access & Opcodes.ACC_INTERFACE) != 0) return;
 
             Random random = new Random(seed ^ classNode.name.hashCode());
             for (int i = 0; i < fieldsPerClass; i++) {
@@ -48,9 +49,10 @@ public class ClassSaltingTransformer extends Transformer {
                 );
                 classNode.fields.add(saltField);
             }
-            saltedClasses++;
-        }
+            pool.markDirty(classNode.name);
+            saltedClasses.increment();
+        });
 
-        Logger.info("Salted {} class(es) with synthetic structural fields", saltedClasses);
+        Logger.info("Salted {} class(es) with synthetic structural fields", saltedClasses.sum());
     }
 }

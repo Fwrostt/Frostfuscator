@@ -31,10 +31,10 @@ public class FlowConditionTransformer extends Transformer {
         int probability = clamp(getIntOption(config, "probability", 25), 0, 100);
         int maxPerMethod = Math.max(0, getIntOption(config, "max-per-method", 16));
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             String trapField = ensureTrapField(classNode);
@@ -59,9 +59,9 @@ public class FlowConditionTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Inserted {} conditional guards in {}", changed, classNode.name);
+                detail("Inserted {} conditional guards in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean isConditional(int opcode) {

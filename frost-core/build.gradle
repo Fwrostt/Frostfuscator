@@ -50,20 +50,4 @@ tasks.register('generateTestInputResources') {
     }
 }
 
-tasks.register('testInputJar', Jar) {
-    group = 'verification'
-    description = 'Build the multi-class fixture input jar used by integration tests and manual decompiler checks'
-    archiveFileName.set('frostfuscator-test-input.jar')
-    destinationDirectory.set(layout.buildDirectory.dir('test-jars'))
-    from sourceSets.testInput.output
-    from layout.buildDirectory.dir('generated/test-input-resources')
-    manifest {
-        attributes('Main-Class': 'com.acme.frostfixture.FixtureApp')
-    }
-    dependsOn tasks.named('testInputClasses')
-    dependsOn tasks.named('generateTestInputResources')
-}
 
-tasks.named('test') {
-    dependsOn tasks.named('testInputJar')
-}

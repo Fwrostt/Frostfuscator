@@ -44,12 +44,12 @@ public class CopypastaInjectorTransformer extends Transformer {
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int copies = Math.max(1, getIntOption(config, "copies", 3));
-        int touched = 0;
-        for (ClassNode classNode : pool.getClasses()) {
+        java.util.concurrent.atomic.LongAdder touched = new java.util.concurrent.atomic.LongAdder();
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)
                     || AccessHelper.isAnnotation(classNode.access)) {
-                continue;
+                return;
             }
             for (int i = 0; i < copies; i++) {
                 classNode.fields.add(new FieldNode(
@@ -61,9 +61,9 @@ public class CopypastaInjectorTransformer extends Transformer {
                 ));
             }
             pool.markDirty(classNode.name);
-            touched++;
-        }
-        log("Injected copypasta strings into {} classes", touched);
+            touched.increment();
+        });
+        log("Injected copypasta strings into {} classes", touched.sum());
     }
 
     private int getIntOption(TransformerConfig config, String key, int fallback) {

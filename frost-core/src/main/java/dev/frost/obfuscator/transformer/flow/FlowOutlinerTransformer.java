@@ -12,6 +12,7 @@ import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.atomic.LongAdder;
 
 public class FlowOutlinerTransformer extends Transformer {
 
@@ -41,12 +42,13 @@ public class FlowOutlinerTransformer extends Transformer {
                                    TransformerConfig config, Context context) {
         int probability = clamp(getIntOption(config, "probability", 25), 0, 100);
         int maxPerClass = Math.max(0, getIntOption(config, "max-per-class", 16));
-        long outlinedCount = 0;
+        LongAdder outlinedCount = new LongAdder();
+        LongAdder retainedCount = new LongAdder();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             int changed = 0;
@@ -55,24 +57,34 @@ public class FlowOutlinerTransformer extends Transformer {
                 if (changed >= maxPerClass) break;
                 if (!canOutline(method) || RANDOM.nextInt(100) >= probability) continue;
 
-                String outlinedName = uniqueMethodName(classNode, additions);
-                MethodNode outlined = cloneAsOutlined(method, outlinedName);
-                replaceWithDelegate(classNode.name, method, outlinedName);
-                additions.add(outlined);
-                changed++;
+                try {
+                    String outlinedName = uniqueMethodName(classNode, additions);
+                    MethodNode outlined = cloneAsOutlined(method, outlinedName);
+                    replaceWithDelegate(classNode.name, method, outlinedName);
+                    additions.add(outlined);
+                    changed++;
+                } catch (RuntimeException exception) {
+                    retainedCount.increment();
+                    detail("Retained method {}{} in {} because its instruction metadata could not be outlined",
+                            method.name, method.desc, classNode.name);
+                }
             }
 
             if (!additions.isEmpty()) {
                 classNode.methods.addAll(additions);
                 pool.markDirty(classNode.name);
-                outlinedCount += changed;
-                log("Outlined {} method bodies in {}", changed, classNode.name);
+                outlinedCount.add(changed);
+                detail("Outlined {} method bodies in {}", changed, classNode.name);
             }
+        });
+        if (context != null) context.stats().add("outlinedMethods", outlinedCount.sum());
+        if (retainedCount.sum() > 0) {
+            log("Safely retained {} method(s) with incompatible instruction metadata", retainedCount.sum());
         }
-        if (context != null) context.stats().add("outlinedMethods", outlinedCount);
     }
 
     private boolean canOutline(MethodNode method) {
+        if (method == null || method.name == null || method.desc == null) return false;
         if (AccessHelper.isInitializer(method)) return false;
         if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) return false;
         if ((method.access & Opcodes.ACC_STATIC) == 0) return false;
@@ -84,15 +96,9 @@ public class FlowOutlinerTransformer extends Transformer {
     private MethodNode cloneAsOutlined(MethodNode original, String name) {
         MethodNode outlined = new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC,
                 name, original.desc, original.signature, exceptions(original));
-        Map<LabelNode, LabelNode> labels = new HashMap<>();
-        for (AbstractInsnNode insn = original.instructions.getFirst(); insn != null; insn = insn.getNext()) {
-            if (insn instanceof LabelNode label) {
-                labels.put(label, new LabelNode());
-            }
-        }
-        for (AbstractInsnNode insn = original.instructions.getFirst(); insn != null; insn = insn.getNext()) {
-            outlined.instructions.add(insn.clone(labels));
-        }
+        // Let ASM remap every label referenced by jumps, switches, frames, and line metadata.
+        // Manual LabelNode maps can produce null clones when an earlier pass removed a label.
+        original.instructions.accept(outlined);
         outlined.maxLocals = original.maxLocals;
         outlined.maxStack = original.maxStack;
         return outlined;
@@ -104,15 +110,18 @@ public class FlowOutlinerTransformer extends Transformer {
     }
 
     private void replaceWithDelegate(String owner, MethodNode method, String outlinedName) {
-        method.instructions.clear();
+        InsnList delegate = new InsnList();
         int slot = 0;
         for (Type arg : Type.getArgumentTypes(method.desc)) {
-            method.instructions.add(new VarInsnNode(arg.getOpcode(Opcodes.ILOAD), slot));
+            delegate.add(new VarInsnNode(arg.getOpcode(Opcodes.ILOAD), slot));
             slot += arg.getSize();
         }
-        method.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, owner, outlinedName, method.desc, false));
-        method.instructions.add(new InsnNode(Type.getReturnType(method.desc).getOpcode(Opcodes.IRETURN)));
-        method.tryCatchBlocks.clear();
+        delegate.add(new MethodInsnNode(Opcodes.INVOKESTATIC, owner, outlinedName, method.desc, false));
+        delegate.add(new InsnNode(Type.getReturnType(method.desc).getOpcode(Opcodes.IRETURN)));
+
+        // Commit only after the complete delegate has been built, so a rejected method is unchanged.
+        method.instructions = delegate;
+        method.tryCatchBlocks = new ArrayList<>();
         method.localVariables = null;
         method.maxLocals = slot;
         method.maxStack = Math.max(1, slot + 1);

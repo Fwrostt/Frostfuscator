@@ -28,49 +28,77 @@ public class DecompilerCrasherTransformer extends Transformer {
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 80), 0, 100);
-        int injected = 0;
+        boolean includeGenerated = getBooleanOption(config, "include-generated",
+                getBooleanOption(config, "include-synthetic", false));
+        java.util.concurrent.atomic.LongAdder injected = new java.util.concurrent.atomic.LongAdder();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
+            int classInjected = 0;
             for (MethodNode method : classNode.methods) {
-                if (method.instructions == null || method.instructions.size() < 4 || AccessHelper.isInitializer(method)) {
+                if (method.instructions == null
+                        || method.instructions.size() < 4
+                        || AccessHelper.isInitializer(method)
+                        || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
+                        // Access Modifier can mark every ordinary method synthetic before this
+                        // post-remap pass. Mapping reservations identify the actual generated
+                        // String Splitting helpers without accidentally disabling this pass.
+                        || (!includeGenerated
+                        && mappings.isMethodPreserved(classNode.name, method.name, method.desc))) {
                     continue;
                 }
 
                 if (RANDOM.nextInt(100) < probability) {
-                    injectMalformedTryCatch(method);
-                    injected++;
+                    injectDecompilerTrap(method);
+                    injected.increment();
+                    classInjected++;
                 }
             }
 
-            if (injected > 0) {
+            if (classInjected > 0) {
                 pool.markDirty(classNode.name);
             }
-        }
-        log("Injected decompiler crasher blocks into {} methods", injected);
+        });
+        log("Injected decompiler crasher blocks into {} methods", injected.sum());
     }
 
-    private void injectMalformedTryCatch(MethodNode method) {
-        LabelNode lStart = new LabelNode(new Label());
-        LabelNode lEnd = new LabelNode(new Label());
-        LabelNode lHandler = new LabelNode(new Label());
+    private void injectDecompilerTrap(MethodNode method) {
+        LabelNode handler = new LabelNode(new Label());
+        LabelNode outerStart = new LabelNode(new Label());
+        LabelNode innerStart = new LabelNode(new Label());
+        LabelNode innerEnd = new LabelNode(new Label());
+        LabelNode outerEnd = new LabelNode(new Label());
+        LabelNode resume = new LabelNode(new Label());
 
-        // Invert order: place lEnd BEFORE lStart or lStart == lEnd in tryCatchBlock
-        method.tryCatchBlocks.add(new TryCatchBlockNode(lStart, lEnd, lHandler, "java/lang/Throwable"));
-        method.tryCatchBlocks.add(new TryCatchBlockNode(lEnd, lStart, lHandler, null)); // Bad catch-all range
+        // Keep the protected blocks reachable to ASM's frame analyzer. A GOTO around an entirely
+        // unreachable handler graph can make COMPUTE_FRAMES fail with negative frame indexes when
+        // this is combined with large, already-obfuscated methods.
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                outerStart, outerEnd, handler, "java/lang/Throwable"));
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                innerStart, innerEnd, handler, null));
 
-        InsnList handlerInstructions = new InsnList();
-        handlerInstructions.add(lHandler);
-        handlerInstructions.add(new InsnNode(Opcodes.ATHROW));
-        handlerInstructions.add(lStart);
-        handlerInstructions.add(new InsnNode(Opcodes.NOP));
-        handlerInstructions.add(lEnd);
+        InsnList trap = new InsnList();
+        // The predicate is false at runtime, but both successors remain part of the verifier CFG.
+        trap.add(new InsnNode(Opcodes.ICONST_0));
+        trap.add(new JumpInsnNode(Opcodes.IFNE, outerStart));
+        trap.add(new JumpInsnNode(Opcodes.GOTO, resume));
+        trap.add(outerStart);
+        trap.add(innerStart);
+        trap.add(new InsnNode(Opcodes.ACONST_NULL));
+        trap.add(new InsnNode(Opcodes.ATHROW));
+        trap.add(innerEnd);
+        trap.add(outerEnd);
+        trap.add(handler);
+        trap.add(new InsnNode(Opcodes.POP));
+        trap.add(new JumpInsnNode(Opcodes.GOTO, resume));
+        trap.add(resume);
 
-        method.instructions.insert(handlerInstructions);
+        method.instructions.insert(trap);
     }
 
     private int getIntOption(TransformerConfig config, String key, int defaultValue) {
@@ -84,6 +112,12 @@ public class DecompilerCrasherTransformer extends Transformer {
             }
         }
         return defaultValue;
+    }
+
+    private boolean getBooleanOption(TransformerConfig config, String key, boolean defaultValue) {
+        Object value = config.getOptions().get(key);
+        if (value instanceof Boolean bool) return bool;
+        return value == null ? defaultValue : Boolean.parseBoolean(value.toString());
     }
 
     private int clamp(int value, int min, int max) {

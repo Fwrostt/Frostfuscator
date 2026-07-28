@@ -1,12 +1,13 @@
 package dev.frost.obfuscator.engine;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class ProtectionStats {
 
-    private final Map<String, Long> counters = new LinkedHashMap<>();
+    private final Map<String, Long> counters = new ConcurrentHashMap<>();
 
     public void add(String key, long amount) {
         counters.merge(key, amount, Long::sum);
@@ -21,6 +22,6 @@ public final class ProtectionStats {
     }
 
     public Map<String, Long> counters() {
-        return Collections.unmodifiableMap(counters);
+        return Collections.unmodifiableMap(new TreeMap<>(counters));
     }
 }

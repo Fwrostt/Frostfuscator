@@ -33,6 +33,44 @@ class FlowObfuscationTransformerTest {
     private static final String OWNER = "fixture/FlowSubject";
 
     @Test
+    void rollbackPreservesMethodIdentityWhenSafetyAnalysisRejectsARewrite() {
+        ClassNode node = new ClassNode();
+        node.version = Opcodes.V17;
+        node.access = Opcodes.ACC_PUBLIC;
+        node.name = "fixture/RejectedFlow";
+        node.superName = "java/lang/Object";
+        MethodNode rejected = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "unsafe", "()V", null, new String[] {"java/lang/Exception"});
+        rejected.instructions.add(new InsnNode(Opcodes.POP));
+        rejected.instructions.add(new InsnNode(Opcodes.RETURN));
+        rejected.maxLocals = 0;
+        rejected.maxStack = 1;
+        node.methods.add(rejected);
+
+        ClassPool pool = new ClassPool();
+        pool.addClass(node.name, node);
+        TransformerConfig config = new TransformerConfig();
+        config.setOptions(new LinkedHashMap<>(Map.ofEntries(
+                Map.entry("mode", "lite"),
+                Map.entry("flatten", false),
+                Map.entry("exception-guards", false),
+                Map.entry("stack-noise", false),
+                Map.entry("predicate-rate", 0),
+                Map.entry("min-method-instructions", 1),
+                Map.entry("max-method-instructions", 100),
+                Map.entry("seed", 7)
+        )));
+
+        new FlowObfuscationTransformer().transform(pool, new MappingCollector(), config);
+
+        MethodNode restored = node.methods.getFirst();
+        assertEquals("unsafe", restored.name);
+        assertEquals("()V", restored.desc);
+        assertEquals(1, restored.exceptions.size());
+        assertEquals("java/lang/Exception", restored.exceptions.getFirst());
+    }
+
+    @Test
     void flattensBranchesIntoDispatcherAndUsesLivePredicateState() throws Exception {
         ClassPool pool = new ClassPool();
         ClassNode subject = subject();

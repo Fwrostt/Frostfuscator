@@ -9,9 +9,15 @@ public class ClassHierarchy {
     private final Map<String, Set<String>> parentMap = new HashMap<>();
     private final Map<String, Set<String>> childrenMap = new HashMap<>();
     private final Map<String, ClassNode> nodeMap = new HashMap<>();
+    private final Map<String, Map<String, Set<String>>> methodIndex = new HashMap<>();
     private final Set<String> appClasses = new HashSet<>();
 
     public void build(Map<String, ClassNode> classes, Set<String> applicationClasses) {
+        parentMap.clear();
+        childrenMap.clear();
+        nodeMap.clear();
+        methodIndex.clear();
+        appClasses.clear();
         nodeMap.putAll(classes);
         appClasses.addAll(applicationClasses);
 
@@ -31,6 +37,24 @@ public class ClassHierarchy {
             }
 
             parentMap.put(classNode.name, parents);
+        }
+
+        refreshMethodIndex();
+    }
+
+    /**
+     * Rebuilds the signature lookup after a transformer adds methods to class nodes.
+     * Override discovery performs thousands of lookups, so scanning each method list
+     * repeatedly is prohibitively expensive for classes containing generated helpers.
+     */
+    public void refreshMethodIndex() {
+        methodIndex.clear();
+        for (Map.Entry<String, ClassNode> entry : nodeMap.entrySet()) {
+            Map<String, Set<String>> methodsByName = new HashMap<>();
+            for (var method : entry.getValue().methods) {
+                methodsByName.computeIfAbsent(method.name, ignored -> new HashSet<>()).add(method.desc);
+            }
+            methodIndex.put(entry.getKey(), methodsByName);
         }
     }
 
@@ -102,9 +126,10 @@ public class ClassHierarchy {
     }
 
     public boolean hasMethod(String className, String name, String desc) {
-        ClassNode node = nodeMap.get(className);
-        if (node == null) return false;
-        return node.methods.stream().anyMatch(m -> m.name.equals(name) && m.desc.equals(desc));
+        Map<String, Set<String>> methodsByName = methodIndex.get(className);
+        if (methodsByName == null) return false;
+        Set<String> descriptors = methodsByName.get(name);
+        return descriptors != null && descriptors.contains(desc);
     }
 
     public boolean isInPool(String className) {

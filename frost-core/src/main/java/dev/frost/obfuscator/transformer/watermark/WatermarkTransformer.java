@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.atomic.LongAdder;
 
 public class WatermarkTransformer extends Transformer {
 
@@ -32,10 +33,10 @@ public class WatermarkTransformer extends Transformer {
         boolean classAnnotations = getBooleanOption(context, "class-annotations", true);
         boolean stringField = getBooleanOption(context, "string-field", true);
 
-        int touched = 0;
-        for (ClassNode classNode : context.pool().getClasses()) {
+        LongAdder touched = new LongAdder();
+        context.pool().forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             if (classAnnotations) {
@@ -63,13 +64,13 @@ public class WatermarkTransformer extends Transformer {
             }
 
             context.pool().markDirty(classNode.name);
-            touched++;
-        }
+            touched.increment();
+        });
 
-        String record = "owner=" + owner + "\nid=" + id + "\ngenerated=" + Instant.now() + "\nclasses=" + touched + "\n";
+        String record = "owner=" + owner + "\nid=" + id + "\ngenerated=" + Instant.now() + "\nclasses=" + touched.sum() + "\n";
         context.jar().putResource("META-INF/frostfuscator/watermark.properties", record.getBytes(StandardCharsets.UTF_8));
-        context.stats().add("watermarkedClasses", touched);
-        log("Watermarked {} classes", touched);
+        context.stats().add("watermarkedClasses", touched.sum());
+        log("Watermarked {} classes", touched.sum());
     }
 
     private boolean getBooleanOption(Context context, String key, boolean fallback) {

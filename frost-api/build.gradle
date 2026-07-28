@@ -12,25 +12,37 @@ dependencies {
 }
 
 java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
     withSourcesJar()
     withJavadocJar()
+}
+
+test {
+    useJUnitPlatform()
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+
             artifactId = 'frost-api'
 
             pom {
                 name = 'Frostfuscator Plugin API'
-                description = 'Public Plugin & Extension API for Frostfuscator'
+                description = 'Public plugin and extension API for Frostfuscator'
                 url = 'https://github.com/Fwrostt/Frostfuscator'
+
                 licenses {
                     license {
                         name = 'Proprietary'
+                        distribution = 'repo'
                     }
                 }
+
                 developers {
                     developer {
                         id = 'frost'

@@ -5,6 +5,7 @@ import dev.frost.obfuscator.gui.analysis.RecommendationEngine;
 import dev.frost.obfuscator.gui.build.BuildController;
 import dev.frost.obfuscator.gui.config.ConfigurationBinder;
 import dev.frost.obfuscator.gui.console.ConsoleModel;
+import dev.frost.obfuscator.gui.crypto.FileEncryptionService;
 import dev.frost.obfuscator.gui.dialog.DialogService;
 import dev.frost.obfuscator.gui.notification.NotificationCenter;
 import dev.frost.obfuscator.gui.state.PreferencesStore;
@@ -34,6 +35,7 @@ public final class AppContext implements AutoCloseable {
     private final NotificationCenter notifications;
     private final WorkspacePersistence workspacePersistence;
     private final BytecodeViewerService bytecodeViewerService;
+    private final FileEncryptionService fileEncryptionService;
 
     private AppContext(
             Stage stage,
@@ -50,7 +52,8 @@ public final class AppContext implements AutoCloseable {
             DialogService dialogs,
             NotificationCenter notifications,
             WorkspacePersistence workspacePersistence,
-            BytecodeViewerService bytecodeViewerService
+            BytecodeViewerService bytecodeViewerService,
+            FileEncryptionService fileEncryptionService
     ) {
         this.stage = stage;
         this.preferences = preferences;
@@ -67,6 +70,7 @@ public final class AppContext implements AutoCloseable {
         this.notifications = notifications;
         this.workspacePersistence = workspacePersistence;
         this.bytecodeViewerService = bytecodeViewerService;
+        this.fileEncryptionService = fileEncryptionService;
     }
 
     public static AppContext create(Stage stage, PreferencesStore preferences) {
@@ -106,8 +110,9 @@ public final class AppContext implements AutoCloseable {
         DialogService dialogs = new DialogService(stage, preferences);
         NotificationCenter notifications = new NotificationCenter();
         BytecodeViewerService viewer = new BytecodeViewerService();
+        FileEncryptionService fileEncryption = new FileEncryptionService();
         return new AppContext(stage, preferences, state, themes, binder, analyzer, recommendations,
-                validator, validation, console, builds, dialogs, notifications, workspace, viewer);
+                validator, validation, console, builds, dialogs, notifications, workspace, viewer, fileEncryption);
     }
 
     public Stage stage() { return stage; }
@@ -125,6 +130,7 @@ public final class AppContext implements AutoCloseable {
     public NotificationCenter notifications() { return notifications; }
     public WorkspacePersistence workspacePersistence() { return workspacePersistence; }
     public BytecodeViewerService bytecodeViewerService() { return bytecodeViewerService; }
+    public FileEncryptionService fileEncryptionService() { return fileEncryptionService; }
 
     @Override
     public void close() {
@@ -132,6 +138,7 @@ public final class AppContext implements AutoCloseable {
         buildController.close();
         workspacePersistence.close();
         bytecodeViewerService.close();
+        fileEncryptionService.close();
         preferences.close();
     }
 }

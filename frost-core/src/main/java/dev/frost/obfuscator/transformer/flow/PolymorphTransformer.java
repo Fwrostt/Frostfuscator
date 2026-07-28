@@ -9,6 +9,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.Random;
+import java.util.concurrent.atomic.LongAdder;
 
 public class PolymorphTransformer extends Transformer {
 
@@ -24,13 +25,13 @@ public class PolymorphTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int polymorphedInstructions = 0;
+        LongAdder polymorphedInstructions = new LongAdder();
         int probability = config.getOptionInt("probability", 60);
         long seed = config.getOptionLong("seed", 12345L);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             for (MethodNode method : classNode.methods) {
@@ -39,11 +40,11 @@ public class PolymorphTransformer extends Transformer {
 
                 Random random = new Random(seed ^ classNode.name.hashCode() ^ method.name.hashCode());
                 int count = polymorphMethod(method, probability, random);
-                polymorphedInstructions += count;
+                polymorphedInstructions.add(count);
             }
-        }
+        });
 
-        Logger.info("Applied polymorphic instruction substitution to {} opcode(s)", polymorphedInstructions);
+        Logger.info("Applied polymorphic instruction substitution to {} opcode(s)", polymorphedInstructions.sum());
     }
 
     private int polymorphMethod(MethodNode method, int probability, Random random) {

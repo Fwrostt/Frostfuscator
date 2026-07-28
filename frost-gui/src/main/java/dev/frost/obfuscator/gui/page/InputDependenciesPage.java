@@ -75,17 +75,20 @@ public final class InputDependenciesPage implements PageView {
         CheckBox recursive = new CheckBox("Scan library folders recursively");
         CheckBox runtime = new CheckBox("Load Java runtime classes");
         CheckBox strict = new CheckBox("Fail the build when a declared library cannot be loaded");
+        CheckBox autoDetect = new CheckBox("Skip detected shaded and supplied library classes");
         ObfuscationConfig.LibraryConfig libraryConfig = context.projectState().configuration().getLibraries();
         recursive.setSelected(libraryConfig.isRecursive());
         runtime.setSelected(libraryConfig.isRuntime());
         strict.setSelected(libraryConfig.isStrict());
+        autoDetect.setSelected(libraryConfig.isAutoDetect());
         recursive.selectedProperty().addListener((obs, old, value) -> { libraryConfig.setRecursive(value); context.projectState().touch(); });
         runtime.selectedProperty().addListener((obs, old, value) -> { libraryConfig.setRuntime(value); context.projectState().touch(); });
         strict.selectedProperty().addListener((obs, old, value) -> { libraryConfig.setStrict(value); context.projectState().touch(); });
+        autoDetect.selectedProperty().addListener((obs, old, value) -> { libraryConfig.setAutoDetect(value); context.projectState().touch(); });
 
         VBox fallback = Ui.section("Manual dependency fallback",
                 "Automatic resolution runs first. Use these controls only for unusual layouts.",
-                recursive, runtime, strict);
+                autoDetect, recursive, runtime, strict);
 
         content.getChildren().addAll(
                 Ui.pageHeader("Input & Dependencies", "Inspect the selected JAR, resolve its runtime graph, and start from safe suggestions."),

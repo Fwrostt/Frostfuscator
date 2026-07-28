@@ -77,7 +77,9 @@ public final class LanguageMixupTransformer extends Transformer {
                 } while (used.contains(candidate + method.desc));
                 Set<String> overrideGroup = pool.getHierarchy()
                         .getOverrideGroup(node.name, method.name, method.desc);
-                overrideGroup.removeIf(owner -> !shouldProcess(owner, config,
+                overrideGroup.removeIf(owner -> pool.isTransformationExcluded(owner)
+                        || pool.getLibraryClasses().containsKey(owner)
+                        || !shouldProcess(owner, config,
                         pool.getGlobalExclusions(), pool.getGlobalInclusions()));
                 for (String owner : overrideGroup) {
                     mappings.mapMethod(owner, method.name, method.desc, candidate);

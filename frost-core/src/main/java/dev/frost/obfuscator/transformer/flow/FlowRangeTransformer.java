@@ -28,11 +28,12 @@ public class FlowRangeTransformer extends Transformer {
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 35), 0, 100);
+        boolean includeSynthetic = getBooleanOption(config, "include-synthetic", false);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             int changed = 0;
@@ -40,6 +41,7 @@ public class FlowRangeTransformer extends Transformer {
                 if (method.instructions == null || method.instructions.size() == 0) continue;
                 if (AccessHelper.isInitializer(method)) continue;
                 if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+                if (!includeSynthetic && (method.access & Opcodes.ACC_SYNTHETIC) != 0) continue;
                 if (RANDOM.nextInt(100) < probability && wrapRange(method)) {
                     changed++;
                 }
@@ -47,9 +49,9 @@ public class FlowRangeTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Wrapped {} methods in synthetic exception ranges in {}", changed, classNode.name);
+                detail("Wrapped {} methods in synthetic exception ranges in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean wrapRange(MethodNode method) {
@@ -61,12 +63,16 @@ public class FlowRangeTransformer extends Transformer {
         LabelNode end = new LabelNode(new Label());
         LabelNode handler = new LabelNode(new Label());
 
-        method.instructions.insertBefore(first, start);
+        // Keep the handler out of every normal-flow path. Appending a handler directly
+        // after the protected body lets dead/fall-through blocks merge an empty operand
+        // stack with the handler's Throwable stack and can crash COMPUTE_FRAMES.
+        InsnList prefix = new InsnList();
+        prefix.add(new JumpInsnNode(Opcodes.GOTO, start));
+        prefix.add(handler);
+        prefix.add(new InsnNode(Opcodes.ATHROW));
+        prefix.add(start);
+        method.instructions.insertBefore(first, prefix);
         method.instructions.insert(last, end);
-        InsnList handlerCode = new InsnList();
-        handlerCode.add(handler);
-        handlerCode.add(new InsnNode(Opcodes.ATHROW));
-        method.instructions.add(handlerCode);
         method.tryCatchBlocks.add(new TryCatchBlockNode(start, end, handler, "java/lang/Throwable"));
         return true;
     }
@@ -106,6 +112,12 @@ public class FlowRangeTransformer extends Transformer {
             }
         }
         return defaultValue;
+    }
+
+    private boolean getBooleanOption(TransformerConfig config, String key, boolean defaultValue) {
+        Object value = config.getOptions().get(key);
+        if (value instanceof Boolean bool) return bool;
+        return value == null ? defaultValue : Boolean.parseBoolean(value.toString());
     }
 
     private int clamp(int value, int min, int max) {

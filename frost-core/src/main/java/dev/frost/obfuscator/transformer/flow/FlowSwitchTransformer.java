@@ -30,9 +30,9 @@ public class FlowSwitchTransformer extends Transformer {
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 75), 0, 100);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             int changed = 0;
@@ -58,9 +58,9 @@ public class FlowSwitchTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Hashed {} switch dispatches in {}", changed, classNode.name);
+                detail("Hashed {} switch dispatches in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean rewriteTableSwitch(MethodNode method, TableSwitchInsnNode node) {

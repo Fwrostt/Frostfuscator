@@ -43,10 +43,23 @@ public final class Logger {
 
     public static void error(String message, Throwable throwable) {
         LOGGER.error(message, throwable);
-        publish("ERROR", message + " - " + throwable.getMessage());
+        publish("ERROR", message + " - " + throwable);
+        StackTraceElement[] trace = throwable.getStackTrace();
+        for (int index = 0; index < Math.min(trace.length, 64); index++) {
+            publish("ERROR", "    at " + trace[index]);
+        }
+        Throwable cause = throwable.getCause();
+        if (cause != null && cause != throwable) {
+            publish("ERROR", "Caused by: " + cause);
+            StackTraceElement[] causeTrace = cause.getStackTrace();
+            for (int index = 0; index < Math.min(causeTrace.length, 32); index++) {
+                publish("ERROR", "    at " + causeTrace[index]);
+            }
+        }
     }
 
     public static void debug(String message, Object... args) {
+        if (!LOGGER.isDebugEnabled()) return;
         String formatted = format(message, args);
         LOGGER.debug(formatted);
         publish("DEBUG", formatted);

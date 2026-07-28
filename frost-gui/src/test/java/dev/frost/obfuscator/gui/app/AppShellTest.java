@@ -14,6 +14,7 @@ import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Button;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.AfterEach;
@@ -33,9 +34,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class AppShellTest extends ApplicationTest {
     private AppContext context;
     private AppShell shell;
+    private Stage stage;
 
     @Override
     public void start(Stage stage) throws Exception {
+        this.stage = stage;
         PreferencesStore preferences = new PreferencesStore(
                 Files.createTempDirectory("frostfuscator-app-shell-test"));
         preferences.putBoolean("sidebar.collapsed", false);
@@ -93,6 +96,31 @@ class AppShellTest extends ApplicationTest {
         assertEquals(3, lookup(".analytics-search").queryAll().size());
         assertNotNull(lookup("Apply recommended setup").queryButton());
         assertNotNull(lookup("Post-build effectiveness").query());
+    }
+
+    @Test
+    void analyticsConsumesWideViewportsAndStacksItsIntelligenceCardsWhenCompact() {
+        interact(() -> {
+            stage.setWidth(1600);
+            shell.navigate(PageId.REPORTS);
+        });
+        WaitForAsyncUtils.waitForFxEvents();
+        ScrollPane scroll = lookup(".page-scroll").query();
+        Region page = lookup(".analytics-page").query();
+        Region intelligence = lookup(".analytics-intelligence").query();
+        assertEquals(scroll.getViewportBounds().getWidth(), page.getWidth(), 1.5);
+        assertTrue(intelligence.getWidth() >= scroll.getViewportBounds().getWidth() - 65,
+                "Analytics sections should span the available page width");
+
+        interact(() -> stage.setWidth(900));
+        WaitForAsyncUtils.waitForFxEvents();
+        GridPane compact = lookup(".analytics-intelligence").query();
+        assertEquals(2, compact.getChildren().size());
+        Node first = compact.getChildren().get(0);
+        Node second = compact.getChildren().get(1);
+        assertTrue(second.localToScene(second.getLayoutBounds()).getMinY()
+                        >= first.localToScene(first.getLayoutBounds()).getMaxY() + 23,
+                "Compact Analytics should stack recommendation and compatibility sections");
     }
 
     @Test

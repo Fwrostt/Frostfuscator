@@ -67,12 +67,13 @@ public final class AccessHelper {
     }
 
     public static boolean isInitializer(MethodNode method) {
-        return method.name.equals("<init>") || method.name.equals("<clinit>");
+        return method != null && ("<init>".equals(method.name) || "<clinit>".equals(method.name));
     }
 
     public static boolean isMainMethod(MethodNode method) {
-        return method.name.equals("main")
-                && method.desc.equals("([Ljava/lang/String;)V")
+        return method != null
+                && "main".equals(method.name)
+                && "([Ljava/lang/String;)V".equals(method.desc)
                 && isPublic(method.access)
                 && isStatic(method.access);
     }

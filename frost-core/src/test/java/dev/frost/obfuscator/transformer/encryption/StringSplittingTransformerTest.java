@@ -3,6 +3,7 @@ package dev.frost.obfuscator.transformer.encryption;
 import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.rename.MethodRenameTransformer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -22,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -97,6 +99,40 @@ class StringSplittingTransformerTest {
             assertFalse(contains(bytes, FIELD_VALUE.getBytes(StandardCharsets.UTF_8)));
         }
         assertRuntimeValues(classes);
+    }
+
+    @Test
+    void generatedMethodsUseRenameDictionaryAndAreNotRenamedAgain() {
+        ClassPool pool = subjectPool();
+        MappingCollector mappings = new MappingCollector();
+        TransformerConfig splitting = splittingConfig();
+        splitting.setDictionary("alphabet");
+
+        new StringSplittingTransformer().transform(pool, mappings, splitting);
+
+        List<GeneratedMethod> generated = pool.getClasses().stream()
+                .flatMap(owner -> owner.methods.stream()
+                        .filter(method -> (method.access & Opcodes.ACC_SYNTHETIC) != 0)
+                        .map(method -> new GeneratedMethod(owner.name, method.name, method.desc)))
+                .toList();
+        assertFalse(generated.isEmpty());
+        assertTrue(generated.stream().allMatch(method -> method.name().matches("[a-z]+")),
+                "Generated methods should use the configured method-rename dictionary");
+        assertTrue(generated.stream().anyMatch(method -> method.name().equals("a")));
+
+        pool.buildHierarchy();
+        TransformerConfig rename = new TransformerConfig();
+        rename.setDictionary("alphabet");
+        rename.getOptions().put("mode", "aggressive");
+        new MethodRenameTransformer().transform(pool, mappings, rename);
+
+        for (GeneratedMethod method : generated) {
+            assertTrue(mappings.isMethodPreserved(method.owner(), method.name(), method.desc()));
+            assertFalse(mappings.hasMethodMapping(method.owner(), method.name(), method.desc()),
+                    "Method Rename must not rename a String Splitting method twice");
+        }
+        assertTrue(mappings.hasMethodMapping(OWNER, "ascii", "()Ljava/lang/String;"),
+                "Ordinary application methods should still be renamed");
     }
 
     private TransformerConfig splittingConfig() {
@@ -242,5 +278,8 @@ class StringSplittingTransformerTest {
             }
             return defineClass(name, bytes, 0, bytes.length);
         }
+    }
+
+    private record GeneratedMethod(String owner, String name, String desc) {
     }
 }

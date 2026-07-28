@@ -35,11 +35,11 @@ public final class DecompilerZipTiesTransformer extends Transformer {
         int fields = intOption(context, "fields-per-class", 2, 1, 16);
         int methods = intOption(context, "methods-per-class", 2, 0, 16);
         boolean classSignature = booleanOption(context, "class-signature", true);
-        int changed = 0;
-        for (ClassNode node : context.pool().getClasses()) {
+        java.util.concurrent.atomic.LongAdder changed = new java.util.concurrent.atomic.LongAdder();
+        context.pool().forEachClass(node -> {
             if (!shouldProcess(node.name, context.config(), context.pool().getGlobalExclusions(),
                     context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
             if (classSignature && node.signature == null) {
                 node.signature = cyclicTypeVariableSignature(depth);
@@ -65,10 +65,10 @@ public final class DecompilerZipTiesTransformer extends Transformer {
                 node.methods.add(zipMethod(name, node.name, depth));
             }
             context.pool().markDirty(node.name);
-            changed++;
-        }
-        context.stats().add("zipTiedClasses", changed);
-        log("Added bounded recursive generic metadata (depth {}) to {} classes", depth, changed);
+            changed.increment();
+        });
+        context.stats().add("zipTiedClasses", changed.sum());
+        log("Added bounded recursive generic metadata (depth {}) to {} classes", depth, changed.sum());
     }
 
     private String nestedListSignature(String owner, int depth) {

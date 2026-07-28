@@ -51,12 +51,19 @@ public final class GuiMain {
     }
 
     private static void showFailureDialog(Throwable throwable, Path logPath) {
+        Throwable rootCause = throwable;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        String guidance = Runtime.version().feature() < 21
+                ? "Open the launcher with Java 21 or newer."
+                : "This Java version is supported. See the root cause and crash log below.";
         String message = "Frostfuscator GUI could not start.\n\n"
                 + "Java: " + System.getProperty("java.version") + "\n"
                 + "Java home: " + System.getProperty("java.home") + "\n\n"
-                + "Open the launcher with Java 21 or newer.\n"
+                + guidance + "\n"
                 + "Crash log:\n" + logPath + "\n\n"
-                + throwable.getClass().getSimpleName() + ": " + throwable.getMessage();
+                + rootCause.getClass().getSimpleName() + ": " + rootCause.getMessage();
         try {
             JOptionPane.showMessageDialog(null, message, "Frostfuscator GUI", JOptionPane.ERROR_MESSAGE);
         } catch (Throwable ignored) {

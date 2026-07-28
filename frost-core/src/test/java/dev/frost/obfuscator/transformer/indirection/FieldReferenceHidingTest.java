@@ -8,6 +8,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.Map;
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -42,5 +43,44 @@ class FieldReferenceHidingTest {
         AbstractInsnNode firstInsn = method.instructions.getFirst();
         assertTrue(firstInsn instanceof MethodInsnNode);
         assertEquals(Opcodes.INVOKESTATIC, firstInsn.getOpcode());
+    }
+
+    @Test
+    void parallelReferenceHidingUsesStableTargetMethodMetadata() {
+        ClassPool pool = new ClassPool();
+        int classCount = 128;
+        for (int index = 0; index < classCount; index++) {
+            ClassNode node = new ClassNode();
+            node.version = Opcodes.V17;
+            node.name = "com/example/Parallel" + index;
+            node.superName = "java/lang/Object";
+            node.access = Opcodes.ACC_PUBLIC;
+
+            MethodNode target = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                    "target", "()V", null, null);
+            target.instructions.add(new InsnNode(Opcodes.RETURN));
+            node.methods.add(target);
+
+            MethodNode caller = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                    "caller", "()V", null, null);
+            caller.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    "com/example/Parallel" + ((index + 1) % classCount), "target", "()V", false));
+            caller.instructions.add(new InsnNode(Opcodes.RETURN));
+            node.methods.add(caller);
+            pool.addClass(node.name, node);
+        }
+        pool.configureParallelism(true, 8, 1);
+
+        TransformerConfig config = new TransformerConfig();
+        config.setOptions(Map.of("probability", 100, "max-per-class", 1));
+
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(5), () ->
+                    assertDoesNotThrow(() -> new ReferenceHidingTransformer()
+                            .transform(pool, new MappingCollector(), config)));
+            assertTrue(pool.getClasses().stream().allMatch(node -> node.methods.size() == 3));
+        } finally {
+            pool.closeParallelism();
+        }
     }
 }

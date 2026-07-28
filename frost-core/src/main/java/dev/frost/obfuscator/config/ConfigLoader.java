@@ -116,7 +116,18 @@ public class ConfigLoader {
             ObfuscationConfig.MappingConfig mc = new ObfuscationConfig.MappingConfig();
             mc.setEnabled(getBoolean(mappingMap, "enabled", true));
             mc.setOutput(getString(mappingMap, "output", "mapping.txt"));
+            mc.setEncrypted(getBoolean(mappingMap, "encrypted", false));
+            mc.setPasswordEnvironment(getString(mappingMap, "passwordEnvironment", "FROST_MAPPING_PASSWORD"));
             config.setMapping(mc);
+        }
+
+        Object performanceObj = raw.get("performance");
+        if (performanceObj instanceof Map<?, ?> performanceMap) {
+            ObfuscationConfig.PerformanceConfig performance = new ObfuscationConfig.PerformanceConfig();
+            performance.setParallel(getBoolean(performanceMap, "parallel", true));
+            performance.setParallelism((int) getLong(performanceMap, "parallelism", 0));
+            performance.setMinimumClasses((int) getLong(performanceMap, "minimumClasses", 32));
+            config.setPerformance(performance);
         }
 
         Object frostJniObj = raw.get("frostjni");
@@ -349,6 +360,7 @@ public class ConfigLoader {
             config.setRecursive(getBoolean(librariesMap, "recursive", true));
             config.setRuntime(getBoolean(librariesMap, "runtime", true));
             config.setStrict(getBoolean(librariesMap, "strict", false));
+            config.setAutoDetect(getBoolean(librariesMap, "auto-detect", true));
         } else if (librariesObj instanceof List<?> list) {
             config.setPaths(list.stream().map(Object::toString).toList());
         } else if (librariesObj instanceof String string && !string.isBlank()) {

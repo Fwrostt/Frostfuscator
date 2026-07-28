@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Rewrites integer and long arithmetic into equivalent mixed boolean-arithmetic
@@ -71,13 +72,14 @@ public final class MixedBooleanArithmeticTransformer extends Transformer {
         boolean includeSynthetic = booleanOption(config, "include-synthetic", false);
         Set<String> operations = operations(config);
         long configuredSeed = longOption(config, "seed", 0L);
-        Random random = new Random(configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed);
+        long runSeed = configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed;
 
-        int totalChanged = 0;
-        for (ClassNode owner : pool.getClasses()) {
+        LongAdder totalChanged = new LongAdder();
+        pool.forEachClass(owner -> {
             if (!shouldProcess(owner.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
+            Random random = new Random(runSeed ^ owner.name.hashCode());
             int changedInClass = 0;
             for (MethodNode method : owner.methods) {
                 if (method.instructions == null
@@ -144,16 +146,16 @@ public final class MixedBooleanArithmeticTransformer extends Transformer {
                         method.instructions.remove(instruction);
                         changedInMethod++;
                         changedInClass++;
-                        totalChanged++;
+                        totalChanged.increment();
                     }
                 }
             }
             if (changedInClass > 0) {
                 pool.markDirty(owner.name);
-                log("Rewrote {} arithmetic operations in {}", changedInClass, owner.name);
+                detail("Rewrote {} arithmetic operations in {}", changedInClass, owner.name);
             }
-        }
-        return totalChanged;
+        });
+        return totalChanged.intValue();
     }
 
     private List<AbstractInsnNode> candidates(MethodNode method, Set<String> operations) {

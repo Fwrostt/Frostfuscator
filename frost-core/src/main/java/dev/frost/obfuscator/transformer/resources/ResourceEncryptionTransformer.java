@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 public class ResourceEncryptionTransformer extends Transformer {
 
@@ -33,10 +34,12 @@ public class ResourceEncryptionTransformer extends Transformer {
             seed = SECURE_RANDOM.nextInt();
         }
         List<String> encrypted = new ArrayList<>();
+        Set<String> preservedPackages = ResourceCompatibility.preservedPackages(context);
 
         for (Map.Entry<String, byte[]> entry : new ArrayList<>(context.resources().entrySet())) {
             String name = entry.getKey();
-            if (!shouldEncrypt(name, prefix)) {
+            if (!shouldEncrypt(name, prefix)
+                    || ResourceCompatibility.isPreservedLibraryResource(name, preservedPackages)) {
                 continue;
             }
             String clResourcePath = context.config().getOption("resourcePath", "classes.db");

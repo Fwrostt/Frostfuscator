@@ -6,6 +6,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
+import java.util.concurrent.atomic.LongAdder;
 
 public class AntiDebugTransformer extends Transformer {
 
@@ -32,8 +33,8 @@ public class AntiDebugTransformer extends Transformer {
         boolean sharedHelper = getBooleanOption(context, "shared-helper", true);
         int timingIterations = getIntOption(context, "timing-iterations", 1_000_000);
         long timingThresholdNanos = Math.max(1L, getIntOption(context, "timing-threshold-ms", 80)) * 1_000_000L;
-        int injected = 0;
-        int guardedMethods = 0;
+        LongAdder injected = new LongAdder();
+        LongAdder guardedMethods = new LongAdder();
         String helperClass = sharedHelper ? resolveHelperClass(context) : null;
 
         if (sharedHelper && !context.pool().contains(helperClass)) {
@@ -48,19 +49,19 @@ public class AntiDebugTransformer extends Transformer {
             helper.methods.add(guard);
             context.pool().addClass(helperClass, helper);
             context.pool().markDirty(helperClass);
-            injected++;
+            injected.increment();
         }
 
-        for (ClassNode classNode : context.pool().getClasses()) {
+        context.pool().forEachClass(classNode -> {
             if (classNode.name.equals(helperClass)) {
-                continue;
+                return;
             }
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             if (!sharedHelper && hasMethod(classNode, methodName)) {
-                continue;
+                return;
             }
 
             if (!sharedHelper) {
@@ -69,18 +70,18 @@ public class AntiDebugTransformer extends Transformer {
             }
             int classGuards = injectGuards(classNode, sharedHelper ? helperClass : classNode.name, methodName);
             if (classGuards == 0) {
-                continue;
+                return;
             }
             context.pool().markDirty(classNode.name);
             if (!sharedHelper) {
-                injected++;
+                injected.increment();
             }
-            guardedMethods += classGuards;
-        }
+            guardedMethods.add(classGuards);
+        });
 
-        context.stats().add("antiDebugHooks", injected);
-        context.stats().add("antiDebugGuardedMethods", guardedMethods);
-        log("Injected {} anti-debug hooks across {} methods", injected, guardedMethods);
+        context.stats().add("antiDebugHooks", injected.sum());
+        context.stats().add("antiDebugGuardedMethods", guardedMethods.sum());
+        log("Injected {} anti-debug hooks across {} methods", injected.sum(), guardedMethods.sum());
     }
 
     private int injectGuards(ClassNode classNode, String guardOwner, String guardName) {

@@ -51,11 +51,8 @@ public class StatisticsReportTransformer extends Transformer {
     }
 
     private long methodCount(Context context) {
-        long count = 0;
-        for (ClassNode classNode : context.pool().getClasses()) {
-            count += classNode.methods.size();
-        }
-        return count;
+        return context.pool().mapClasses(classNode -> classNode.methods.size())
+                .stream().mapToLong(Integer::longValue).sum();
     }
 
     private String json(Map<String, Long> counters) {

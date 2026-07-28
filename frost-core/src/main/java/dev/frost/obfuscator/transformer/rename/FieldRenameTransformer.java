@@ -26,6 +26,7 @@ public class FieldRenameTransformer extends Transformer {
 
         Dictionary dictionary = Dictionary.create(config.getDictionary());
         Map<String, Set<String>> usedNamesPerClass = new HashMap<>();
+        int renamedFields = 0;
 
         Set<String> reflectiveFieldNames = collectReflectiveFieldNames(pool);
 
@@ -55,10 +56,11 @@ public class FieldRenameTransformer extends Transformer {
                 String newName = generateName(dictionary, used);
                 if (!newName.equals(field.name)) {
                     mappings.mapField(classNode.name, field.name, field.desc, newName);
-                    log("Renamed field {}.{} -> {}", classNode.name, field.name, newName);
+                    renamedFields++;
                 }
             }
         }
+        log("Collected {} field mapping(s) across {} classes", renamedFields, usedNamesPerClass.size());
     }
 
     private boolean shouldKeepSafe(FieldNode field) {

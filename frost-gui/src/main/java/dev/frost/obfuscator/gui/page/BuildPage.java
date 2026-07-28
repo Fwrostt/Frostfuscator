@@ -65,6 +65,7 @@ public final class BuildPage implements PageView {
         build.disableProperty().bind(context.projectState().busyProperty());
         cancel.visibleProperty().bind(context.projectState().busyProperty());
         cancel.managedProperty().bind(cancel.visibleProperty());
+        cancel.disableProperty().bind(context.projectState().buildStatusProperty().isEqualTo("Cancelling…"));
         reveal.visibleProperty().bind(context.projectState().buildSuccessfulProperty());
         reveal.managedProperty().bind(reveal.visibleProperty());
         FlowPane actions = new FlowPane(Ui.SPACE_3, Ui.SPACE_2, build, cancel, reveal);

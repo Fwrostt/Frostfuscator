@@ -36,6 +36,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Replaces selected public Java API calls with encrypted invokedynamic call
@@ -88,14 +89,15 @@ public final class ReflectionHidingTransformer extends Transformer {
                 "java/io/PrintStream,java/io/Console"
         ));
         long configuredSeed = longOption(config, "seed", 0L);
-        Random random = new Random(configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed);
+        long runSeed = configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed;
 
-        int totalChanged = 0;
-        for (ClassNode owner : pool.getClasses()) {
+        LongAdder totalChanged = new LongAdder();
+        pool.forEachClass(owner -> {
             if (!shouldProcess(owner.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(owner.access)) {
-                continue;
+                return;
             }
+            Random random = new Random(runSeed ^ owner.name.hashCode());
 
             List<CallSite> sites = new ArrayList<>();
             for (MethodNode method : owner.methods) {
@@ -123,7 +125,7 @@ public final class ReflectionHidingTransformer extends Transformer {
                 }
             }
             if (sites.isEmpty()) {
-                continue;
+                return;
             }
 
             String decoderName = uniqueMethodName(owner, random);
@@ -159,10 +161,10 @@ public final class ReflectionHidingTransformer extends Transformer {
             owner.methods.add(buildDecoder(decoderName));
             owner.methods.add(buildBootstrap(owner.name, bootstrapName, decoderName));
             pool.markDirty(owner.name);
-            totalChanged += sites.size();
-            log("Replaced {} API calls with encrypted MethodHandle sites in {}", sites.size(), owner.name);
-        }
-        return totalChanged;
+            totalChanged.add(sites.size());
+            detail("Replaced {} API calls with encrypted MethodHandle sites in {}", sites.size(), owner.name);
+        });
+        return totalChanged.intValue();
     }
 
     private boolean eligible(MethodInsnNode call, Set<String> prefixes, Set<String> excludedOwners) {

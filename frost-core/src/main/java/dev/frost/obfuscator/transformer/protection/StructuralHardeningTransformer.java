@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 
 public final class StructuralHardeningTransformer extends Transformer {
     @Override
@@ -38,23 +39,23 @@ public final class StructuralHardeningTransformer extends Transformer {
         int payloadBytes = intOption(context, "payload-bytes", 256, 0, 4096);
         boolean methodAttributes = booleanOption(context, "method-attributes", true);
         boolean fieldAttributes = booleanOption(context, "field-attributes", true);
-        int classes = 0;
-        int attributes = 0;
+        LongAdder classes = new LongAdder();
+        LongAdder attributes = new LongAdder();
 
-        for (ClassNode classNode : context.pool().getClasses()) {
+        context.pool().forEachClass(classNode -> {
             if (!eligible(classNode, context)) {
-                continue;
+                return;
             }
             for (int i = 0; i < attributesPerClass; i++) {
                 addAttribute(classNode, "FrostStructural" + i, payload(classNode.name, "class", i, payloadBytes));
-                attributes++;
+                attributes.increment();
             }
             if (methodAttributes) {
                 for (MethodNode method : classNode.methods) {
                     if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) == 0) {
                         addAttribute(method, "FrostMethod" + Math.floorMod(method.name.hashCode(), 17),
                                 payload(classNode.name, method.name + method.desc, 0, Math.min(payloadBytes, 512)));
-                        attributes++;
+                        attributes.increment();
                     }
                 }
             }
@@ -62,16 +63,16 @@ public final class StructuralHardeningTransformer extends Transformer {
                 for (FieldNode field : classNode.fields) {
                     addAttribute(field, "FrostField" + Math.floorMod(field.name.hashCode(), 17),
                             payload(classNode.name, field.name + field.desc, 0, Math.min(payloadBytes, 512)));
-                    attributes++;
+                    attributes.increment();
                 }
             }
             context.pool().markDirty(classNode.name);
-            classes++;
-        }
+            classes.increment();
+        });
 
-        context.stats().add("structuralHardenedClasses", classes);
-        context.stats().add("structuralOpaqueAttributes", attributes);
-        log("Added {} verifier-safe opaque attributes to {} classes", attributes, classes);
+        context.stats().add("structuralHardenedClasses", classes.sum());
+        context.stats().add("structuralOpaqueAttributes", attributes.sum());
+        log("Added {} verifier-safe opaque attributes to {} classes", attributes.sum(), classes.sum());
     }
 
     private boolean eligible(ClassNode classNode, Context context) {

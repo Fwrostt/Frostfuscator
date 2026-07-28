@@ -5,6 +5,7 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.rename.MethodNameAllocator;
 import dev.frost.obfuscator.util.AccessHelper;
 import dev.frost.obfuscator.util.ASMHelper;
 import org.objectweb.asm.Label;
@@ -31,7 +32,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +50,8 @@ import java.util.Set;
 public final class StringSplittingTransformer extends Transformer {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String STRING_DESC = "Ljava/lang/String;";
+    private static final String FRAGMENT_METHOD_DESC = "()" + STRING_DESC;
+    private static final String DECODER_METHOD_DESC = "(" + STRING_DESC + "I)" + STRING_DESC;
     private static final int MIX_STEP = 0x9E37;
 
     @Override
@@ -64,7 +66,7 @@ public final class StringSplittingTransformer extends Transformer {
 
     @Override
     public void transform(Context context) {
-        Result result = apply(context.pool(), context.config());
+        Result result = apply(context.pool(), context.mappings(), context.config());
         context.stats().add("splitStrings", result.strings());
         context.stats().add("stringFragments", result.fragments());
         context.stats().add("stringCarrierClasses", result.carriers());
@@ -72,10 +74,10 @@ public final class StringSplittingTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        apply(pool, config);
+        apply(pool, mappings, config);
     }
 
-    private Result apply(ClassPool pool, TransformerConfig config) {
+    private Result apply(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int minimumLength = intOption(config, "min-length", 4, 2, 65_535);
         int minimumFragments = intOption(config, "min-fragments", 2, 2, 64);
         int maximumFragments = intOption(config, "max-fragments", 32, minimumFragments, 128);
@@ -96,6 +98,10 @@ public final class StringSplittingTransformer extends Transformer {
         boolean preserveReflectionStrings = booleanOption(config, "preserve-reflection-strings", true);
         long configuredSeed = longOption(config, "seed", 0L);
         Random random = new Random(configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed);
+        GeneratedMethodNamer methodNames = new GeneratedMethodNamer(
+                mappings.methodNames(config.getDictionary(), pool.getClasses()),
+                mappings
+        );
 
         List<ClassNode> sourceClasses = new ArrayList<>(pool.getClasses());
         List<StringSite> sites = new ArrayList<>();
@@ -204,7 +210,8 @@ public final class StringSplittingTransformer extends Transformer {
                         assemblyHost.name,
                         fragment,
                         encodeFragments,
-                        random
+                        random,
+                        methodNames
                 ));
                 touchedCarriers.add(carrierNode);
                 cursor = Math.floorMod(cursor + step, available.size());
@@ -217,7 +224,7 @@ public final class StringSplittingTransformer extends Transformer {
                     assemblyHost,
                     immediateCaller,
                     references,
-                    random
+                    methodNames
             );
             touchedCarriers.add(assemblyHost);
 
@@ -226,7 +233,7 @@ public final class StringSplittingTransformer extends Transformer {
                 String relayCaller = i == 0
                         ? plan.site().owner().name
                         : relayHosts.get(i - 1).name;
-                entry = addRelayMethod(relayHost, relayCaller, entry, random);
+                entry = addRelayMethod(relayHost, relayCaller, entry, methodNames);
                 touchedCarriers.add(relayHost);
             }
             replaceWithCall(plan.site(), entry);
@@ -234,7 +241,8 @@ public final class StringSplittingTransformer extends Transformer {
             for (int i = 0; i < decoysPerString; i++) {
                 ClassNode decoyNode = available.get(random.nextInt(available.size()));
                 Carrier carrier = carrierStates.computeIfAbsent(decoyNode, Carrier::new);
-                addFragmentAccessor(carrier, decoyNode.name, randomDecoy(random), encodeFragments, random);
+                addFragmentAccessor(carrier, decoyNode.name, randomDecoy(random), encodeFragments,
+                        random, methodNames);
                 touchedCarriers.add(decoyNode);
             }
             pool.markDirty(plan.site().owner().name);
@@ -545,19 +553,20 @@ public final class StringSplittingTransformer extends Transformer {
                                                     String callerOwner,
                                                     String fragment,
                                                     boolean encode,
-                                                    Random random) {
-        String methodName = randomMethodName(carrier.node(), random);
+                                                    Random random,
+                                                    GeneratedMethodNamer methodNames) {
+        String methodName = methodNames.next(carrier.node(), FRAGMENT_METHOD_DESC);
         MethodNode method = new MethodNode(
                 injectedMethodAccess(callerOwner, carrier.node()),
                 methodName,
-                "()" + STRING_DESC,
+                FRAGMENT_METHOD_DESC,
                 null,
                 null
         );
 
         if (encode) {
             if (carrier.decoder() == null) {
-                String decoder = randomMethodName(carrier.node(), random);
+                String decoder = methodNames.next(carrier.node(), DECODER_METHOD_DESC);
                 addDecoder(carrier.node(), decoder);
                 carrier.decoder(decoder);
             }
@@ -587,12 +596,12 @@ public final class StringSplittingTransformer extends Transformer {
     private FragmentReference addAssemblyMethod(ClassNode owner,
                                                 String callerOwner,
                                                 List<FragmentReference> references,
-                                                Random random) {
-        String methodName = randomMethodName(owner, random);
+                                                GeneratedMethodNamer methodNames) {
+        String methodName = methodNames.next(owner, FRAGMENT_METHOD_DESC);
         MethodNode method = new MethodNode(
                 injectedMethodAccess(callerOwner, owner),
                 methodName,
-                "()" + STRING_DESC,
+                FRAGMENT_METHOD_DESC,
                 null,
                 null
         );
@@ -637,12 +646,12 @@ public final class StringSplittingTransformer extends Transformer {
     private FragmentReference addRelayMethod(ClassNode owner,
                                              String callerOwner,
                                              FragmentReference target,
-                                             Random random) {
-        String methodName = randomMethodName(owner, random);
+                                             GeneratedMethodNamer methodNames) {
+        String methodName = methodNames.next(owner, FRAGMENT_METHOD_DESC);
         MethodNode method = new MethodNode(
                 injectedMethodAccess(callerOwner, owner),
                 methodName,
-                "()" + STRING_DESC,
+                FRAGMENT_METHOD_DESC,
                 null,
                 null
         );
@@ -662,7 +671,7 @@ public final class StringSplittingTransformer extends Transformer {
         MethodNode method = new MethodNode(
                 Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC,
                 methodName,
-                "(" + STRING_DESC + "I)" + STRING_DESC,
+                DECODER_METHOD_DESC,
                 null,
                 null
         );
@@ -871,31 +880,6 @@ public final class StringSplittingTransformer extends Transformer {
         return Math.abs(left);
     }
 
-    private String randomMethodName(ClassNode owner, Random random) {
-        Set<String> used = new HashSet<>();
-        for (MethodNode method : owner.methods) {
-            used.add(method.name + method.desc);
-        }
-        String name;
-        do {
-            name = randomIdentifier(random, 9, 15);
-        } while (used.contains(name + "()" + STRING_DESC)
-                || used.contains(name + "(" + STRING_DESC + "I)" + STRING_DESC));
-        return name;
-    }
-
-    private String randomIdentifier(Random random, int minimumLength, int maximumLength) {
-        String first = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        String rest = first + "0123456789";
-        int length = minimumLength + random.nextInt(maximumLength - minimumLength + 1);
-        StringBuilder result = new StringBuilder(length);
-        result.append(first.charAt(random.nextInt(first.length())));
-        while (result.length() < length) {
-            result.append(rest.charAt(random.nextInt(rest.length())));
-        }
-        return result.toString();
-    }
-
     private String randomDecoy(Random random) {
         String alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-";
         int length = 2 + random.nextInt(7);
@@ -974,6 +958,14 @@ public final class StringSplittingTransformer extends Transformer {
     }
 
     private record FragmentReference(String owner, String method) {
+    }
+
+    private record GeneratedMethodNamer(MethodNameAllocator allocator, MappingCollector mappings) {
+        private String next(ClassNode owner, String descriptor) {
+            String name = allocator.next(owner.name, descriptor);
+            mappings.preserveMethod(owner.name, name, descriptor);
+            return name;
+        }
     }
 
     private record Result(int strings, int fragments, int carriers) {

@@ -15,6 +15,7 @@ import java.util.Set;
 
 public class FakeClassTransformer extends Transformer {
 
+    static final String DECOY_MARKER = "Ldev/frost/obfuscator/GeneratedDecoy;";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final List<String> FIELD_NAMES = List.of(
             "stateVersion", "lastRefreshTime", "enabled", "cacheName", "retryBudget", "sessionLabel",
@@ -75,6 +76,7 @@ public class FakeClassTransformer extends Transformer {
             int fieldCount = randomRange(random, minFields, maxFields);
             ClassNode classNode = buildClass(name, chooseKind(kindRatio, random), methodCount, fieldCount, random);
             context.pool().addClass(name, classNode);
+            context.pool().markGeneratedDecoy(name);
             context.pool().markDirty(name);
             generated++;
         }
@@ -95,6 +97,7 @@ public class FakeClassTransformer extends Transformer {
         node.superName = "java/lang/Object";
         node.sourceFile = simpleName(name) + ".java";
         node.signature = "Ljava/lang/Object;";
+        markDecoy(node);
         node.methods.add(defaultConstructor());
         node.methods.add(staticInitializer(name, random));
 
@@ -131,6 +134,7 @@ public class FakeClassTransformer extends Transformer {
         node.name = name;
         node.superName = "java/lang/Object";
         node.sourceFile = simpleName(name) + ".java";
+        markDecoy(node);
         Set<String> usedMethods = new HashSet<>();
         for (int i = 0; i < Math.max(1, methodsPerClass / 4); i++) {
             MethodShape shape = MethodShape.values()[i % MethodShape.values().length];
@@ -143,6 +147,11 @@ public class FakeClassTransformer extends Transformer {
             ));
         }
         return node;
+    }
+
+    private void markDecoy(ClassNode node) {
+        if (node.invisibleAnnotations == null) node.invisibleAnnotations = new ArrayList<>();
+        node.invisibleAnnotations.add(new AnnotationNode(DECOY_MARKER));
     }
 
     private MethodNode defaultConstructor() {

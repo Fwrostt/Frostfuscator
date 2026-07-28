@@ -35,10 +35,10 @@ public class CondyIndirectionTransformer extends Transformer {
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 60), 0, 100);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             // Upgrade class bytecode version to Java 11 (V11 = 55) if below V11
@@ -77,22 +77,22 @@ public class CondyIndirectionTransformer extends Transformer {
             if (modified) {
                 ensureBootstrapMethod(classNode);
                 pool.markDirty(classNode.name);
-                log("Applied Condy indirection in {}", classNode.name);
+                detail("Applied Condy indirection in {}", classNode.name);
             }
-        }
+        });
     }
 
     private ConstantDynamic buildCondy(Object cst, Handle bootstrapHandle) {
         if (cst instanceof String s) {
             return new ConstantDynamic("c$str", "Ljava/lang/String;", bootstrapHandle, s);
         } else if (cst instanceof Integer i) {
-            return new ConstantDynamic("c$int", "Ljava/lang/Integer;", bootstrapHandle, i);
+            return new ConstantDynamic("c$int", "I", bootstrapHandle, i);
         } else if (cst instanceof Long l) {
-            return new ConstantDynamic("c$long", "Ljava/lang/Long;", bootstrapHandle, l);
+            return new ConstantDynamic("c$long", "J", bootstrapHandle, l);
         } else if (cst instanceof Float f) {
-            return new ConstantDynamic("c$float", "Ljava/lang/Float;", bootstrapHandle, f);
+            return new ConstantDynamic("c$float", "F", bootstrapHandle, f);
         } else if (cst instanceof Double d) {
-            return new ConstantDynamic("c$double", "Ljava/lang/Double;", bootstrapHandle, d);
+            return new ConstantDynamic("c$double", "D", bootstrapHandle, d);
         }
         return null;
     }

@@ -11,6 +11,8 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
+import java.util.HashMap;
+import java.util.Map;
 
 public class InvokeDynamicTransformer extends Transformer {
 
@@ -30,11 +32,12 @@ public class InvokeDynamicTransformer extends Transformer {
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 35), 0, 100);
         boolean mutableCallSites = getBooleanOption(config, "mutable-callsites", true);
+        Map<String, OwnerMethods> applicationMethods = snapshotApplicationMethods(pool);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             String bootstrapName = uniqueMethodName(classNode);
@@ -48,7 +51,7 @@ public class InvokeDynamicTransformer extends Transformer {
                 AbstractInsnNode insn = method.instructions.getFirst();
                 while (insn != null) {
                     AbstractInsnNode next = insn.getNext();
-                    if (insn instanceof MethodInsnNode call && canWrap(pool, classNode.name, call)
+                    if (insn instanceof MethodInsnNode call && canWrap(pool, applicationMethods, classNode.name, call)
                             && RANDOM.nextInt(100) < probability) {
                         method.instructions.set(call, new InvokeDynamicInsnNode(randomIdentifier(), indyDescriptor(call), bootstrap,
                                 call.getOpcode(), Type.getObjectType(call.owner), call.name, Type.getMethodType(call.desc)));
@@ -62,12 +65,13 @@ public class InvokeDynamicTransformer extends Transformer {
                 classNode.version = Math.max(classNode.version, Opcodes.V1_7);
                 classNode.methods.add(buildBootstrap(bootstrapName, mutableCallSites));
                 pool.markDirty(classNode.name);
-                log("Wrapped method calls with invokedynamic in {}", classNode.name);
+                detail("Wrapped method calls with invokedynamic in {}", classNode.name);
             }
-        }
+        });
     }
 
-    private boolean canWrap(ClassPool pool, String caller, MethodInsnNode call) {
+    private boolean canWrap(ClassPool pool, Map<String, OwnerMethods> applicationMethods,
+                            String caller, MethodInsnNode call) {
         int opcode = call.getOpcode();
         if (opcode != Opcodes.INVOKESTATIC && opcode != Opcodes.INVOKEVIRTUAL && opcode != Opcodes.INVOKEINTERFACE) {
             return false;
@@ -75,15 +79,37 @@ public class InvokeDynamicTransformer extends Transformer {
         if (call.name.startsWith("<") || call.owner.startsWith("java/lang/invoke/")) return false;
 
         ClassNode owner = pool.getClass(call.owner);
-        if (owner == null) owner = pool.getLibraryClasses().get(call.owner);
-        if (owner == null) return false;
+        if (owner != null) {
+            OwnerMethods snapshot = applicationMethods.get(call.owner);
+            Integer access = snapshot == null ? null : snapshot.methods().get(methodKey(call.name, call.desc));
+            return access != null && (call.owner.equals(caller)
+                    || (AccessHelper.isPublic(snapshot.access()) && AccessHelper.isPublic(access)));
+        }
 
+        owner = pool.getLibraryClasses().get(call.owner);
+        if (owner == null) return false;
         for (MethodNode method : owner.methods) {
             if (method.name.equals(call.name) && method.desc.equals(call.desc)) {
                 return call.owner.equals(caller) || (AccessHelper.isPublic(owner.access) && AccessHelper.isPublic(method.access));
             }
         }
         return false;
+    }
+
+    private Map<String, OwnerMethods> snapshotApplicationMethods(ClassPool pool) {
+        Map<String, OwnerMethods> snapshot = new HashMap<>();
+        for (ClassNode owner : pool.getClasses()) {
+            Map<String, Integer> methods = new HashMap<>();
+            for (MethodNode method : owner.methods) {
+                methods.put(methodKey(method.name, method.desc), method.access);
+            }
+            snapshot.put(owner.name, new OwnerMethods(owner.access, Map.copyOf(methods)));
+        }
+        return Map.copyOf(snapshot);
+    }
+
+    private String methodKey(String name, String desc) {
+        return name + desc;
     }
 
     private String indyDescriptor(MethodInsnNode call) {
@@ -197,5 +223,8 @@ public class InvokeDynamicTransformer extends Transformer {
 
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private record OwnerMethods(int access, Map<String, Integer> methods) {
     }
 }

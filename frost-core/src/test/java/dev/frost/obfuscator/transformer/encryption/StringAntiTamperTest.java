@@ -35,7 +35,7 @@ class StringAntiTamperTest {
 
         // Verify decryptor method contains getStackTrace caller check
         MethodNode decryptor = classNode.methods.stream()
-                .filter(m -> m.name.length() <= 8 && !m.name.equals("getSecret"))
+                .filter(m -> m.desc.equals("([BI)Ljava/lang/String;"))
                 .findFirst().orElse(null);
 
         assertNotNull(decryptor, "Decryptor method should be created");

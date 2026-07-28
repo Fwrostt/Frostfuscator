@@ -16,6 +16,8 @@ libraries:
   recursive: true
   runtime: true
   strict: false
+  # Detect shaded dependencies and keep them byte-for-byte instead of transforming them.
+  auto-detect: true
 
 # Package handling during class renaming: keep, flatten, remove.
 package-mode: "keep"
@@ -31,6 +33,12 @@ plugins:
 # Regex filters for class names.
 inclusions: []
 exclusions: []
+
+# Parallel class transformation. 0 workers uses the available processor count.
+performance:
+  parallel: true
+  parallelism: 0
+  minimumClasses: 32
 
 # Native Protection / FrostJNI.
 # Disabled by default because it requires a native C++ compiler and produces
@@ -533,3 +541,6 @@ transformers:
 mapping:
   enabled: true
   output: "mapping.txt"
+  encrypted: false
+  # The password value is read at runtime and is never stored in this file.
+  passwordEnvironment: "FROST_MAPPING_PASSWORD"

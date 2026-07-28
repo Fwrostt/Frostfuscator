@@ -20,6 +20,7 @@ public class ObfuscationConfig {
     private LibraryConfig libraries = new LibraryConfig();
     private Map<String, TransformerConfig> transformers = new LinkedHashMap<>();
     private MappingConfig mapping = new MappingConfig();
+    private PerformanceConfig performance = new PerformanceConfig();
     private FrostJNIConfig frostJNI = new FrostJNIConfig();
 
     public ObfuscationConfig() {
@@ -141,6 +142,14 @@ public class ObfuscationConfig {
         this.mapping = mapping != null ? mapping : new MappingConfig();
     }
 
+    public PerformanceConfig getPerformance() {
+        return performance;
+    }
+
+    public void setPerformance(PerformanceConfig performance) {
+        this.performance = performance != null ? performance : new PerformanceConfig();
+    }
+
     public FrostJNIConfig getFrostJNI() {
         return frostJNI;
     }
@@ -152,6 +161,9 @@ public class ObfuscationConfig {
     public static class MappingConfig {
         private boolean enabled = true;
         private String output = "mapping.txt";
+        private boolean encrypted;
+        private String passwordEnvironment = "FROST_MAPPING_PASSWORD";
+        private transient char[] password;
 
         public boolean isEnabled() {
             return enabled;
@@ -168,6 +180,39 @@ public class ObfuscationConfig {
         public void setOutput(String output) {
             this.output = output;
         }
+
+        public boolean isEncrypted() {
+            return encrypted;
+        }
+
+        public void setEncrypted(boolean encrypted) {
+            this.encrypted = encrypted;
+        }
+
+        public String getPasswordEnvironment() {
+            return passwordEnvironment;
+        }
+
+        public void setPasswordEnvironment(String passwordEnvironment) {
+            this.passwordEnvironment = passwordEnvironment == null || passwordEnvironment.isBlank()
+                    ? "FROST_MAPPING_PASSWORD" : passwordEnvironment.trim();
+        }
+
+        public char[] getPassword() {
+            return password == null ? null : password.clone();
+        }
+
+        public void setPassword(char[] password) {
+            clearPassword();
+            this.password = password == null ? null : password.clone();
+        }
+
+        public void clearPassword() {
+            if (password != null) {
+                java.util.Arrays.fill(password, '\0');
+                password = null;
+            }
+        }
     }
 
     public static class LibraryConfig {
@@ -175,6 +220,7 @@ public class ObfuscationConfig {
         private boolean recursive = true;
         private boolean runtime = true;
         private boolean strict;
+        private boolean autoDetect = true;
 
         public List<String> getPaths() {
             return paths;
@@ -206,6 +252,44 @@ public class ObfuscationConfig {
 
         public void setStrict(boolean strict) {
             this.strict = strict;
+        }
+
+        public boolean isAutoDetect() {
+            return autoDetect;
+        }
+
+        public void setAutoDetect(boolean autoDetect) {
+            this.autoDetect = autoDetect;
+        }
+    }
+
+    public static class PerformanceConfig {
+        private boolean parallel = true;
+        private int parallelism;
+        private int minimumClasses = 32;
+
+        public boolean isParallel() {
+            return parallel;
+        }
+
+        public void setParallel(boolean parallel) {
+            this.parallel = parallel;
+        }
+
+        public int getParallelism() {
+            return parallelism;
+        }
+
+        public void setParallelism(int parallelism) {
+            this.parallelism = Math.max(0, parallelism);
+        }
+
+        public int getMinimumClasses() {
+            return minimumClasses;
+        }
+
+        public void setMinimumClasses(int minimumClasses) {
+            this.minimumClasses = Math.max(1, minimumClasses);
         }
     }
 }

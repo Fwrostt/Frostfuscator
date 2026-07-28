@@ -46,12 +46,6 @@ public final class ReportsPage implements PageView {
         content.setPadding(Ui.pageInsets());
         content.setMinWidth(0);
         content.setMaxWidth(Double.MAX_VALUE);
-        root.viewportBoundsProperty().addListener((obs, old, bounds) -> {
-            double width = bounds.getWidth();
-            if (width > 100) {
-                content.setPrefWidth(width - 48);
-            }
-        });
 
         Button apply = Ui.button("Apply recommended setup", "primary-button", () -> {
             int count = context.recommendationEngine().applyRecommendedSetup(context.projectState());
@@ -92,12 +86,14 @@ public final class ReportsPage implements PageView {
         GridPane.setHgrow(compSection, Priority.ALWAYS);
 
         GridPane intelligence = new GridPane();
+        intelligence.getStyleClass().add("analytics-intelligence");
         intelligence.setHgap(Ui.SPACE_6);
         intelligence.setVgap(Ui.SPACE_6);
-        intelligence.getColumnConstraints().addAll(percent(54), percent(46));
         intelligence.setMaxWidth(Double.MAX_VALUE);
-        intelligence.add(recSection, 0, 0);
-        intelligence.add(compSection, 1, 0);
+        arrangeIntelligence(intelligence, recSection, compSection, false);
+        root.viewportBoundsProperty().addListener((obs, old, bounds) ->
+                arrangeIntelligence(intelligence, recSection, compSection,
+                        bounds.getWidth() > 0 && bounds.getWidth() < 860));
 
         VBox archiveSection = Ui.section("Archive inventory",
                 "Counts come from parsed JVM structures—not byte-pattern estimates.", inventorySummary);
@@ -444,7 +440,29 @@ public final class ReportsPage implements PageView {
         ColumnConstraints column = new ColumnConstraints();
         column.setPercentWidth(value);
         column.setHgrow(Priority.ALWAYS);
+        column.setFillWidth(true);
         return column;
+    }
+
+    private static void arrangeIntelligence(GridPane grid, Node recommendations,
+                                            Node compatibility, boolean compact) {
+        Object current = grid.getProperties().get("compact");
+        if (current instanceof Boolean value && value == compact && !grid.getChildren().isEmpty()) return;
+        grid.getProperties().put("compact", compact);
+        grid.getChildren().clear();
+        grid.getColumnConstraints().clear();
+        if (compact) {
+            ColumnConstraints full = new ColumnConstraints();
+            full.setHgrow(Priority.ALWAYS);
+            full.setFillWidth(true);
+            grid.getColumnConstraints().add(full);
+            grid.add(recommendations, 0, 0);
+            grid.add(compatibility, 0, 1);
+        } else {
+            grid.getColumnConstraints().addAll(percent(54), percent(46));
+            grid.add(recommendations, 0, 0);
+            grid.add(compatibility, 1, 0);
+        }
     }
 
     private static String displayLiteral(String value) {

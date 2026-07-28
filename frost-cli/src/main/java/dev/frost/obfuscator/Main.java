@@ -55,6 +55,10 @@ public class Main implements Callable<Integer> {
     @CommandLine.Option(names = {"--libs-strict"}, arity = "0..1", fallbackValue = "true", description = "Fail when library paths or archives cannot be loaded")
     private Boolean librariesStrict;
 
+    @CommandLine.Option(names = {"--auto-detect-libraries"}, arity = "0..1", fallbackValue = "true",
+            description = "Keep detected shaded and supplied library classes out of transformation passes")
+    private Boolean autoDetectLibraries;
+
     @CommandLine.Option(names = {"--plugins"}, split = ",", description = "Plugin directory or comma-separated plugin directories")
     private List<String> pluginDirectories = new ArrayList<>();
 
@@ -96,6 +100,24 @@ public class Main implements Callable<Integer> {
 
     @CommandLine.Option(names = {"--mapping-output"}, description = "Mapping output path")
     private String mappingOutput;
+
+    @CommandLine.Option(names = {"--mapping-encrypted"}, arity = "0..1", fallbackValue = "true",
+            description = "Encrypt mapping output with AES-256 (password is read from an environment variable)")
+    private Boolean mappingEncrypted;
+
+    @CommandLine.Option(names = {"--mapping-password-env"},
+            description = "Environment variable containing the encrypted mapping password")
+    private String mappingPasswordEnvironment;
+
+    @CommandLine.Option(names = {"--parallel"}, arity = "0..1", fallbackValue = "true",
+            description = "Enable or disable parallel class transformation")
+    private Boolean parallelTransforms;
+
+    @CommandLine.Option(names = {"--parallelism"}, description = "Transformer worker count (0 = available processors)")
+    private Integer parallelism;
+
+    @CommandLine.Option(names = {"--parallel-min-classes"}, description = "Minimum class count before parallel execution")
+    private Integer parallelMinimumClasses;
 
     @CommandLine.Option(names = {"--report"}, description = "Enable statistics report. Use json:path or html:path.")
     private String report;
@@ -228,6 +250,21 @@ public class Main implements Callable<Integer> {
         if (mappingOutput != null && !mappingOutput.isBlank()) {
             config.getMapping().setOutput(mappingOutput);
         }
+        if (mappingEncrypted != null) {
+            config.getMapping().setEncrypted(mappingEncrypted);
+        }
+        if (mappingPasswordEnvironment != null && !mappingPasswordEnvironment.isBlank()) {
+            config.getMapping().setPasswordEnvironment(mappingPasswordEnvironment);
+        }
+        if (parallelTransforms != null) {
+            config.getPerformance().setParallel(parallelTransforms);
+        }
+        if (parallelism != null) {
+            config.getPerformance().setParallelism(Math.max(0, parallelism));
+        }
+        if (parallelMinimumClasses != null) {
+            config.getPerformance().setMinimumClasses(Math.max(1, parallelMinimumClasses));
+        }
         if (report != null && !report.isBlank()) {
             enableReport(config, report);
         }
@@ -249,6 +286,9 @@ public class Main implements Callable<Integer> {
         }
         if (librariesStrict != null) {
             config.setStrict(librariesStrict);
+        }
+        if (autoDetectLibraries != null) {
+            config.setAutoDetect(autoDetectLibraries);
         }
     }
 
@@ -328,11 +368,13 @@ public class Main implements Callable<Integer> {
         Logger.info("Inclusions: {}", config.getInclusions());
         Logger.info("Exclusions: {}", config.getExclusions());
         Logger.info("Libraries: {}", ConfigLoader.combinedLibraryPaths(config));
-        Logger.info("Library mode: recursive={} runtime={} strict={}",
+        Logger.info("Library mode: recursive={} runtime={} strict={} auto-detect={}",
                 config.getLibraries().isRecursive(),
                 config.getLibraries().isRuntime(),
-                config.getLibraries().isStrict());
-        Logger.info("Mapping: {} -> {}", config.getMapping().isEnabled(), config.getMapping().getOutput());
+                config.getLibraries().isStrict(),
+                config.getLibraries().isAutoDetect());
+        Logger.info("Mapping: {} -> {}{}", config.getMapping().isEnabled(), config.getMapping().getOutput(),
+                config.getMapping().isEncrypted() ? " (AES-256 encrypted)" : "");
         Logger.info("FrostJNI: {}", config.getFrostJNI().isEnabled());
         Logger.info("Active transformers:");
         for (Transformer transformer : enabled) {

@@ -32,11 +32,11 @@ public class MetadataNoiseTransformer extends Transformer {
         boolean deprecated = getBooleanOption(config, "deprecated", true);
         boolean signatures = getBooleanOption(config, "signatures", true);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)
                     || AccessHelper.isAnnotation(classNode.access)) {
-                continue;
+                return;
             }
 
             if (deprecated) {
@@ -50,8 +50,8 @@ public class MetadataNoiseTransformer extends Transformer {
                 classNode.methods.add(buildNoiseMethod(uniqueMethodName(classNode), stringsPerClass));
             }
             pool.markDirty(classNode.name);
-            log("Added metadata and constant-pool noise to {}", classNode.name);
-        }
+            detail("Added metadata and constant-pool noise to {}", classNode.name);
+        });
     }
 
     private MethodNode buildNoiseMethod(String name, int strings) {

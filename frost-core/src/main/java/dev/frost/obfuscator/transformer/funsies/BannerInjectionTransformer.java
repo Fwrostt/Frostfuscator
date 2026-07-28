@@ -35,13 +35,13 @@ public class BannerInjectionTransformer extends Transformer {
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         String text = config.getOption("text", "Protected by Frostfuscator");
         int copies = Math.max(1, getIntOption(config, "copies", 1));
-        int touched = 0;
+        java.util.concurrent.atomic.LongAdder touched = new java.util.concurrent.atomic.LongAdder();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)
                     || AccessHelper.isAnnotation(classNode.access)) {
-                continue;
+                return;
             }
             Set<String> used = usedNames(classNode);
             for (int i = 0; i < copies; i++) {
@@ -56,10 +56,10 @@ public class BannerInjectionTransformer extends Transformer {
                 classNode.methods.add(bannerMethod(uniqueName(used, "__frost$banner$"), fieldName, text, classNode.name));
             }
             pool.markDirty(classNode.name);
-            touched++;
-        }
+            touched.increment();
+        });
 
-        log("Injected banner text into {} classes", touched);
+        log("Injected banner text into {} classes", touched.sum());
     }
 
     private MethodNode bannerMethod(String name, String fieldName, String text, String owner) {

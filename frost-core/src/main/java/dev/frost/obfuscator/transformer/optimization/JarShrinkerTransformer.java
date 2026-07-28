@@ -6,6 +6,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.LineNumberNode;
 import org.objectweb.asm.tree.MethodNode;
+import java.util.concurrent.atomic.LongAdder;
 
 public class JarShrinkerTransformer extends Transformer {
 
@@ -21,18 +22,18 @@ public class JarShrinkerTransformer extends Transformer {
 
     @Override
     public void transform(Context context) {
-        int lineNumbers = 0;
-        int locals = 0;
+        LongAdder lineNumbers = new LongAdder();
+        LongAdder locals = new LongAdder();
 
-        for (ClassNode classNode : context.pool().getClasses()) {
+        context.pool().forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
             classNode.sourceFile = null;
             classNode.sourceDebug = null;
             for (MethodNode method : classNode.methods) {
                 if (method.localVariables != null) {
-                    locals += method.localVariables.size();
+                    locals.add(method.localVariables.size());
                     method.localVariables = null;
                 }
                 if (method.instructions == null) {
@@ -42,16 +43,16 @@ public class JarShrinkerTransformer extends Transformer {
                     AbstractInsnNode next = insn.getNext();
                     if (insn instanceof LineNumberNode) {
                         method.instructions.remove(insn);
-                        lineNumbers++;
+                        lineNumbers.increment();
                     }
                     insn = next;
                 }
             }
             context.pool().markDirty(classNode.name);
-        }
+        });
 
-        context.stats().add("lineNumbersRemoved", lineNumbers);
-        context.stats().add("localVariablesRemoved", locals);
-        log("Removed {} line numbers and {} local variable entries", lineNumbers, locals);
+        context.stats().add("lineNumbersRemoved", lineNumbers.sum());
+        context.stats().add("localVariablesRemoved", locals.sum());
+        log("Removed {} line numbers and {} local variable entries", lineNumbers.sum(), locals.sum());
     }
 }

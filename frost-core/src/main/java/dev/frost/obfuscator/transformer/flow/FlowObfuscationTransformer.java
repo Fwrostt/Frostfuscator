@@ -13,12 +13,14 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicInterpreter;
+import org.objectweb.asm.tree.analysis.BasicVerifier;
 import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.tree.analysis.Frame;
 import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Control flow obfuscation.
@@ -53,10 +55,10 @@ public class FlowObfuscationTransformer extends Transformer {
     @Override
     public void transform(Context context) {
         FlowMetrics metrics = apply(context.pool(), context.config());
-        context.stats().add("opaquePredicates", metrics.predicates);
-        context.stats().add("flattenedMethods", metrics.flattenedMethods);
-        context.stats().add("partiallyFlattenedMethods", metrics.partiallyFlattenedMethods);
-        context.stats().add("fakeDispatcherStates", metrics.fakeStates);
+        context.stats().add("opaquePredicates", metrics.predicates.sum());
+        context.stats().add("flattenedMethods", metrics.flattenedMethods.sum());
+        context.stats().add("partiallyFlattenedMethods", metrics.partiallyFlattenedMethods.sum());
+        context.stats().add("fakeDispatcherStates", metrics.fakeStates.sum());
     }
 
     @Override
@@ -67,22 +69,12 @@ public class FlowObfuscationTransformer extends Transformer {
     private FlowMetrics apply(ClassPool pool, TransformerConfig config) {
         long configuredSeed = getLongOption(config, "seed", 0L);
         FlowMetrics metrics = new FlowMetrics();
-        ACTIVE_RANDOM.set(new Random(
-                configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed
-        ));
-        ACTIVE_CLASS_KEYS.set(new HashSet<>());
-        ACTIVE_METRICS.set(metrics);
-        try {
-            transformConfigured(pool, config);
-        } finally {
-            ACTIVE_RANDOM.remove();
-            ACTIVE_CLASS_KEYS.remove();
-            ACTIVE_METRICS.remove();
-        }
+        long runSeed = configuredSeed == 0L ? SECURE_RANDOM.nextLong() : configuredSeed;
+        transformConfigured(pool, config, runSeed, metrics);
         return metrics;
     }
 
-    private void transformConfigured(ClassPool pool, TransformerConfig config) {
+    private void transformConfigured(ClassPool pool, TransformerConfig config, long runSeed, FlowMetrics metrics) {
         String mode = config.getOption("mode", "medium").toLowerCase();
         boolean lite = mode.equals("lite");
         boolean medium = mode.equals("medium") || mode.equals("heavy");
@@ -112,12 +104,15 @@ public class FlowObfuscationTransformer extends Transformer {
         );
         boolean includeSynthetic = getBooleanOption(config, "include-synthetic", false);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
+            ACTIVE_RANDOM.set(new Random(runSeed ^ classNode.name.hashCode()));
+            ACTIVE_CLASS_KEYS.set(new HashSet<>());
+            try {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
             if (AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             PredicateClassContext predicateContext = ensurePredicateContext(classNode, predicatePolicy);
@@ -129,6 +124,10 @@ public class FlowObfuscationTransformer extends Transformer {
                 if (method.instructions.size() < minMethodInstructions) continue;
                 if (method.instructions.size() > maxMethodInstructions) continue;
 
+                int methodIndex = classNode.methods.indexOf(method);
+                MethodNode originalMethod = copyMethod(method);
+                FlowMetrics methodMetrics = new FlowMetrics();
+                ACTIVE_METRICS.set(methodMetrics);
                 try {
                     PredicateBudget predicateBudget = new PredicateBudget(predicatePolicy.costBudget());
                     LoopProfile loopProfile = loopProfile(method);
@@ -183,14 +182,28 @@ public class FlowObfuscationTransformer extends Transformer {
                                 maximumOutputInstructions
                         );
                     }
+                    analyzeWithHeadroom(classNode.name, method, true);
+                    metrics.add(methodMetrics);
                     changed = true;
                 } catch (Exception e) {
-                    log("Flow obfuscation failed for {}.{}, skipping: {}", classNode.name, method.name, e.getMessage());
+                    if (methodIndex >= 0) classNode.methods.set(methodIndex, originalMethod);
+                    metrics.skippedMethods.increment();
+                    detail("Kept original bytecode for {}.{} after flow safety check: {}",
+                            classNode.name, method.name, e.getMessage());
                 }
             }
             if (changed) {
                 pool.markDirty(classNode.name);
             }
+            } finally {
+                ACTIVE_RANDOM.remove();
+                ACTIVE_CLASS_KEYS.remove();
+                ACTIVE_METRICS.remove();
+            }
+        });
+        if (metrics.skippedMethods.sum() > 0) {
+            log("Safely retained {} method(s) that were not compatible with the selected flow policy",
+                    metrics.skippedMethods.sum());
         }
     }
 
@@ -617,7 +630,7 @@ public class FlowObfuscationTransformer extends Transformer {
         budget.consume(cost);
         FlowMetrics metrics = ACTIVE_METRICS.get();
         if (metrics != null) {
-            metrics.predicates++;
+            metrics.predicates.increment();
         }
         return new PredicateEmission(instructions, expected, family, cost);
     }
@@ -954,8 +967,7 @@ public class FlowObfuscationTransformer extends Transformer {
             return false;
         }
 
-        Frame<BasicValue>[] frames = new Analyzer<BasicValue>(new BasicInterpreter())
-                .analyze(classContext.owner(), method);
+        Frame<BasicValue>[] frames = analyzeWithHeadroom(classContext.owner(), method, false);
         Map<AbstractInsnNode, Frame<BasicValue>> originalFrames = frameMap(method, frames);
         for (BasicBlock block : blocks) {
             int instructionIndex = method.instructions.indexOf(block.firstExecutable());
@@ -1117,11 +1129,11 @@ public class FlowObfuscationTransformer extends Transformer {
         method.instructions.insertBefore(method.instructions.getFirst(), header);
         FlowMetrics metrics = ACTIVE_METRICS.get();
         if (metrics != null) {
-            metrics.flattenedMethods++;
+            metrics.flattenedMethods.increment();
             if (partial) {
-                metrics.partiallyFlattenedMethods++;
+                metrics.partiallyFlattenedMethods.increment();
             }
-            metrics.fakeStates += fakeCount;
+            metrics.fakeStates.add(fakeCount);
         }
         return true;
     }
@@ -2101,6 +2113,57 @@ public class FlowObfuscationTransformer extends Transformer {
         return random == null ? SECURE_RANDOM : random;
     }
 
+    private Frame<BasicValue>[] analyzeWithHeadroom(String owner, MethodNode method, boolean verify)
+            throws AnalyzerException {
+        int originalMaxStack = Math.max(0, method.maxStack);
+        int headroom = Math.max(64, originalMaxStack + 32);
+        AnalyzerException last = null;
+        while (headroom <= 4096) {
+            method.maxStack = headroom;
+            try {
+                Analyzer<BasicValue> analyzer = verify
+                        ? new Analyzer<>(new BasicVerifier())
+                        : new Analyzer<>(new BasicInterpreter());
+                Frame<BasicValue>[] frames = analyzer.analyze(owner, method);
+                int observed = originalMaxStack;
+                for (Frame<BasicValue> frame : frames) {
+                    if (frame != null) observed = Math.max(observed, frame.getStackSize());
+                }
+                method.maxStack = Math.min(65_535, observed + 8);
+                return frames;
+            } catch (AnalyzerException exception) {
+                last = exception;
+                if (!isInsufficientMaxStack(exception)) {
+                    method.maxStack = originalMaxStack;
+                    throw exception;
+                }
+                headroom *= 2;
+            }
+        }
+        method.maxStack = originalMaxStack;
+        throw last == null ? new AnalyzerException(null, "Could not analyze method") : last;
+    }
+
+    private boolean isInsufficientMaxStack(AnalyzerException exception) {
+        String message = exception.getMessage();
+        return message != null && message.contains("Insufficient maximum stack size");
+    }
+
+    private MethodNode copyMethod(MethodNode source) {
+        String[] exceptions = source.exceptions == null || source.exceptions.isEmpty()
+                ? null
+                : source.exceptions.toArray(new String[0]);
+        MethodNode copy = new MethodNode(
+                source.access,
+                source.name,
+                source.desc,
+                source.signature,
+                exceptions
+        );
+        source.accept(copy);
+        return copy;
+    }
+
     private <E extends Enum<E>> Set<E> orderedEnumSet(Class<E> type, Set<E> values) {
         EnumSet<E> ordered = EnumSet.noneOf(type);
         ordered.addAll(values);
@@ -2188,10 +2251,18 @@ public class FlowObfuscationTransformer extends Transformer {
     }
 
     private static final class FlowMetrics {
-        private int predicates;
-        private int flattenedMethods;
-        private int partiallyFlattenedMethods;
-        private int fakeStates;
+        private final LongAdder predicates = new LongAdder();
+        private final LongAdder flattenedMethods = new LongAdder();
+        private final LongAdder partiallyFlattenedMethods = new LongAdder();
+        private final LongAdder fakeStates = new LongAdder();
+        private final LongAdder skippedMethods = new LongAdder();
+
+        private void add(FlowMetrics other) {
+            predicates.add(other.predicates.sum());
+            flattenedMethods.add(other.flattenedMethods.sum());
+            partiallyFlattenedMethods.add(other.partiallyFlattenedMethods.sum());
+            fakeStates.add(other.fakeStates.sum());
+        }
     }
 
     private boolean getBooleanOption(TransformerConfig config, String key, boolean defaultValue) {

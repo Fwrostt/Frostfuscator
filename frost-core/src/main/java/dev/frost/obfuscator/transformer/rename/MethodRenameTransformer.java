@@ -1,6 +1,5 @@
 package dev.frost.obfuscator.transformer.rename;
 
-import dev.frost.obfuscator.dictionary.Dictionary;
 import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
@@ -23,21 +22,21 @@ public class MethodRenameTransformer extends Transformer {
         String mode = config.getOption("mode", "aggressive").toLowerCase();
         boolean safe = mode.equals("safe");
 
-        Dictionary dictionary = Dictionary.create(config.getDictionary());
-        Map<String, Set<String>> usedNamesPerClass = new HashMap<>();
-        Set<String> reflectiveMethodNames = collectReflectiveMethodNames(pool);
+        MethodNameAllocator names = mappings.methodNames(config.getDictionary(), pool.getClasses());
+        pool.getHierarchy().refreshMethodIndex();
+        Map<String, Set<String>> overrideGroups = new HashMap<>();
+        int renamedMethods = 0;
 
         for (ClassNode classNode : pool.getClasses()) {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
                 continue;
             }
 
-            Set<String> used = usedNamesPerClass.computeIfAbsent(classNode.name, k -> new HashSet<>());
-            for (MethodNode existing : classNode.methods) {
-                used.add(methodKey(existing.name, existing.desc));
-            }
-
             for (MethodNode method : classNode.methods) {
+                if (mappings.isMethodPreserved(classNode.name, method.name, method.desc)) {
+                    continue;
+                }
+
                 if (AccessHelper.isInitializer(method)) {
                     continue;
                 }
@@ -62,9 +61,19 @@ public class MethodRenameTransformer extends Transformer {
                     continue;
                 }
 
-                String overrideKey = classNode.name + "." + method.name + method.desc;
-                Set<String> overrideGroup = pool.getHierarchy().getOverrideGroup(classNode.name, method.name, method.desc);
-                overrideGroup.removeIf(owner -> !shouldProcess(owner, config, pool.getGlobalExclusions(), pool.getGlobalInclusions()));
+                String overrideKey = mappingKey(classNode.name, method.name, method.desc);
+                Set<String> overrideGroup = overrideGroups.get(overrideKey);
+                if (overrideGroup == null) {
+                    Set<String> discovered = pool.getHierarchy().getOverrideGroup(classNode.name, method.name, method.desc);
+                    discovered.removeIf(owner -> pool.isTransformationExcluded(owner)
+                            || pool.getLibraryClasses().containsKey(owner)
+                            || !shouldProcess(owner, config,
+                            pool.getGlobalExclusions(), pool.getGlobalInclusions()));
+                    overrideGroup = Set.copyOf(discovered);
+                    for (String owner : overrideGroup) {
+                        overrideGroups.putIfAbsent(mappingKey(owner, method.name, method.desc), overrideGroup);
+                    }
+                }
                 boolean alreadyMapped = false;
                 for (String member : overrideGroup) {
                     if (mappings.hasMethodMapping(member, method.name, method.desc)) {
@@ -76,31 +85,17 @@ public class MethodRenameTransformer extends Transformer {
                     continue;
                 }
 
-                String newName = generateName(dictionary, used, method.desc);
+                String newName = names.next(overrideGroup, method.desc);
                 if (!newName.equals(method.name)) {
                     for (String member : overrideGroup) {
                         mappings.mapMethod(member, method.name, method.desc, newName);
                     }
-                    log("Renamed method {}.{} -> {}", classNode.name, method.name, newName);
+                    renamedMethods += overrideGroup.size();
                 }
             }
         }
-    }
 
-    private Set<String> collectReflectiveMethodNames(ClassPool pool) {
-        Set<String> names = new HashSet<>();
-        for (ClassNode classNode : pool.getClasses()) {
-            if (classNode.methods == null) continue;
-            for (MethodNode method : classNode.methods) {
-                if (method.instructions == null) continue;
-                for (AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
-                    if (insn instanceof LdcInsnNode ldc && ldc.cst instanceof String value) {
-                        names.add(value);
-                    }
-                }
-            }
-        }
-        return names;
+        log("Collected {} method mapping(s) across {} classes", renamedMethods, names.ownerCount());
     }
 
     private boolean shouldKeepSafe(MethodNode method, ClassNode owner) {
@@ -114,16 +109,7 @@ public class MethodRenameTransformer extends Transformer {
         return false;
     }
 
-    private String generateName(Dictionary dictionary, Set<String> used, String desc) {
-        String name;
-        do {
-            name = dictionary.next();
-        } while (used.contains(methodKey(name, desc)));
-        used.add(methodKey(name, desc));
-        return name;
-    }
-
-    private static String methodKey(String name, String desc) {
-        return name + desc;
+    private static String mappingKey(String owner, String name, String desc) {
+        return owner + "." + name + desc;
     }
 }

@@ -14,6 +14,7 @@ import org.objectweb.asm.tree.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.atomic.LongAdder;
 
 public class VirtualizationTransformer extends Transformer {
 
@@ -47,23 +48,23 @@ public class VirtualizationTransformer extends Transformer {
         ClassPool pool = context.pool();
 
         VirtualizationOptions options = VirtualizationOptions.from(config);
-        Random random = options.seed() > 0 ? new Random(options.seed()) : new Random();
-        OpcodeTable opcodeTable = new OpcodeTable(random);
+        long runSeed = options.seed() > 0 ? options.seed() : new Random().nextLong();
+        OpcodeTable opcodeTable = new OpcodeTable(new Random(runSeed));
 
-        List<ClassNode> classes = new ArrayList<>(pool.getClasses());
-        int virtualizedCount = 0;
-        int skippedUnsupported = 0;
+        LongAdder virtualizedCount = new LongAdder();
+        LongAdder skippedUnsupported = new LongAdder();
 
-        for (ClassNode cn : classes) {
+        pool.forEachClass(cn -> {
             if (isExcluded(cn.name, config, pool.getGlobalExclusions())) {
-                continue;
+                return;
             }
 
+            Random random = new Random(runSeed ^ cn.name.hashCode());
             int methodIndex = 0;
             List<MethodNode> methods = new ArrayList<>(cn.methods);
             for (MethodNode mn : methods) {
                 if (!VirtualizationEligibility.isEligible(cn, mn, options)) {
-                    skippedUnsupported++;
+                    skippedUnsupported.increment();
                     continue;
                 }
 
@@ -98,16 +99,16 @@ public class VirtualizationTransformer extends Transformer {
 
                     rebuildAsStub(cn, mn, bytecodeFieldName, constPoolFieldName, tm);
 
-                    virtualizedCount++;
+                    virtualizedCount.increment();
                     methodIndex++;
                     pool.markDirty(cn.name);
                 } catch (Exception e) {
                     log("Failed to virtualize method {} in class {}: {}", mn.name, cn.name, e.getMessage());
                 }
             }
-        }
+        });
 
-        if (virtualizedCount > 0) {
+        if (virtualizedCount.sum() > 0) {
             StringBuilder sb = new StringBuilder();
             int[] table = opcodeTable.getDecodingTable();
             for (int i = 0; i < 256; i++) {
@@ -139,9 +140,9 @@ public class VirtualizationTransformer extends Transformer {
             }
         }
 
-        context.stats().add("virtualizedMethods", virtualizedCount);
-        context.stats().add("virtualizationSkippedUnsupported", skippedUnsupported);
-        log("Virtualized {} methods ({} unsupported/skipped by safety gate).", virtualizedCount, skippedUnsupported);
+        context.stats().add("virtualizedMethods", virtualizedCount.sum());
+        context.stats().add("virtualizationSkippedUnsupported", skippedUnsupported.sum());
+        log("Virtualized {} methods ({} unsupported/skipped by safety gate).", virtualizedCount.sum(), skippedUnsupported.sum());
     }
 
     private void injectClinitFieldInit(ClassNode cn, String bytecodeFieldName, String constPoolFieldName, BytecodeTranslator.TranslatedMethod tm, VirtualizationOptions options, Random random, MappingCollector mappings) {

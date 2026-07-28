@@ -33,9 +33,9 @@ public class NumberObfuscationTransformer extends Transformer {
         int maxPerMethod = Math.max(0, getIntOption(config, "max-per-method", 96));
         int maxPerClass = Math.max(0, getIntOption(config, "max-per-class", 256));
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             int classSeed = RANDOM.nextInt();
@@ -78,10 +78,10 @@ public class NumberObfuscationTransformer extends Transformer {
                 classNode.methods.add(buildIntDecryptor(classNode.name, intDecryptName, classSeed));
                 classNode.methods.add(buildLongDecryptor(classNode.name, longDecryptName, classSeed));
                 pool.markDirty(classNode.name);
-                log("Obfuscated {} numeric constants in {} (materialized fields: {})",
+                detail("Obfuscated {} numeric constants in {} (materialized fields: {})",
                         changed, classNode.name, materializedFields);
             }
-        }
+        });
     }
 
     private int materializeNumericConstantFields(ClassNode classNode, String intDecryptName,

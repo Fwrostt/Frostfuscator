@@ -13,6 +13,7 @@ public final class LibraryLoadReport {
     private int runtimeClasses;
     private int duplicateClasses;
     private int appShadowedClasses;
+    private int excludedInputClasses;
 
     public void scannedInput(Path path) {
         scannedInputs.add(path);
@@ -35,6 +36,10 @@ public final class LibraryLoadReport {
 
     public void appShadowedClass() {
         appShadowedClasses++;
+    }
+
+    public void excludedInputClass() {
+        excludedInputClasses++;
     }
 
     public void problem(Path path, String message, Throwable cause) {
@@ -73,6 +78,10 @@ public final class LibraryLoadReport {
         return appShadowedClasses;
     }
 
+    public int excludedInputClasses() {
+        return excludedInputClasses;
+    }
+
     public boolean hasProblems() {
         return !problems.isEmpty();
     }
@@ -82,6 +91,7 @@ public final class LibraryLoadReport {
                 + " runtime) from " + libraryArchives.size() + " archives"
                 + ", " + duplicateClasses + " duplicate"
                 + ", " + appShadowedClasses + " shadowed by app"
+                + ", " + excludedInputClasses + " input classes excluded from transforms"
                 + ", " + problems.size() + " problem" + (problems.size() == 1 ? "" : "s");
     }
 

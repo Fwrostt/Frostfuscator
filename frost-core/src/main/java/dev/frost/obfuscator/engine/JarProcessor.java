@@ -35,16 +35,44 @@ import java.util.regex.Pattern;
 
 public class JarProcessor {
 
+    private static final Object RUNTIME_CACHE_LOCK = new Object();
+    private static volatile Map<String, ClassNode> runtimeClassCache;
+
+    /**
+     * Releases parsed JDK class stubs after an interactive build becomes idle.
+     * CLI processes normally exit after one build, while the desktop application
+     * must not retain this archive-sized cache for the rest of its lifetime.
+     *
+     * @return the number of cached runtime classes released
+     */
+    public static int releaseRuntimeClassCache() {
+        synchronized (RUNTIME_CACHE_LOCK) {
+            Map<String, ClassNode> cached = runtimeClassCache;
+            runtimeClassCache = null;
+            return cached == null ? 0 : cached.size();
+        }
+    }
+
     private final Map<String, byte[]> resources = new LinkedHashMap<>();
     private final Map<String, byte[]> originalClassBytes = new LinkedHashMap<>();
     private final Map<String, byte[]> preFlowClassBytes = new LinkedHashMap<>();
     private final Set<String> runtimeChecksumClasses = new LinkedHashSet<>();
     private Manifest manifest;
     private String detectedMainClass;
+    private final Set<String> detectedDescriptorEntrypoints = new LinkedHashSet<>();
     private final Set<String> detectedFabricEntrypoints = new LinkedHashSet<>();
     private final List<String> detectedFabricMixins = new ArrayList<>();
     private boolean isFabricMod = false;
     private final Map<String, NestedJarData> nestedJars = new LinkedHashMap<>();
+    private final BuildCancellation cancellation;
+
+    public JarProcessor() {
+        this(new BuildCancellation());
+    }
+
+    public JarProcessor(BuildCancellation cancellation) {
+        this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
+    }
 
     public static class NestedJarData {
         public String resourcePath;
@@ -76,6 +104,7 @@ public class JarProcessor {
                 nestedData.innerManifest = jis.getManifest();
                 java.util.jar.JarEntry entry;
                 while ((entry = jis.getNextJarEntry()) != null) {
+                    cancellation.throwIfCancelled();
                     byte[] data = jis.readAllBytes();
                     if (entry.getName().endsWith(".class")) {
                         try {
@@ -85,6 +114,7 @@ public class JarProcessor {
                             reader.accept(classNode, ClassReader.EXPAND_FRAMES);
                             originalClassBytes.put(classNode.name, data);
                             pool.addClass(classNode.name, classNode);
+                            pool.excludeFromTransformation(classNode.name, "nested library JAR");
                             nestedData.classNameToPath.put(classNode.name, entry.getName());
                         } catch (Exception ignored) {}
                     } else if (!entry.getName().equals("META-INF/MANIFEST.MF")) {
@@ -96,6 +126,8 @@ public class JarProcessor {
                 nestedJars.put(resourcePath, nestedData);
                 Logger.info("Unpacked nested Fat JAR {} with {} classes", resourcePath, nestedData.classNameToPath.size());
             }
+        } catch (java.util.concurrent.CancellationException cancellationException) {
+            throw cancellationException;
         } catch (Exception exception) {
             Logger.warn("Failed to unpack nested Fat JAR {}: {}", resourcePath, exception.getMessage());
         }
@@ -132,12 +164,14 @@ public class JarProcessor {
 
     private void repackNestedJars(ClassPool pool) throws IOException {
         for (NestedJarData nestedData : nestedJars.values()) {
+            cancellation.throwIfCancelled();
             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
             try (java.util.jar.JarOutputStream jos = nestedData.innerManifest != null
                     ? new java.util.jar.JarOutputStream(baos, nestedData.innerManifest)
                     : new java.util.jar.JarOutputStream(baos)) {
 
                 for (Map.Entry<String, String> entry : nestedData.classNameToPath.entrySet()) {
+                    cancellation.throwIfCancelled();
                     String className = entry.getKey();
                     String innerPath = entry.getValue();
 
@@ -156,6 +190,7 @@ public class JarProcessor {
                 }
 
                 for (Map.Entry<String, byte[]> resEntry : nestedData.innerResources.entrySet()) {
+                    cancellation.throwIfCancelled();
                     java.util.jar.JarEntry jarEntry = new java.util.jar.JarEntry(resEntry.getKey());
                     jos.putNextEntry(jarEntry);
                     jos.write(resEntry.getValue());
@@ -177,6 +212,16 @@ public class JarProcessor {
 
     public List<String> getDetectedFabricMixins() {
         return Collections.unmodifiableList(detectedFabricMixins);
+    }
+
+    public Set<String> getDetectedEntrypoints() {
+        Set<String> entrypoints = new LinkedHashSet<>();
+        if (detectedMainClass != null && !detectedMainClass.isBlank()) entrypoints.add(detectedMainClass);
+        String manifestMain = getManifestMainClass();
+        if (manifestMain != null && !manifestMain.isBlank()) entrypoints.add(manifestMain);
+        entrypoints.addAll(detectedFabricEntrypoints);
+        entrypoints.addAll(detectedDescriptorEntrypoints);
+        return Collections.unmodifiableSet(entrypoints);
     }
 
     public Map<String, byte[]> getResources() {
@@ -220,6 +265,7 @@ public class JarProcessor {
 
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
+                cancellation.throwIfCancelled();
                 JarEntry entry = entries.nextElement();
                 byte[] data;
                 try (InputStream is = jarFile.getInputStream(entry)) {
@@ -266,6 +312,7 @@ public class JarProcessor {
         }
 
         for (Path input : options.paths()) {
+            cancellation.throwIfCancelled();
             Path normalized = input.toAbsolutePath().normalize();
             report.scannedInput(normalized);
             if (!Files.exists(normalized)) {
@@ -294,6 +341,31 @@ public class JarProcessor {
         return report;
     }
 
+    /**
+     * Drops method bodies for input classes that will be copied byte-for-byte. Their structural
+     * signatures remain available for hierarchy and override analysis, while large shaded JARs
+     * no longer retain millions of dependency instructions in memory during transformation.
+     */
+    public int compactTransformationExcludedClasses(ClassPool pool) {
+        int compacted = 0;
+        for (String className : pool.getTransformationExclusions().keySet()) {
+            cancellation.throwIfCancelled();
+            ClassNode compact = pool.getLibraryClasses().get(className);
+            if (compact == null) {
+                byte[] original = originalClassBytes.get(className);
+                if (original == null) continue;
+                try {
+                    compact = readLibraryClass(original);
+                } catch (RuntimeException ignored) {
+                    continue;
+                }
+            }
+            pool.getClassMap().put(className, compact);
+            compacted++;
+        }
+        return compacted;
+    }
+
     public void loadLibraries(ClassPool pool, Path libsPath) throws IOException {
         loadLibraries(pool, new LibraryOptions(List.of(libsPath), false, false, false));
     }
@@ -305,6 +377,7 @@ public class JarProcessor {
                     .filter(this::isArchive)
                     .sorted()
                     .toList()) {
+                cancellation.throwIfCancelled();
                 loadLibraryArchive(pool, archive, report);
             }
         } catch (IOException exception) {
@@ -317,6 +390,7 @@ public class JarProcessor {
         try (JarFile jarFile = new JarFile(jarPath.toFile())) {
             var entries = jarFile.entries();
             while (entries.hasMoreElements()) {
+                cancellation.throwIfCancelled();
                 JarEntry entry = entries.nextElement();
                 if (isClassEntry(entry.getName())) {
                     try (InputStream is = jarFile.getInputStream(entry)) {
@@ -333,38 +407,67 @@ public class JarProcessor {
     }
 
     private void loadRuntimeClasses(ClassPool pool, LibraryLoadReport report) {
+        Map<String, ClassNode> cached = runtimeClassCache;
+        if (cached == null) {
+            synchronized (RUNTIME_CACHE_LOCK) {
+                cached = runtimeClassCache;
+                if (cached == null) {
+                    cached = scanRuntimeClasses(report);
+                    runtimeClassCache = cached;
+                }
+            }
+        }
+        for (Map.Entry<String, ClassNode> entry : cached.entrySet()) {
+            cancellation.throwIfCancelled();
+            if (pool.contains(entry.getKey())) {
+                report.appShadowedClass();
+            } else if (pool.getLibraryClasses().containsKey(entry.getKey())) {
+                report.duplicateClass();
+            } else {
+                pool.addLibraryClass(entry.getKey(), entry.getValue());
+                report.loadedClass(true);
+            }
+        }
+    }
+
+    private Map<String, ClassNode> scanRuntimeClasses(LibraryLoadReport report) {
+        Map<String, ClassNode> classes = new LinkedHashMap<>();
         try {
             FileSystem jrt = FileSystems.getFileSystem(URI.create("jrt:/"));
             Path modules = jrt.getPath("/modules");
             try (var stream = Files.walk(modules)) {
-                for (Path classFile : stream
+                Iterator<Path> paths = stream
                         .filter(Files::isRegularFile)
                         .filter(path -> isClassEntry(path.toString()))
-                        .toList()) {
+                        .iterator();
+                while (paths.hasNext()) {
+                    cancellation.throwIfCancelled();
+                    Path classFile = paths.next();
                     try {
-                        addLibraryClass(pool, Files.readAllBytes(classFile), true, report);
+                        ClassNode classNode = readLibraryClass(Files.readAllBytes(classFile));
+                        classes.putIfAbsent(classNode.name, classNode);
                     } catch (Exception exception) {
                         report.problem(classFile, "failed to read runtime class", exception);
                     }
                 }
             }
+        } catch (java.util.concurrent.CancellationException cancellationException) {
+            throw cancellationException;
         } catch (Exception exception) {
             Path javaHome = Paths.get(System.getProperty("java.home", ""));
             report.problem(javaHome, "failed to scan Java runtime modules", exception);
         }
+        return Collections.unmodifiableMap(classes);
     }
 
     private void addLibraryClass(ClassPool pool, byte[] data, boolean runtime, LibraryLoadReport report) {
-        try {
-            ClassFileVersion.requireSupported(data, "Library class");
-        } catch (IOException exception) {
-            throw new IllegalArgumentException(exception.getMessage(), exception);
-        }
-        ClassReader reader = new ClassReader(data);
-        ClassNode classNode = new ClassNode();
-        reader.accept(classNode, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        ClassNode classNode = readLibraryClass(data);
         if (pool.contains(classNode.name)) {
             report.appShadowedClass();
+            if (!runtime && pool.excludeFromTransformation(classNode.name, "supplied library archive")) {
+                report.excludedInputClass();
+            }
+            pool.getLibraryClasses().putIfAbsent(classNode.name, classNode);
             return;
         }
         if (pool.getLibraryClasses().containsKey(classNode.name)) {
@@ -373,6 +476,18 @@ public class JarProcessor {
         }
         pool.addLibraryClass(classNode.name, classNode);
         report.loadedClass(runtime);
+    }
+
+    private ClassNode readLibraryClass(byte[] data) {
+        try {
+            ClassFileVersion.requireSupported(data, "Library class");
+        } catch (IOException exception) {
+            throw new IllegalArgumentException(exception.getMessage(), exception);
+        }
+        ClassReader reader = new ClassReader(data);
+        ClassNode classNode = new ClassNode();
+        reader.accept(classNode, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        return classNode;
     }
 
     private boolean isArchive(Path path) {
@@ -388,24 +503,48 @@ public class JarProcessor {
 
     @SuppressWarnings("unchecked")
     private void detectMainClass() {
-        byte[] pluginYml = resources.get("plugin.yml");
-        if (pluginYml == null) {
-            pluginYml = resources.get("paper-plugin.yml");
-        }
-
-        if (pluginYml != null) {
+        for (String descriptor : List.of("plugin.yml", "paper-plugin.yml", "bungee.yml")) {
+            byte[] yamlBytes = resources.get(descriptor);
+            if (yamlBytes == null) continue;
             try {
                 Yaml yaml = new Yaml();
-                Map<String, Object> data = yaml.load(new String(pluginYml, StandardCharsets.UTF_8));
-                if (data != null && data.containsKey("main")) {
-                    detectedMainClass = data.get("main").toString();
+                Map<String, Object> data = yaml.load(new String(yamlBytes, StandardCharsets.UTF_8));
+                if (data != null) {
+                    for (String key : List.of("main", "bootstrapper", "loader")) {
+                        Object value = data.get(key);
+                        if (value != null && !value.toString().isBlank()) {
+                            detectedDescriptorEntrypoints.add(value.toString().trim());
+                            if (detectedMainClass == null && key.equals("main")) {
+                                detectedMainClass = value.toString().trim();
+                            }
+                        }
+                    }
                 }
             } catch (Exception e) {
-                Logger.warn("Failed to parse plugin.yml for main class detection");
+                Logger.warn("Failed to parse {} for entrypoint detection", descriptor);
             }
         }
 
+        detectJsonEntrypoint("velocity-plugin.json", "main");
+
         detectFabricMod();
+    }
+
+    private void detectJsonEntrypoint(String resource, String key) {
+        byte[] bytes = resources.get(resource);
+        if (bytes == null) return;
+        try {
+            JsonObject object = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (object.has(key) && object.get(key).isJsonPrimitive()) {
+                String value = object.get(key).getAsString().trim();
+                if (!value.isBlank()) {
+                    detectedDescriptorEntrypoints.add(value);
+                    if (detectedMainClass == null) detectedMainClass = value;
+                }
+            }
+        } catch (RuntimeException exception) {
+            Logger.warn("Failed to parse {} for entrypoint detection", resource);
+        }
     }
 
     private void detectFabricMod() {
@@ -691,7 +830,8 @@ public class JarProcessor {
      * invalid frames due to structurally complex bytecode from flow transforms.
      */
     public void snapshotPreFlowClasses(ClassPool pool) {
-        for (Map.Entry<String, ClassNode> entry : pool.getClassMap().entrySet()) {
+        for (ClassNode classNode : pool.getClasses()) {
+            cancellation.throwIfCancelled();
             try {
                 ClassWriter w = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
                     @Override
@@ -699,8 +839,8 @@ public class JarProcessor {
                         return "java/lang/Object";
                     }
                 };
-                entry.getValue().accept(w);
-                preFlowClassBytes.put(entry.getKey(), w.toByteArray());
+                classNode.accept(w);
+                preFlowClassBytes.put(classNode.name, w.toByteArray());
             } catch (Exception e) {
                 // Pre-flow snapshot failed; no fallback for this class.
             }
@@ -708,21 +848,33 @@ public class JarProcessor {
         Logger.info("Saved pre-flow snapshots for {} classes", preFlowClassBytes.size());
     }
 
-    public void writeJar(ClassPool pool, Path outputPath) throws IOException {
-        Path parent = outputPath.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
+    /**
+     * Returns a defensive copy of the class bytes captured before flow transforms ran.
+     */
+    public byte[] getPreFlowClassBytes(String className) {
+        byte[] bytes = preFlowClassBytes.get(className);
+        return bytes == null ? null : bytes.clone();
+    }
 
-        try (JarOutputStream jos = manifest != null
-                ? new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(outputPath)), manifest)
-                : new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(outputPath)))) {
+    public void writeJar(ClassPool pool, Path outputPath) throws IOException {
+        Path target = outputPath.toAbsolutePath().normalize();
+        Path parent = target.getParent();
+        if (parent == null) throw new IOException("Output path has no parent: " + target);
+        Files.createDirectories(parent);
+        Path temporary = Files.createTempFile(parent, "." + target.getFileName() + "-", ".tmp");
+        boolean committed = false;
+
+        try {
+            try (JarOutputStream jos = manifest != null
+                    ? new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary)), manifest)
+                    : new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary)))) {
 
             Map<String, byte[]> writtenClassBytes = runtimeChecksumClasses.isEmpty()
                     ? Map.of()
                     : new LinkedHashMap<>();
 
             for (Map.Entry<String, ClassNode> entry : pool.getClassMap().entrySet()) {
+                cancellation.throwIfCancelled();
                 ClassNode classNode = entry.getValue();
                 if (isNestedClass(classNode.name)) {
                     continue;
@@ -855,14 +1007,27 @@ public class JarProcessor {
             }
 
             for (Map.Entry<String, byte[]> entry : resources.entrySet()) {
+                cancellation.throwIfCancelled();
                 JarEntry jarEntry = new JarEntry(entry.getKey());
                 jos.putNextEntry(jarEntry);
                 jos.write(entry.getValue());
                 jos.closeEntry();
             }
+            }
+
+            cancellation.throwIfCancelled();
+            try {
+                Files.move(temporary, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            committed = true;
+        } finally {
+            if (!committed) Files.deleteIfExists(temporary);
         }
 
-        Logger.info("Written protected jar to {}", outputPath);
+        Logger.info("Written protected jar to {}", target);
     }
 
     private byte[] buildRuntimeChecksumIndex(Map<String, byte[]> classBytes) throws IOException {

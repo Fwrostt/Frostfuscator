@@ -10,8 +10,8 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ParameterEncryptionTransformer extends Transformer {
 
@@ -30,26 +30,29 @@ public class ParameterEncryptionTransformer extends Transformer {
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
         int probability = clamp(getIntOption(config, "probability", 30), 0, 100);
-        Map<String, Integer> keys = new HashMap<>();
+        Map<String, Integer> keys = new ConcurrentHashMap<>();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
+            boolean[] changed = {false};
             for (MethodNode method : classNode.methods) {
                 if (canEncrypt(method) && RANDOM.nextInt(100) < probability) {
                     int key = nonZeroRandom();
                     keys.put(methodKey(classNode.name, method.name, method.desc), key);
                     insertDecode(method, key);
+                    changed[0] = true;
                 }
             }
-        }
+            if (changed[0]) pool.markDirty(classNode.name);
+        });
 
         if (keys.isEmpty()) return;
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             int changed = 0;
@@ -74,9 +77,9 @@ public class ParameterEncryptionTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Encrypted {} single-int call arguments in {}", changed, classNode.name);
+                detail("Encrypted {} single-int call arguments in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean canEncrypt(MethodNode method) {

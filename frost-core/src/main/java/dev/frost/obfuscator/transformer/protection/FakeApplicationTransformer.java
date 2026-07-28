@@ -63,6 +63,7 @@ public class FakeApplicationTransformer extends Transformer {
                 String internal = unique(reserved, pkg + "/" + simple);
                 ClassNode node = buildClass(internal, profile, randomRange(random, minMethods, maxMethods), randomRange(random, minFields, maxFields), random);
                 context.pool().addClass(internal, node);
+                context.pool().markGeneratedDecoy(internal);
                 context.pool().markDirty(internal);
                 generated++;
             }

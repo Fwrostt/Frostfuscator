@@ -28,9 +28,9 @@ public class StackManipulationTransformer extends Transformer {
         int probability = clamp(getIntOption(config, "probability", 8), 0, 100);
         int maxPerMethod = Math.max(0, getIntOption(config, "max-per-method", 16));
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             int changed = 0;
@@ -53,9 +53,9 @@ public class StackManipulationTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Inserted {} stack manipulation sequences in {}", changed, classNode.name);
+                detail("Inserted {} stack manipulation sequences in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean isSafeAnchor(AbstractInsnNode insn) {

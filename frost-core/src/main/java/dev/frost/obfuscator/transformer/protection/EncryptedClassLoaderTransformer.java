@@ -135,6 +135,16 @@ public class EncryptedClassLoaderTransformer extends Transformer {
                 continue;
             }
 
+            // Generated decoy classes are never runtime dependencies. Keeping them outside the
+            // encrypted database also prevents intentionally hostile decoy bytecode from making
+            // the loader's strict frame computation abort an otherwise valid protection run.
+            if (classNode.name.startsWith("__frost/") || context.pool().isGeneratedDecoy(classNode.name)
+                    || context.pool().isGeneratedDecoy(context.pool().getOriginalName(classNode.name))
+                    || isGeneratedDecoy(classNode)) {
+                skippedCount++;
+                continue;
+            }
+
             // Exclude plugin main class and its signature dependencies
             if (pluginMainExclusions.contains(classNode.name)) {
                 skippedCount++;
@@ -168,15 +178,11 @@ public class EncryptedClassLoaderTransformer extends Transformer {
             }
 
             try {
-                // Compile class node to bytes
-                ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
-                    @Override
-                    protected String getCommonSuperClass(String type1, String type2) {
-                        return "java/lang/Object"; // Safe fallback
-                    }
-                };
-                classNode.accept(writer);
-                byte[] classBytes = writer.toByteArray();
+                byte[] classBytes = compileClass(context, classNode);
+                if (classBytes == null) {
+                    skippedCount++;
+                    continue;
+                }
 
                 String classNameDot = classNode.name.replace('/', '.');
                 byte[] payload = compressClasses ? compress(classBytes) : classBytes;
@@ -435,12 +441,42 @@ public class EncryptedClassLoaderTransformer extends Transformer {
         return Arrays.copyOf(full, 16);
     }
 
+    private byte[] compileClass(Context context, ClassNode classNode) {
+        try {
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
+                @Override
+                protected String getCommonSuperClass(String type1, String type2) {
+                    return "java/lang/Object";
+                }
+            };
+            classNode.accept(writer);
+            return writer.toByteArray();
+        } catch (RuntimeException frameFailure) {
+            byte[] snapshot = context.jar().getPreFlowClassBytes(classNode.name);
+            if (snapshot == null) {
+                Logger.warn("[classloader-encryption] Frame computation failed for {} ({}); "
+                                + "leaving this class unencrypted instead of aborting the build",
+                        classNode.name, frameFailure.toString());
+                return null;
+            }
+            Logger.warn("[classloader-encryption] Frame computation failed for {} ({}); "
+                            + "encrypting its verified pre-flow snapshot",
+                    classNode.name, frameFailure.toString());
+            return snapshot;
+        }
+    }
+
     private byte[] compress(byte[] classBytes) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream(classBytes.length);
         try (DeflaterOutputStream deflater = new DeflaterOutputStream(output)) {
             deflater.write(classBytes);
         }
         return output.toByteArray();
+    }
+
+    private boolean isGeneratedDecoy(ClassNode classNode) {
+        return classNode.invisibleAnnotations != null && classNode.invisibleAnnotations.stream()
+                .anyMatch(annotation -> FakeClassTransformer.DECOY_MARKER.equals(annotation.desc));
     }
 
     private String packageName(String internalName) {

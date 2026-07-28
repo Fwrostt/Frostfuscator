@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * String constant encryption.
@@ -61,20 +62,20 @@ public class StringEncryptionTransformer extends Transformer {
     private void transformInternal(ClassPool pool, MappingCollector mappings,
                                    TransformerConfig config, Context context) {
         String mode = config.getOption("mode", "medium").toLowerCase();
-        long encrypted = 0;
-        long materialized = 0;
+        LongAdder encrypted = new LongAdder();
+        LongAdder materialized = new LongAdder();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             if (AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             int materializedConstants = materializeStringConstantFields(classNode);
-            materialized += materializedConstants;
+            materialized.add(materializedConstants);
             int minLength = getIntOption(config, "min-length", 1);
             int maxMethodInstructions = getIntOption(config, "max-method-instructions", 6000);
             List<StringContext> contexts = collectStrings(classNode, minLength, maxMethodInstructions);
@@ -82,7 +83,7 @@ public class StringEncryptionTransformer extends Transformer {
                 if (materializedConstants > 0) {
                     pool.markDirty(classNode.name);
                 }
-                continue;
+                return;
             }
 
             switch (mode) {
@@ -95,13 +96,13 @@ public class StringEncryptionTransformer extends Transformer {
             }
 
             pool.markDirty(classNode.name);
-            encrypted += contexts.size();
-            log("Encrypted {} strings in {} (mode: {}, materialized fields: {})",
+            encrypted.add(contexts.size());
+            detail("Encrypted {} strings in {} (mode: {}, materialized fields: {})",
                     contexts.size(), classNode.name, mode, materializedConstants);
-        }
+        });
         if (context != null) {
-            context.stats().add("encryptedStrings", encrypted);
-            context.stats().add("materializedStringFields", materialized);
+            context.stats().add("encryptedStrings", encrypted.sum());
+            context.stats().add("materializedStringFields", materialized.sum());
         }
     }
 
@@ -241,14 +242,18 @@ public class StringEncryptionTransformer extends Transformer {
     private void injectAntiTamperCheck(ClassNode classNode, InsnList il) {
         String expectedClassName = classNode.name.replace('/', '.');
         LabelNode safeLabel = new LabelNode(new Label());
+        LabelNode inspectCaller = new LabelNode(new Label());
 
         il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Thread", "getStackTrace", "()[Ljava/lang/StackTraceElement;", false));
         il.add(new InsnNode(Opcodes.DUP));
         il.add(new InsnNode(Opcodes.ARRAYLENGTH));
         il.add(new InsnNode(Opcodes.ICONST_2));
-        il.add(new JumpInsnNode(Opcodes.IF_ICMPLT, safeLabel));
+        il.add(new JumpInsnNode(Opcodes.IF_ICMPGE, inspectCaller));
+        il.add(new InsnNode(Opcodes.POP));
+        il.add(new JumpInsnNode(Opcodes.GOTO, safeLabel));
 
+        il.add(inspectCaller);
         il.add(new InsnNode(Opcodes.ICONST_2));
         il.add(new InsnNode(Opcodes.AALOAD));
         il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/StackTraceElement", "getClassName", "()Ljava/lang/String;", false));

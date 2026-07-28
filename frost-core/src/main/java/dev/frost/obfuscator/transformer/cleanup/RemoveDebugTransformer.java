@@ -28,9 +28,9 @@ public class RemoveDebugTransformer extends Transformer {
         boolean removeLocalVariables = getBooleanOption(config, "remove-local-variables", true);
         boolean removeParameters = getBooleanOption(config, "remove-parameters", true);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
             boolean changed = false;
 
@@ -84,7 +84,7 @@ public class RemoveDebugTransformer extends Transformer {
             if (changed) {
                 pool.markDirty(classNode.name);
             }
-        }
+        });
     }
 
     private boolean getBooleanOption(TransformerConfig config, String key, boolean defaultValue) {

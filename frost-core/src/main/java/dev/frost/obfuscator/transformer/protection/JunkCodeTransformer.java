@@ -9,6 +9,7 @@ import java.security.SecureRandom;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 public class JunkCodeTransformer extends Transformer {
 
@@ -39,16 +40,17 @@ public class JunkCodeTransformer extends Transformer {
         if (seed == 0L) {
             seed = SECURE_RANDOM.nextLong();
         }
-        Random random = new Random(seed);
-        int touched = 0;
-        int members = 0;
+        long runSeed = seed;
+        LongAdder touched = new LongAdder();
+        LongAdder members = new LongAdder();
 
-        for (ClassNode classNode : context.pool().getClasses()) {
+        context.pool().forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())
                     || (classNode.access & (Opcodes.ACC_INTERFACE | Opcodes.ACC_ANNOTATION)) != 0) {
-                continue;
+                return;
             }
 
+            Random random = new Random(runSeed ^ classNode.name.hashCode());
             Set<String> names = existingNames(classNode);
             int fieldsPerClass = randomRange(random, minFields, maxFields);
             int methodsPerClass = randomRange(random, minMethods, maxMethods);
@@ -61,23 +63,23 @@ public class JunkCodeTransformer extends Transformer {
                         null,
                         Integer.toHexString(random.nextInt())
                 ));
-                members++;
+                members.increment();
             }
             for (int i = 0; i < methodsPerClass; i++) {
                 String name = uniqueName(names, random);
                 classNode.methods.add(junkMethod(name, random));
-                members++;
+                members.increment();
             }
 
             if (fieldsPerClass + methodsPerClass > 0) {
                 context.pool().markDirty(classNode.name);
-                touched++;
+                touched.increment();
             }
-        }
+        });
 
-        context.stats().add("junkCodeClasses", touched);
-        context.stats().add("junkCodeMembers", members);
-        log("Added {} junk members to {} classes", members, touched);
+        context.stats().add("junkCodeClasses", touched.sum());
+        context.stats().add("junkCodeMembers", members.sum());
+        log("Added {} junk members to {} classes", members.sum(), touched.sum());
     }
 
     private MethodNode junkMethod(String name, Random random) {

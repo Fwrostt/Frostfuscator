@@ -4,6 +4,8 @@ import dev.frost.obfuscator.config.ConfigLoader;
 import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.engine.ObfuscationEngine;
 import dev.frost.obfuscator.engine.ProtectionStats;
+import dev.frost.obfuscator.engine.BuildCancellation;
+import dev.frost.obfuscator.engine.JarProcessor;
 import dev.frost.obfuscator.gui.analysis.BuildAnalytics;
 import dev.frost.obfuscator.gui.analysis.JarAnalyzer;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
@@ -21,6 +23,7 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 public final class BuildController implements AutoCloseable {
+    private static final int AUTOMATIC_POST_BUILD_ANALYSIS_CLASS_LIMIT = 2_000;
     private final ProjectState state;
     private final ConfigurationBinder binder;
     private final ConsoleModel console;
@@ -32,6 +35,8 @@ public final class BuildController implements AutoCloseable {
         return thread;
     });
     private Future<?> running;
+    private BuildCancellation cancellation;
+    private volatile Thread buildThread;
 
     public BuildController(ProjectState state, ConfigurationBinder binder, ConsoleModel console,
                            ProjectValidator validator, JarAnalyzer analyzer) {
@@ -83,24 +88,39 @@ public final class BuildController implements AutoCloseable {
             updateProgress(line);
         };
         Logger.addListener(listener);
+        BuildCancellation buildCancellation = new BuildCancellation();
+        cancellation = buildCancellation;
         running = executor.submit(() -> {
+            buildThread = Thread.currentThread();
             try {
                 ConfigLoader.validate(config);
+                buildCancellation.throwIfCancelled();
                 Platform.runLater(() -> state.buildStatusProperty().set("Protecting classes"));
-                ProjectAnalysis inputAnalysis = state.analysis().analyzed()
-                        ? state.analysis() : analyzer.analyze(java.nio.file.Path.of(config.getInput()));
-                ProtectionStats stats = new ObfuscationEngine(config, null).run();
+                ProjectAnalysis inputAnalysis = state.analysis();
+                ProtectionStats stats = new ObfuscationEngine(config, null, buildCancellation).run();
+                buildCancellation.throwIfCancelled();
                 Duration duration = Duration.between(started, LocalDateTime.now());
                 BuildAnalytics measuredAnalytics;
-                try {
-                    ProjectAnalysis outputAnalysis = analyzer.analyze(java.nio.file.Path.of(config.getOutput()));
-                    measuredAnalytics = BuildAnalytics.compare(inputAnalysis, outputAnalysis,
-                            duration, stats.counters(), config);
-                } catch (Exception analyticsFailure) {
+                if (inputAnalysis.analyzed()
+                        && inputAnalysis.classCount() <= AUTOMATIC_POST_BUILD_ANALYSIS_CLASS_LIMIT) {
+                    try {
+                        ProjectAnalysis outputAnalysis = analyzer.analyze(java.nio.file.Path.of(config.getOutput()));
+                        buildCancellation.throwIfCancelled();
+                        measuredAnalytics = BuildAnalytics.compare(inputAnalysis, outputAnalysis,
+                                duration, stats.counters(), config);
+                    } catch (Exception analyticsFailure) {
+                        measuredAnalytics = BuildAnalytics.empty();
+                        console.append(LogEntry.Level.WARNING,
+                                "Build completed, but post-build analytics could not inspect the output: "
+                                        + analyticsFailure.getMessage());
+                    }
+                } else {
                     measuredAnalytics = BuildAnalytics.empty();
-                    console.append(LogEntry.Level.WARNING,
-                            "Build completed, but post-build analytics could not inspect the output: "
-                                    + analyticsFailure.getMessage());
+                    if (inputAnalysis.analyzed()) {
+                        console.append(LogEntry.Level.INFO,
+                                "Skipped the automatic second full-archive scan for this large JAR; "
+                                        + "open Project Analytics when you need a refreshed deep report.");
+                    }
                 }
                 BuildAnalytics analytics = measuredAnalytics;
                 Platform.runLater(() -> {
@@ -124,7 +144,7 @@ public final class BuildController implements AutoCloseable {
             } catch (CancellationException exception) {
                 finishCancelled(started);
             } catch (Throwable throwable) {
-                if (Thread.currentThread().isInterrupted()) {
+                if (buildCancellation.isCancelled() || Thread.currentThread().isInterrupted()) {
                     finishCancelled(started);
                 } else {
                     Duration duration = Duration.between(started, LocalDateTime.now());
@@ -135,13 +155,33 @@ public final class BuildController implements AutoCloseable {
                         state.buildHistory().add(0, new BuildRecord(LocalDateTime.now(), BuildRecord.Status.FAILED,
                                 state.outputPath(), duration, throwable.getMessage()));
                     });
-                    console.append(LogEntry.Level.ERROR,
-                            "Build failed: " + (throwable.getMessage() == null ? throwable : throwable.getMessage()));
+                    Logger.error("Build failed", throwable);
                 }
             } finally {
                 Logger.removeListener(listener);
+                synchronized (this) {
+                    if (cancellation == buildCancellation) cancellation = null;
+                }
+                buildThread = null;
+                scheduleIdleMemoryCleanup();
             }
         });
+    }
+
+    private void scheduleIdleMemoryCleanup() {
+        try {
+            executor.execute(() -> {
+                int releasedRuntimeClasses = JarProcessor.releaseRuntimeClassCache();
+                System.gc();
+                if (releasedRuntimeClasses > 0) {
+                    console.append(LogEntry.Level.INFO,
+                            "Released " + releasedRuntimeClasses
+                                    + " cached runtime class stubs after the build.");
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            JarProcessor.releaseRuntimeClassCache();
+        }
     }
 
     private void finishCancelled(LocalDateTime started) {
@@ -153,7 +193,7 @@ public final class BuildController implements AutoCloseable {
             state.buildHistory().add(0, new BuildRecord(LocalDateTime.now(), BuildRecord.Status.CANCELLED,
                     state.outputPath(), duration, "Cancelled by user"));
         });
-        console.append(LogEntry.Level.WARNING, "Build cancellation requested.");
+        console.append(LogEntry.Level.WARNING, "Build cancelled.");
     }
 
     private void updateProgress(String line) {
@@ -190,8 +230,10 @@ public final class BuildController implements AutoCloseable {
 
     public synchronized void cancel() {
         if (running != null && !running.isDone()) {
-            state.buildStatusProperty().set("Cancelling");
-            running.cancel(true);
+            state.buildStatusProperty().set("Cancelling…");
+            if (cancellation != null) cancellation.cancel();
+            Thread thread = buildThread;
+            if (thread != null) thread.interrupt();
         }
     }
 

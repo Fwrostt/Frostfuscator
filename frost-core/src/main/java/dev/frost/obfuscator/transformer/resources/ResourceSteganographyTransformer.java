@@ -42,13 +42,15 @@ public final class ResourceSteganographyTransformer extends Transformer {
         boolean removeOriginals = booleanOption(context, "remove-originals", true);
         Set<String> extensions = extensions(context.config().getOption(
                 "extensions", "json,yml,yaml,properties,xml,conf,cfg,ini,key,pem"));
+        Set<String> preservedPackages = ResourceCompatibility.preservedPackages(context);
         List<String> index = new ArrayList<>();
         int hidden = 0;
         long carrierBytes = 0;
 
         for (Map.Entry<String, byte[]> entry : new ArrayList<>(context.resources().entrySet())) {
             String name = entry.getKey();
-            if (!eligible(name, extensions)) continue;
+            if (!eligible(name, extensions)
+                    || ResourceCompatibility.isPreservedLibraryResource(name, preservedPackages)) continue;
             try {
                 byte[] carrier = carrier(entry.getValue(), password);
                 String path = "META-INF/frostfuscator/stego/" + shortHash(name) + ".png";

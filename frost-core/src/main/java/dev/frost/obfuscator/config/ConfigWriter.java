@@ -62,7 +62,15 @@ public final class ConfigWriter {
         Map<String, Object> mapping = new LinkedHashMap<>();
         mapping.put("enabled", config.getMapping().isEnabled());
         mapping.put("output", config.getMapping().getOutput());
+        mapping.put("encrypted", config.getMapping().isEncrypted());
+        mapping.put("passwordEnvironment", config.getMapping().getPasswordEnvironment());
         root.put("mapping", mapping);
+
+        Map<String, Object> performance = new LinkedHashMap<>();
+        performance.put("parallel", config.getPerformance().isParallel());
+        performance.put("parallelism", config.getPerformance().getParallelism());
+        performance.put("minimumClasses", config.getPerformance().getMinimumClasses());
+        root.put("performance", performance);
 
         root.put("frostjni", frostJniMap(config.getFrostJNI()));
         return root;
@@ -108,6 +116,7 @@ public final class ConfigWriter {
         libraries.put("recursive", config.isRecursive());
         libraries.put("runtime", config.isRuntime());
         libraries.put("strict", config.isStrict());
+        libraries.put("auto-detect", config.isAutoDetect());
         return libraries;
     }
 

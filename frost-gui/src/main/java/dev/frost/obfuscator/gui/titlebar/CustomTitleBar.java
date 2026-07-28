@@ -8,7 +8,12 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.shape.Rectangle;
+import javafx.stage.Screen;
+import javafx.stage.Stage;
 import org.kordamp.ikonli.javafx.FontIcon;
+
+import java.util.Map;
 
 public final class CustomTitleBar extends HBox {
     private double dragX;
@@ -73,56 +78,106 @@ public final class CustomTitleBar extends HBox {
         return null;
     }
 
-    private static double normalX = Double.NaN;
-    private static double normalY = Double.NaN;
-    private static double normalW = 1480;
-    private static double normalH = 900;
-    private static boolean customMaximized = false;
+    private static final String STATE_KEY = CustomTitleBar.class.getName() + ".windowState";
 
-    public static boolean isCustomMaximized(javafx.stage.Stage stage) {
-        return customMaximized;
+    private static final class WindowState {
+        private double normalX;
+        private double normalY;
+        private double normalWidth;
+        private double normalHeight;
+        private boolean maximized;
+        private Rectangle windowClip;
+    }
+
+    public static boolean isCustomMaximized(Stage stage) {
+        WindowState state = existingState(stage);
+        return state != null && state.maximized;
     }
 
     public static void toggleMaximize(AppContext context, StackPane host) {
-        javafx.stage.Stage stage = context.stage();
-        if (!customMaximized) {
-            normalX = stage.getX();
-            normalY = stage.getY();
-            normalW = stage.getWidth();
-            normalH = stage.getHeight();
-
-            javafx.geometry.Rectangle2D vis = javafx.stage.Screen.getScreensForRectangle(normalX, normalY, normalW, normalH).get(0).getVisualBounds();
+        Stage stage = context.stage();
+        WindowState state = state(stage);
+        if (!state.maximized) {
+            captureNormalBounds(stage, host, state);
+            javafx.geometry.Rectangle2D vis = Screen.getScreensForRectangle(
+                    state.normalX, state.normalY, state.normalWidth, state.normalHeight)
+                    .getFirst().getVisualBounds();
             stage.setX(vis.getMinX());
             stage.setY(vis.getMinY());
             stage.setWidth(vis.getWidth());
             stage.setHeight(vis.getHeight());
-            customMaximized = true;
+            state.maximized = true;
         } else {
-            if (Double.isFinite(normalX) && Double.isFinite(normalY)) {
-                stage.setX(normalX);
-                stage.setY(normalY);
-                stage.setWidth(normalW);
-                stage.setHeight(normalH);
+            if (Double.isFinite(state.normalX) && Double.isFinite(state.normalY)) {
+                stage.setWidth(state.normalWidth);
+                stage.setHeight(state.normalHeight);
+                stage.setX(state.normalX);
+                stage.setY(state.normalY);
             }
-            customMaximized = false;
+            state.maximized = false;
+        }
+
+        applyMaximizedState(stage, host, state);
+    }
+
+    public static void restoreInitialMaximized(Stage stage, StackPane host) {
+        WindowState state = state(stage);
+        if (state.maximized) return;
+        captureNormalBounds(stage, host, state);
+        javafx.geometry.Rectangle2D vis = Screen.getScreensForRectangle(
+                state.normalX, state.normalY, state.normalWidth, state.normalHeight)
+                .getFirst().getVisualBounds();
+        stage.setX(vis.getMinX());
+        stage.setY(vis.getMinY());
+        stage.setWidth(vis.getWidth());
+        stage.setHeight(vis.getHeight());
+        state.maximized = true;
+        applyMaximizedState(stage, host, state);
+    }
+
+    public static javafx.geometry.Rectangle2D normalBounds(Stage stage) {
+        WindowState state = existingState(stage);
+        if (state == null || !Double.isFinite(state.normalX) || !Double.isFinite(state.normalY)) {
+            return null;
+        }
+        return new javafx.geometry.Rectangle2D(state.normalX, state.normalY,
+                state.normalWidth, state.normalHeight);
+    }
+
+    private static void captureNormalBounds(Stage stage, StackPane host, WindowState state) {
+        state.normalX = stage.getX();
+        state.normalY = stage.getY();
+        state.normalWidth = stage.getWidth();
+        state.normalHeight = stage.getHeight();
+        if (host != null && host.getClip() instanceof Rectangle clip) state.windowClip = clip;
+    }
+
+    private static void applyMaximizedState(Stage stage, StackPane host, WindowState state) {
+        if (host != null) {
+            dev.frost.obfuscator.gui.FrostFxApp.applyWindowShape(
+                    host, state.windowClip, state.maximized);
         }
 
         if (stage.getScene() != null && stage.getScene().getRoot() != null) {
             javafx.scene.Node root = stage.getScene().getRoot();
             root.getStyleClass().removeAll("window-maximized", "maximized");
-            if (customMaximized) {
+            if (state.maximized) {
                 root.getStyleClass().addAll("window-maximized", "maximized");
             }
-        }
-
-        if (host != null) {
-            dev.frost.obfuscator.gui.FrostFxApp.applyWindowShape(host, barClip(host), customMaximized);
+            for (javafx.scene.Node windowRoot : root.lookupAll(".window-root")) {
+                windowRoot.getStyleClass().removeAll("window-maximized", "maximized");
+                if (state.maximized) windowRoot.getStyleClass().addAll("window-maximized", "maximized");
+            }
         }
     }
 
-    private static javafx.scene.shape.Rectangle barClip(StackPane host) {
-        if (host.getClip() instanceof javafx.scene.shape.Rectangle r) return r;
-        return null;
+    private static WindowState state(Stage stage) {
+        Map<Object, Object> properties = stage.getProperties();
+        return (WindowState) properties.computeIfAbsent(STATE_KEY, ignored -> new WindowState());
+    }
+
+    private static WindowState existingState(Stage stage) {
+        return (WindowState) stage.getProperties().get(STATE_KEY);
     }
 
     private static Button windowButton(String iconLiteral, String accessibleText) {

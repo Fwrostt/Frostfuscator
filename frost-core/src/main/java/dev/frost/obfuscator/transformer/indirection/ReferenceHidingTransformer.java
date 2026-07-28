@@ -11,8 +11,10 @@ import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class ReferenceHidingTransformer extends Transformer {
@@ -34,11 +36,12 @@ public class ReferenceHidingTransformer extends Transformer {
         int probability = clamp(getIntOption(config, "probability", 45), 0, 100);
         int maxPerClass = Math.max(0, getIntOption(config, "max-per-class", 96));
         int maxMethodInstructions = getIntOption(config, "max-method-instructions", 6000);
+        Map<String, Map<String, Integer>> applicationMethodAccess = snapshotApplicationMethods(pool);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             List<ProxyRequest> requests = new ArrayList<>();
@@ -51,7 +54,7 @@ public class ReferenceHidingTransformer extends Transformer {
                 while (insn != null) {
                     AbstractInsnNode next = insn.getNext();
                     if (requests.size() + fieldRequests.size() >= maxPerClass) break;
-                    if (insn instanceof MethodInsnNode call && canProxy(pool, classNode.name, call)
+                    if (insn instanceof MethodInsnNode call && canProxy(pool, applicationMethodAccess, classNode.name, call)
                             && RANDOM.nextInt(100) < probability) {
                         String proxyName = uniqueMethodName(usedNames);
                         String proxyDesc = proxyDescriptor(call);
@@ -79,9 +82,9 @@ public class ReferenceHidingTransformer extends Transformer {
             }
             if (!requests.isEmpty() || !fieldRequests.isEmpty()) {
                 pool.markDirty(classNode.name);
-                log("Inserted {} method and {} field reference proxies in {}", requests.size(), fieldRequests.size(), classNode.name);
+                detail("Inserted {} method and {} field reference proxies in {}", requests.size(), fieldRequests.size(), classNode.name);
             }
-        }
+        });
     }
 
     private boolean canProxyField(ClassPool pool, String caller, FieldInsnNode field) {
@@ -141,21 +144,44 @@ public class ReferenceHidingTransformer extends Transformer {
         return proxy;
     }
 
-    private boolean canProxy(ClassPool pool, String caller, MethodInsnNode call) {
+    private boolean canProxy(ClassPool pool, Map<String, Map<String, Integer>> applicationMethodAccess,
+                             String caller, MethodInsnNode call) {
         if (call.name.startsWith("<")) return false;
         if (call.owner.startsWith("java/lang/invoke/")) return false;
         if (call.getOpcode() == Opcodes.INVOKESPECIAL) return false;
 
         ClassNode owner = pool.getClass(call.owner);
-        if (owner == null) owner = pool.getLibraryClasses().get(call.owner);
-        if (owner == null) return call.getOpcode() == Opcodes.INVOKESTATIC;
+        if (owner != null) {
+            Integer access = applicationMethodAccess
+                    .getOrDefault(call.owner, Map.of())
+                    .get(methodKey(call.name, call.desc));
+            return access != null && (call.owner.equals(caller) || AccessHelper.isPublic(access));
+        }
 
+        owner = pool.getLibraryClasses().get(call.owner);
+        if (owner == null) return call.getOpcode() == Opcodes.INVOKESTATIC;
         for (MethodNode method : owner.methods) {
             if (method.name.equals(call.name) && method.desc.equals(call.desc)) {
                 return call.owner.equals(caller) || AccessHelper.isPublic(method.access);
             }
         }
         return false;
+    }
+
+    private Map<String, Map<String, Integer>> snapshotApplicationMethods(ClassPool pool) {
+        Map<String, Map<String, Integer>> snapshot = new HashMap<>();
+        for (ClassNode owner : pool.getClasses()) {
+            Map<String, Integer> methods = new HashMap<>();
+            for (MethodNode method : owner.methods) {
+                methods.put(methodKey(method.name, method.desc), method.access);
+            }
+            snapshot.put(owner.name, Map.copyOf(methods));
+        }
+        return Map.copyOf(snapshot);
+    }
+
+    private String methodKey(String name, String desc) {
+        return name + desc;
     }
 
     private String proxyDescriptor(MethodInsnNode call) {

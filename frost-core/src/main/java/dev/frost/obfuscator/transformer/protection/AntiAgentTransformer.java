@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 
 public class AntiAgentTransformer extends Transformer {
 
@@ -27,11 +28,11 @@ public class AntiAgentTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int injected = 0;
-        for (ClassNode classNode : pool.getClasses()) {
+        LongAdder injected = new LongAdder();
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             boolean hasMain = false;
@@ -49,9 +50,9 @@ public class AntiAgentTransformer extends Transformer {
             }
 
             pool.markDirty(classNode.name);
-            injected++;
-        }
-        log("Injected anti-agent protection into {} classes", injected);
+            injected.increment();
+        });
+        log("Injected anti-agent protection into {} classes", injected.sum());
     }
 
     private void injectAgentCheck(MethodNode method) {

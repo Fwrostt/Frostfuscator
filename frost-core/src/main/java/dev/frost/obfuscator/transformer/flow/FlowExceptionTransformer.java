@@ -32,10 +32,10 @@ public class FlowExceptionTransformer extends Transformer {
         int passes = strength.equals("AGGRESSIVE") ? 2 : 1;
         int probability = strength.equals("WEAK") ? 35 : 70;
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
                     || AccessHelper.isInterface(classNode.access)) {
-                continue;
+                return;
             }
 
             String trapField = ensureTrapField(classNode);
@@ -54,9 +54,9 @@ public class FlowExceptionTransformer extends Transformer {
 
             if (changed > 0) {
                 pool.markDirty(classNode.name);
-                log("Inserted {} exception-driven guards in {}", changed, classNode.name);
+                detail("Inserted {} exception-driven guards in {}", changed, classNode.name);
             }
-        }
+        });
     }
 
     private boolean insertGuard(String owner, String trapField, MethodNode method) {

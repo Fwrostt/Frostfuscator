@@ -78,9 +78,17 @@ public final class Ui {
     public static ScrollPane pageScroll(Node content) {
         ScrollPane scroll = new ScrollPane(content);
         scroll.getStyleClass().add("page-scroll");
+        scroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        if (content instanceof Region region) {
+            region.setMinWidth(0);
+            region.setMaxWidth(Double.MAX_VALUE);
+            scroll.viewportBoundsProperty().addListener((obs, old, bounds) -> {
+                if (bounds.getWidth() > 0) region.setPrefWidth(bounds.getWidth());
+            });
+        }
         return scroll;
     }
 

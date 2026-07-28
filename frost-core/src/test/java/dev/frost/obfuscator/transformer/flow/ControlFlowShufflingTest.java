@@ -4,10 +4,12 @@ import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.Map;
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -46,5 +48,11 @@ class ControlFlowShufflingTest {
         transformer.transform(pool, new MappingCollector(), config);
 
         assertTrue(method.instructions.size() > 8);
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            assertEquals(method.instructions.size(), method.instructions.toArray().length);
+            ClassWriter writer = new ClassWriter(0);
+            classNode.accept(writer);
+            assertTrue(writer.toByteArray().length > 0);
+        });
     }
 }

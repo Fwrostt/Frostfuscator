@@ -12,6 +12,7 @@ import org.objectweb.asm.tree.LineNumberNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.Random;
+import java.util.concurrent.atomic.LongAdder;
 
 public class LineNumberMutationTransformer extends Transformer {
 
@@ -27,14 +28,14 @@ public class LineNumberMutationTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int mutatedLines = 0;
+        LongAdder mutatedLines = new LongAdder();
         int minLine = config.getOptionInt("min-line", 1000);
         int maxLine = config.getOptionInt("max-line", 9999);
         long seed = config.getOptionLong("seed", 42L);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             for (MethodNode method : classNode.methods) {
@@ -45,12 +46,12 @@ public class LineNumberMutationTransformer extends Transformer {
                     if (insn instanceof LineNumberNode lineNode) {
                         int fakeLine = minLine + random.nextInt(Math.max(1, maxLine - minLine + 1));
                         lineNode.line = fakeLine;
-                        mutatedLines++;
+                        mutatedLines.increment();
                     }
                 }
             }
-        }
+        });
 
-        Logger.info("Mutated {} LineNumberNode debug entry/entries to randomized values", mutatedLines);
+        Logger.info("Mutated {} LineNumberNode debug entry/entries to randomized values", mutatedLines.sum());
     }
 }

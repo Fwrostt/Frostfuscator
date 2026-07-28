@@ -47,8 +47,8 @@ public final class FrostFxApp extends Application {
 
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle("Frostfuscator");
-        stage.setMinWidth(1080);
-        stage.setMinHeight(700);
+        stage.setMinWidth(900);
+        stage.setMinHeight(600);
 
         StartupView startup = new StartupView(preferences.getBoolean("ui.reducedMotion", false));
         StackPane host = new StackPane(startup);
@@ -57,27 +57,17 @@ public final class FrostFxApp extends Application {
         windowClip.widthProperty().bind(host.widthProperty());
         windowClip.heightProperty().bind(host.heightProperty());
         windowClip.setSmooth(true);
-        Scene scene = new Scene(host, 1480, 900);
+        Scene scene = new Scene(host, PreferencesStore.DEFAULT_WINDOW_WIDTH,
+                PreferencesStore.DEFAULT_WINDOW_HEIGHT);
         scene.setFill(Color.TRANSPARENT);
         scene.getStylesheets().add(getClass().getResource("/frost-gui.css").toExternalForm());
         stage.setScene(scene);
 
+        applyWindowShape(host, windowClip, false);
         preferences.restoreWindow(stage);
         if (preferences.getBoolean("window.maximized", false)) {
-            Platform.runLater(() -> {
-                if (context != null) {
-                    dev.frost.obfuscator.gui.titlebar.CustomTitleBar.toggleMaximize(context, host);
-                } else {
-                    javafx.geometry.Rectangle2D vis = javafx.stage.Screen.getScreensForRectangle(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight()).get(0).getVisualBounds();
-                    stage.setX(vis.getMinX());
-                    stage.setY(vis.getMinY());
-                    stage.setWidth(vis.getWidth());
-                    stage.setHeight(vis.getHeight());
-                    applyWindowShape(host, windowClip, true);
-                }
-            });
-        } else {
-            applyWindowShape(host, windowClip, false);
+            Platform.runLater(() -> dev.frost.obfuscator.gui.titlebar.CustomTitleBar
+                    .restoreInitialMaximized(stage, host));
         }
         stage.show();
         nativeStartup = NativeStartupOverlay.show(
@@ -125,7 +115,8 @@ public final class FrostFxApp extends Application {
         long shellStarted = System.nanoTime();
         AppShell shell = new AppShell(context);
         context.themeManager().attach(scene, shell.root());
-        applyMaximizedChrome(shell, stage.isMaximized());
+        applyMaximizedChrome(shell,
+                dev.frost.obfuscator.gui.titlebar.CustomTitleBar.isCustomMaximized(stage));
         stage.maximizedProperty().addListener((obs, old, maximized) ->
                 applyMaximizedChrome(shell, maximized));
         startup.prepareApplication(host, shell.root());

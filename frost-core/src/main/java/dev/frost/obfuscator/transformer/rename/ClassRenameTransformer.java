@@ -34,6 +34,7 @@ public class ClassRenameTransformer extends Transformer {
 
         String packageMode = pool.getPackageMode();
         String flattenPackage = sanitizePackage(pool.getFlattenPackage());
+        int renamedClasses = 0;
 
         for (ClassNode classNode : pool.getClasses()) {
             String originalName = classNode.name;
@@ -50,7 +51,7 @@ public class ClassRenameTransformer extends Transformer {
             }
 
             if (safe && shouldKeepSafe(classNode)) {
-                log("Skipping safe-target class {}", originalName);
+                detail("Skipping safe-target class {}", originalName);
                 continue;
             }
 
@@ -58,9 +59,10 @@ public class ClassRenameTransformer extends Transformer {
             if (!newName.equals(originalName)) {
                 mappings.mapClass(originalName, newName);
                 reservedNames.add(newName);
-                log("Renamed {} -> {}", originalName, newName);
+                renamedClasses++;
             }
         }
+        log("Collected {} class mapping(s)", renamedClasses);
     }
 
     private boolean shouldKeepSafe(ClassNode classNode) {

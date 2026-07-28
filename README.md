@@ -12,8 +12,6 @@ The main focus is obfuscation, with support for class and member renaming, strin
 * [Configuration](docs/configuration.md)
 * [Transformers](docs/transformers.md)
 * [Plugins](docs/plugins.md)
-* [Update Log](updates/README.md)
-* [Unified Update Log (July 23–24)](updates/2026-07-24-unified-update-log-july-23-24.md)
 
 ## Features
 

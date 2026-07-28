@@ -29,13 +29,21 @@ public class ObfuscationEngine {
 
     private final ObfuscationConfig config;
     private final List<String> cliTransformers;
+    private final BuildCancellation cancellation;
 
     public ObfuscationEngine(ObfuscationConfig config, List<String> cliTransformers) {
+        this(config, cliTransformers, new BuildCancellation());
+    }
+
+    public ObfuscationEngine(ObfuscationConfig config, List<String> cliTransformers,
+                             BuildCancellation cancellation) {
         this.config = config;
         this.cliTransformers = cliTransformers;
+        this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
     }
 
     public ProtectionStats run() throws IOException {
+        cancellation.throwIfCancelled();
         long startTime = System.currentTimeMillis();
         Path inputPath = Path.of(config.getInput());
         Path outputPath = Path.of(config.getOutput());
@@ -54,18 +62,30 @@ public class ObfuscationEngine {
         if (!config.getLibraries().getPaths().isEmpty()) {
             Logger.info("Library paths: {}", config.getLibraries().getPaths());
         }
-        Logger.info("Library mode: recursive={} runtime={} strict={}",
+        Logger.info("Library mode: recursive={} runtime={} strict={} auto-detect={}",
                 config.getLibraries().isRecursive(),
                 config.getLibraries().isRuntime(),
-                config.getLibraries().isStrict());
+                config.getLibraries().isStrict(),
+                config.getLibraries().isAutoDetect());
         if (config.getInclusions() != null && !config.getInclusions().isEmpty()) {
             Logger.info("Inclusions: {}", config.getInclusions());
         }
         Logger.info("");
 
-        JarProcessor processor = new JarProcessor();
+        JarProcessor processor = new JarProcessor(cancellation);
         ClassPool pool = processor.loadJar(inputPath);
+        pool.setCancellation(cancellation);
+        cancellation.throwIfCancelled();
+        ObfuscationConfig.PerformanceConfig performance = config.getPerformance();
+        pool.configureParallelism(performance.isParallel(), performance.getParallelism(),
+                performance.getMinimumClasses());
+        stats.set("transformParallelism", pool.transformParallelism());
+        Logger.info("Class transformation mode: {} (parallelism={}, minimum classes={})",
+                pool.isParallelTransformEnabled() ? "parallel" : "sequential",
+                pool.transformParallelism(), performance.getMinimumClasses());
         stats.set("classes", pool.size());
+
+        try {
 
         PreObfuscationEvent preEvent = PluginLoader.globalEventBus().post(
                 new PreObfuscationEvent(inputPath, pool.getClassMap(), processor.getResources(), Map.of())
@@ -76,12 +96,34 @@ public class ObfuscationEngine {
         }
 
         LibraryLoadReport libraryReport = processor.loadLibraries(pool, libraryOptions());
+        cancellation.throwIfCancelled();
         stats.set("libraryClasses", libraryReport.loadedClasses());
         stats.set("libraryRuntimeClasses", libraryReport.runtimeClasses());
         stats.set("libraryArchives", libraryReport.libraryArchives().size());
         stats.set("libraryDuplicates", libraryReport.duplicateClasses());
         stats.set("libraryAppShadowedClasses", libraryReport.appShadowedClasses());
+        stats.set("libraryExcludedInputClasses", libraryReport.excludedInputClasses());
         stats.set("libraryProblems", libraryReport.problems().size());
+
+        if (config.getLibraries().isAutoDetect()) {
+            ApplicationClassDetector.DetectionResult detection = new ApplicationClassDetector()
+                    .detect(pool, processor.getDetectedEntrypoints());
+            stats.set("autoDetectedLibraryClasses", detection.excludedClasses());
+            if (detection.excludedClasses() > 0) {
+                Logger.info("Application detection kept {} owned classes and skipped {} embedded library classes "
+                                + "across {} package families (roots: {})",
+                        pool.transformableSize(), detection.excludedClasses(),
+                        detection.excludedFamilies().size(), detection.ownershipRoots());
+            }
+        }
+        stats.set("transformableClasses", pool.transformableSize());
+        stats.set("transformationExcludedClasses", pool.transformationExcludedSize());
+        int compactedLibraries = processor.compactTransformationExcludedClasses(pool);
+        stats.set("compactedLibraryClasses", compactedLibraries);
+        if (compactedLibraries > 0) {
+            Logger.info("Released bytecode bodies for {} preserved library classes before transformation",
+                    compactedLibraries);
+        }
 
         List<String> exclusions = new ArrayList<>(config.getExclusions() != null ? config.getExclusions() : List.of());
         if (config.getPresets() != null && !config.getPresets().isEmpty()) {
@@ -140,6 +182,7 @@ public class ObfuscationEngine {
         if (!preObfuscation.isEmpty()) {
             Logger.info("Pass 0: Pre-obfuscation generation");
             for (Transformer transformer : preObfuscation) {
+                cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
                 transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -148,14 +191,15 @@ public class ObfuscationEngine {
         }
 
         pool.buildHierarchy();
-        Logger.info("Class hierarchy built ({} app + {} library classes)",
-                pool.size(), pool.librarySize());
+        Logger.info("Class hierarchy built ({} transformable + {} preserved input libraries + {} support classes)",
+                pool.transformableSize(), pool.transformationExcludedSize(), pool.librarySize());
 
         Logger.info("Active transformers: {}", allTransformers.stream().map(Transformer::getName).toList());
         Logger.info("");
 
         Logger.info("Pass 1: Collecting mappings");
         for (Transformer transformer : normal) {
+            cancellation.throwIfCancelled();
             TransformerConfig tc = resolveConfig(transformer);
             Logger.info("Running transformer: {}", transformer.getName());
             transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -166,6 +210,7 @@ public class ObfuscationEngine {
         Logger.info("Total mappings collected: {}", mappings.totalMappings());
 
         applyRemapping(pool, mappings);
+        cancellation.throwIfCancelled();
         processor.updateRuntimeChecksumClasses(mappings);
         processor.snapshotPreFlowClasses(pool);
 
@@ -191,6 +236,7 @@ public class ObfuscationEngine {
             Logger.info("Pass 3: Post-remap transforms");
 
             for (Transformer transformer : postRemap) {
+                cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
                 transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -202,6 +248,7 @@ public class ObfuscationEngine {
             Logger.info("Pass 4: Final transforms");
 
             for (Transformer transformer : finalPass) {
+                cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
                 transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -209,6 +256,7 @@ public class ObfuscationEngine {
         }
 
         if (config.getFrostJNI() != null && config.getFrostJNI().isEnabled()) {
+            cancellation.throwIfCancelled();
             Logger.info("");
             Logger.info("Pass 5: FrostJNI native protection");
             try {
@@ -244,7 +292,8 @@ public class ObfuscationEngine {
         }
 
         if (config.getMapping() != null && config.getMapping().isEnabled()) {
-            mappings.exportMappings(Path.of(config.getMapping().getOutput()));
+            cancellation.throwIfCancelled();
+            exportMappings(mappings, config.getMapping());
         }
 
         stats.set("classMappings", mappings.getClassMappings().size());
@@ -257,6 +306,7 @@ public class ObfuscationEngine {
             Logger.info("Pass 6: ClassLoader Encryption");
 
             for (Transformer transformer : classloaderEncryption) {
+                cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
                 transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
@@ -271,7 +321,9 @@ public class ObfuscationEngine {
             return stats;
         }
 
+        cancellation.throwIfCancelled();
         processor.writeJar(pool, outputPath);
+        cancellation.throwIfCancelled();
 
         long elapsed = System.currentTimeMillis() - startTime;
         stats.set("inputBytes", Files.size(inputPath));
@@ -280,9 +332,13 @@ public class ObfuscationEngine {
         Logger.info("");
         Logger.info("===================================================");
         Logger.info("  Protection run completed in {}ms", elapsed);
-        Logger.info("  Classes: {} | Mappings: {}", pool.size(), mappings.totalMappings());
+        Logger.info("  Classes: {} transformed / {} preserved | Mappings: {}",
+                pool.transformableSize(), pool.transformationExcludedSize(), mappings.totalMappings());
         Logger.info("===================================================");
         return stats;
+        } finally {
+            pool.closeParallelism();
+        }
     }
 
     private TransformerConfig resolveConfig(Transformer transformer) {
@@ -295,6 +351,35 @@ public class ObfuscationEngine {
             tc.setDictionary(config.getDictionary());
         }
         return tc;
+    }
+
+    private void exportMappings(MappingCollector mappings, ObfuscationConfig.MappingConfig mappingConfig)
+            throws IOException {
+        Path output = Path.of(mappingConfig.getOutput());
+        if (!mappingConfig.isEncrypted()) {
+            mappings.exportMappings(output);
+            return;
+        }
+
+        if (!output.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".enc")) {
+            output = output.resolveSibling(output.getFileName() + ".enc");
+        }
+        char[] password = mappingConfig.getPassword();
+        if (password == null || password.length == 0) {
+            String variable = mappingConfig.getPasswordEnvironment();
+            String environmentPassword = System.getenv(variable);
+            if (environmentPassword != null) password = environmentPassword.toCharArray();
+        }
+        if (password == null || password.length == 0) {
+            throw new IOException("Encrypted mapping export requires a password. Set it in the desktop "
+                    + "Resources page or provide the " + mappingConfig.getPasswordEnvironment()
+                    + " environment variable.");
+        }
+        try {
+            mappings.exportEncryptedMappings(output, password);
+        } finally {
+            Arrays.fill(password, '\0');
+        }
     }
 
     private LibraryOptions libraryOptions() {
@@ -311,27 +396,42 @@ public class ObfuscationEngine {
 
     private void applyRemapping(ClassPool pool, MappingCollector mappings) {
         FrostRemapper remapper = new FrostRemapper(mappings);
-
+        int totalMappings = mappings.totalMappings();
         Map<String, ClassNode> remappedClasses = new LinkedHashMap<>();
+        Map<String, ClassNode> preservedClasses = new LinkedHashMap<>();
+        Map<ClassNode, String> originalNames = new IdentityHashMap<>();
+        pool.getClassMap().forEach((name, node) -> {
+            originalNames.put(node, name);
+            if (pool.isTransformationExcluded(name)) preservedClasses.put(name, node);
+        });
 
-        for (Map.Entry<String, ClassNode> entry : pool.getClassMap().entrySet()) {
-            ClassNode original = entry.getValue();
+        List<RemappedClass> results = pool.mapClasses(original -> {
+            String oldName = originalNames.get(original);
             ClassNode remapped = new ClassNode();
-
             ClassRemapper classRemapper = new ClassRemapper(remapped, remapper);
             original.accept(classRemapper);
+            boolean dirty = !remapped.name.equals(oldName)
+                    || mappings.hasAnyMappingForClass(oldName) || totalMappings > 0;
+            return new RemappedClass(oldName, remapped, dirty);
+        });
 
-            remappedClasses.put(remapped.name, remapped);
-            pool.setOriginalName(remapped.name, entry.getKey());
-            if (!remapped.name.equals(entry.getKey()) || mappings.hasAnyMappingForClass(entry.getKey()) || mappings.totalMappings() > 0) {
-                pool.markDirty(remapped.name);
-            }
-        }
+        results.stream().sorted(Comparator.comparing(result -> result.node().name)).forEach(result -> {
+            remappedClasses.put(result.node().name, result.node());
+            pool.setOriginalName(result.node().name, result.originalName());
+            if (result.dirty()) pool.markDirty(result.node().name);
+        });
+
+        preservedClasses.forEach(remappedClasses::putIfAbsent);
 
         pool.getClassMap().clear();
-        pool.getClassMap().putAll(remappedClasses);
+        remappedClasses.entrySet().stream().sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> pool.getClassMap().put(entry.getKey(), entry.getValue()));
 
-        Logger.info("Remapping applied to all {} classes", remappedClasses.size());
+        Logger.info("Remapping applied to {} classes; {} library classes preserved byte-for-byte",
+                results.size(), preservedClasses.size());
+    }
+
+    private record RemappedClass(String originalName, ClassNode node, boolean dirty) {
     }
 
     private void rewriteStatisticsReportIfEnabled(

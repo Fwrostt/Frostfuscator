@@ -80,6 +80,7 @@ public final class ConfigurationBinder {
         libraries.setRecursive(source.getLibraries().isRecursive());
         libraries.setRuntime(source.getLibraries().isRuntime());
         libraries.setStrict(source.getLibraries().isStrict());
+        libraries.setAutoDetect(source.getLibraries().isAutoDetect());
         target.setLibraries(libraries);
         Map<String, TransformerConfig> transformers = new LinkedHashMap<>();
         source.getTransformers().forEach((name, value) -> {
@@ -95,7 +96,22 @@ public final class ConfigurationBinder {
         ObfuscationConfig.MappingConfig mapping = new ObfuscationConfig.MappingConfig();
         mapping.setEnabled(source.getMapping().isEnabled());
         mapping.setOutput(source.getMapping().getOutput());
+        mapping.setEncrypted(source.getMapping().isEncrypted());
+        mapping.setPasswordEnvironment(source.getMapping().getPasswordEnvironment());
+        char[] mappingPassword = source.getMapping().getPassword();
+        if (mappingPassword != null) {
+            try {
+                mapping.setPassword(mappingPassword);
+            } finally {
+                java.util.Arrays.fill(mappingPassword, '\0');
+            }
+        }
         target.setMapping(mapping);
+        ObfuscationConfig.PerformanceConfig performance = new ObfuscationConfig.PerformanceConfig();
+        performance.setParallel(source.getPerformance().isParallel());
+        performance.setParallelism(source.getPerformance().getParallelism());
+        performance.setMinimumClasses(source.getPerformance().getMinimumClasses());
+        target.setPerformance(performance);
         target.setFrostJNI(source.getFrostJNI());
         ensureAllTransformers(target);
         return target;

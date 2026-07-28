@@ -77,10 +77,10 @@ public final class BytecodeViewerPage implements PageView {
     private final VBox toolDrawer = new VBox(Ui.SPACE_3);
     private final ToggleButton archiveToggle = new ToggleButton("Archive");
     private final ToggleButton inspectorToggle = new ToggleButton("Inspector");
-    private final ToggleButton stringToggle = new ToggleButton("String Analysis");
+    private final ToggleButton stringToggle = new ToggleButton("Strings");
     private final ToggleButton editModeToggle = new ToggleButton("Edit Mode");
-    private final Button assembleBtn = Ui.button("Assemble & Apply", "primary-button", this::assembleAndApplyActiveEditor);
-    private final Button saveJarBtn = Ui.button("Save JAR As…", "secondary-button", this::openSaveJarDialog);
+    private final Button assembleBtn = Ui.button("Apply changes", "primary-button", this::assembleAndApplyActiveEditor);
+    private final Button saveJarBtn = Ui.button("Save copy…", "secondary-button", this::openSaveJarDialog);
     private final VBox errorDrawer = new VBox(4);
     private final ListView<InJarJavaCompiler.CompilationDiagnostic> errorList = new ListView<>();
     private final IdeCompletionService completionService = new IdeCompletionService();
@@ -119,10 +119,10 @@ public final class BytecodeViewerPage implements PageView {
         root.getStyleClass().addAll("page", "viewer-page");
         root.setPadding(new Insets(Ui.SPACE_4, Ui.SPACE_4, Ui.SPACE_2, Ui.SPACE_4));
 
-        Label title = Ui.label("Bytecode Viewer", "viewer-workbench-title");
-        Label subtitle = Ui.label("Read-only archive workspace", "viewer-workbench-subtitle");
-        HBox identity = new HBox(Ui.SPACE_3, title, subtitle);
-        identity.setAlignment(Pos.BASELINE_LEFT);
+        Label title = Ui.label("Decompiler", "viewer-workbench-title");
+        Label subtitle = Ui.label("Inspect, compare, and edit JVM archives", "viewer-workbench-subtitle");
+        VBox identity = new VBox(2, title, subtitle);
+        identity.setAlignment(Pos.CENTER_LEFT);
         HBox header = new HBox(Ui.SPACE_3, identity, Ui.spacer(), actionToolbar());
         header.setAlignment(Pos.CENTER_LEFT);
         header.getStyleClass().add("viewer-workbench-bar");
@@ -227,7 +227,7 @@ public final class BytecodeViewerPage implements PageView {
         MenuItem frames = menuItem("Strip stack-map frames from a copy…", this::showFramesTool);
         MenuItem versions = menuItem("Change class-file versions in a copy…", this::showVersionTool);
 
-        MenuButton tools = new MenuButton("Export tools");
+        MenuButton tools = new MenuButton("Export");
         tools.setGraphic(new FontIcon("fth-package"));
         tools.getItems().addAll(
                 exportStringsItem,
@@ -259,18 +259,33 @@ public final class BytecodeViewerPage implements PageView {
     private void buildEmptyState() {
         FontIcon icon = new FontIcon("fth-code");
         icon.getStyleClass().add("viewer-empty-icon");
-        Label title = Ui.label("Choose an archive to inspect", "empty-state-title");
-        Label copy = Ui.label("Analyze an input JAR first or open any JAR/Zip file directly. "
-                + "Its classes and resources will appear here as a searchable hierarchy.", "empty-state-copy");
+        StackPane iconMark = new StackPane(icon);
+        iconMark.getStyleClass().add("viewer-empty-mark");
+
+        Label title = Ui.label("Open a JAR. See what is inside.", "empty-state-title", "viewer-empty-title");
+        Label copy = Ui.label("Recover readable source, inspect raw bytecode, and compare decompiler output "
+                + "without modifying the original archive.", "empty-state-copy", "viewer-empty-copy");
         copy.setWrapText(true);
-        copy.setMaxWidth(460);
-        Button choose = Ui.button("Go to Input", "primary-button", () -> navigate.accept(PageId.INPUT));
-        Button openJar = Ui.button("Open Any JAR / Zip File…", "secondary-button", this::openAddExtraJarDialog);
-        HBox emptyButtons = new HBox(Ui.SPACE_2, choose, openJar);
+        copy.setMaxWidth(520);
+
+        HBox workflow = new HBox(Ui.SPACE_2,
+                emptyStep("1", "Open archive"), emptyArrow(),
+                emptyStep("2", "Choose a class"), emptyArrow(),
+                emptyStep("3", "Inspect output"));
+        workflow.setAlignment(Pos.CENTER);
+        workflow.getStyleClass().add("viewer-empty-workflow");
+
+        Button openJar = Ui.button("Open JAR or ZIP…", "primary-button", this::openAddExtraJarDialog);
+        openJar.setGraphic(new FontIcon("fth-folder-plus"));
+        Button choose = Ui.button("Use project input", "secondary-button", () -> navigate.accept(PageId.INPUT));
+        choose.setGraphic(new FontIcon("fth-arrow-right"));
+        HBox emptyButtons = new HBox(Ui.SPACE_2, openJar, choose);
         emptyButtons.setAlignment(Pos.CENTER);
-        emptyState.getChildren().addAll(icon, title, copy, emptyButtons);
+        emptyState.getChildren().addAll(iconMark, title, copy, workflow, emptyButtons);
         emptyState.setAlignment(Pos.CENTER);
         emptyState.getStyleClass().add("viewer-empty-state");
+        emptyState.setMaxWidth(680);
+        emptyState.setMaxHeight(Region.USE_PREF_SIZE);
     }
 
     private void buildWorkspace() {
@@ -291,7 +306,10 @@ public final class BytecodeViewerPage implements PageView {
         });
         VBox.setVgrow(hierarchy, Priority.ALWAYS);
         Button addJarBtn = compactButton("Add JAR…", "fth-plus", this::openAddExtraJarDialog);
-        HBox archiveHeaderRow = new HBox(Ui.SPACE_2, Ui.label("Archive", "viewer-panel-title"), Ui.spacer(), addJarBtn);
+        FontIcon archiveIcon = new FontIcon("fth-archive");
+        archiveIcon.getStyleClass().add("viewer-panel-icon");
+        HBox archiveHeaderRow = new HBox(Ui.SPACE_2, archiveIcon,
+                Ui.label("Archive", "viewer-panel-title"), Ui.spacer(), addJarBtn);
         archiveHeaderRow.setAlignment(Pos.CENTER_LEFT);
         archivePanel.getChildren().addAll(archiveHeaderRow, archiveSearch, hierarchy);
 
@@ -325,6 +343,20 @@ public final class BytecodeViewerPage implements PageView {
         findOptions.getStyleClass().add("inline-button");
         dev.frost.obfuscator.gui.component.MenuAnimation.setup(findOptions);
 
+        refresh.getStyleClass().remove("secondary-button");
+        refresh.getStyleClass().add("viewer-action");
+        makeIconOnly(refresh, "Refresh decompiled source");
+        makeIconOnly(copy, "Copy source");
+        makeIconOnly(next, "Find next match");
+        makeIconOnly(findOptions, "Search options");
+
+        decompiler.setMinWidth(164);
+        decompiler.setPrefWidth(188);
+        decompiler.setMaxWidth(224);
+        decompiler.setTooltip(new Tooltip("Decompiler engine"));
+        sourceSearch.setPromptText("Find in source…");
+        sourceSearch.getStyleClass().add("viewer-source-search");
+
         editModeToggle.setGraphic(new FontIcon("fth-edit-3"));
         editModeToggle.getStyleClass().add("viewer-rail-toggle");
         editModeToggle.setSelected(false);
@@ -343,7 +375,7 @@ public final class BytecodeViewerPage implements PageView {
             saveJarBtn.setVisible(isEdit);
             saveJarBtn.setManaged(isEdit);
             if (isEdit) {
-                status.setText("Edit Mode Active — modify Source or Bytecode and click Assemble & Apply (Ctrl+S)");
+                status.setText("Edit Mode Active — modify Source or Bytecode, then apply changes (Ctrl+S)");
             } else {
                 status.setText("Edit Mode Disabled — read-only view");
                 hideErrorDrawer();
@@ -352,16 +384,22 @@ public final class BytecodeViewerPage implements PageView {
 
         HBox decompilerGroup = new HBox(6, decompiler, refresh, copy);
         decompilerGroup.setAlignment(Pos.CENTER_LEFT);
+        decompilerGroup.getStyleClass().add("viewer-toolbar-group");
 
         HBox searchGroup = new HBox(6, sourceSearch, next, findOptions);
         searchGroup.setAlignment(Pos.CENTER_LEFT);
+        searchGroup.getStyleClass().add("viewer-toolbar-group");
+        searchGroup.setMinWidth(164);
+        HBox.setHgrow(sourceSearch, Priority.ALWAYS);
 
         HBox editGroup = new HBox(6, editModeToggle, assembleBtn, saveJarBtn);
         editGroup.setAlignment(Pos.CENTER_LEFT);
+        editGroup.getStyleClass().add("viewer-edit-group");
 
-        HBox toolbar = new HBox(12, decompilerGroup, searchGroup, editGroup);
+        HBox toolbar = new HBox(8, decompilerGroup, searchGroup, editGroup);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.getStyleClass().add("viewer-editor-toolbar");
+        HBox.setHgrow(searchGroup, Priority.ALWAYS);
 
         VBox title = new VBox(Ui.SPACE_1, documentTitle, documentMeta);
         title.getStyleClass().add("viewer-document-header");
@@ -2016,6 +2054,29 @@ public final class BytecodeViewerPage implements PageView {
 
     private static Button compactButton(String text, Runnable action) {
         return compactButton(text, null, action);
+    }
+
+    private static void makeIconOnly(ButtonBase button, String accessibleText) {
+        button.setText(null);
+        button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+        button.setAccessibleText(accessibleText);
+        button.setTooltip(new Tooltip(accessibleText));
+        button.getStyleClass().add("viewer-icon-action");
+    }
+
+    private static Node emptyStep(String number, String text) {
+        Label index = Ui.label(number, "viewer-empty-step-index");
+        Label label = Ui.label(text, "viewer-empty-step-label");
+        HBox step = new HBox(6, index, label);
+        step.setAlignment(Pos.CENTER_LEFT);
+        step.getStyleClass().add("viewer-empty-step");
+        return step;
+    }
+
+    private static Node emptyArrow() {
+        FontIcon arrow = new FontIcon("fth-chevron-right");
+        arrow.getStyleClass().add("viewer-empty-arrow");
+        return arrow;
     }
 
     private static TextField input(String prompt) {

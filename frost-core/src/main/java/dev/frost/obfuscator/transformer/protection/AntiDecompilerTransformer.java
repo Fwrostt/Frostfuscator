@@ -4,6 +4,7 @@ import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
+import java.util.concurrent.atomic.LongAdder;
 
 public class AntiDecompilerTransformer extends Transformer {
 
@@ -19,13 +20,13 @@ public class AntiDecompilerTransformer extends Transformer {
 
     @Override
     public void transform(Context context) {
-        int changed = 0;
-        for (ClassNode classNode : context.pool().getClasses()) {
+        LongAdder changed = new LongAdder();
+        context.pool().forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, context.config(), context.pool().getGlobalExclusions(), context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
             if ((classNode.access & (Opcodes.ACC_INTERFACE | Opcodes.ACC_ANNOTATION)) != 0) {
-                continue;
+                return;
             }
             String fieldName = "__frost$cfr$fernflower$procyon$jadx";
             String trapName = "__frost$decompiler$trap";
@@ -50,11 +51,11 @@ public class AntiDecompilerTransformer extends Transformer {
             }
             if (touched || guarded > 0) {
                 context.pool().markDirty(classNode.name);
-                changed++;
+                changed.increment();
             }
-        }
-        context.stats().add("antiDecompilerClasses", changed);
-        log("Added anti-decompiler bytecode to {} classes", changed);
+        });
+        context.stats().add("antiDecompilerClasses", changed.sum());
+        log("Added anti-decompiler bytecode to {} classes", changed.sum());
     }
 
     private int injectTrapCalls(ClassNode classNode, String trapName) {

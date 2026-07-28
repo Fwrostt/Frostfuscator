@@ -32,9 +32,26 @@ public class LocalVariableRenameTransformer extends Transformer {
         Set<String> usedGlobal = new HashSet<>();
         Map<String, String> nameMap = new HashMap<>();
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.mapClasses(classNode -> {
+            Set<String> names = new HashSet<>();
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return names;
+            }
+            for (MethodNode method : classNode.methods) {
+                if (method.localVariables == null) continue;
+                for (LocalVariableNode variable : method.localVariables) {
+                    if ((variable.index != 0 || isStatic(method)) && !isExcludedMember(variable.name, config)) {
+                        names.add(variable.name);
+                    }
+                }
+            }
+            return names;
+        }).stream().flatMap(Set::stream).distinct().sorted().forEach(name ->
+                nameMap.put(name, generateName(dictionary, usedGlobal)));
+
+        pool.forEachClass(classNode -> {
+            if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
+                return;
             }
 
             boolean changed = false;
@@ -45,7 +62,7 @@ public class LocalVariableRenameTransformer extends Transformer {
                     if (lv.index == 0 && !isStatic(method)) continue;
                     if (isExcludedMember(lv.name, config)) continue;
 
-                    String newName = nameMap.computeIfAbsent(lv.name, k -> generateName(dictionary, usedGlobal));
+                    String newName = nameMap.get(lv.name);
                     lv.name = newName;
                     changed = true;
                 }
@@ -53,7 +70,7 @@ public class LocalVariableRenameTransformer extends Transformer {
             if (changed) {
                 pool.markDirty(classNode.name);
             }
-        }
+        });
     }
 
     private boolean isStatic(org.objectweb.asm.tree.MethodNode method) {

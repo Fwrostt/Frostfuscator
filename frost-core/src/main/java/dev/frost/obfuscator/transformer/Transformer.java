@@ -102,4 +102,8 @@ public abstract class Transformer {
     protected void log(String message, Object... args) {
         Logger.info("[" + getName() + "] " + message, args);
     }
+
+    protected void detail(String message, Object... args) {
+        Logger.debug("[" + getName() + "] " + message, args);
+    }
 }

@@ -23,8 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 public final class PreferencesStore implements AutoCloseable {
-    private static final double DEFAULT_WIDTH = 1480;
-    private static final double DEFAULT_HEIGHT = 900;
+    public static final double DEFAULT_WINDOW_WIDTH = 1180;
+    public static final double DEFAULT_WINDOW_HEIGHT = 760;
     private static final String LEGACY_NODE = "dev/frost/obfuscator/gui/v2";
     private static final String MIGRATION_MARKER = "storage.migratedFromJavaPreferences";
     private final AppDataPaths paths;
@@ -94,31 +94,42 @@ public final class PreferencesStore implements AutoCloseable {
     }
 
     public void restoreWindow(Stage stage) {
-        double width = Math.max(stage.getMinWidth(), getDouble("window.width", DEFAULT_WIDTH));
-        double height = Math.max(stage.getMinHeight(), getDouble("window.height", DEFAULT_HEIGHT));
         double x = getDouble("window.x", Double.NaN);
         double y = getDouble("window.y", Double.NaN);
+        Screen screen = Screen.getScreens().stream()
+                .filter(candidate -> Double.isFinite(x) && Double.isFinite(y)
+                        && candidate.getVisualBounds().contains(x, y))
+                .findFirst().orElse(Screen.getPrimary());
+        javafx.geometry.Rectangle2D visual = screen.getVisualBounds();
+        double storedWidth = getDouble("window.width", DEFAULT_WINDOW_WIDTH);
+        double storedHeight = getDouble("window.height", DEFAULT_WINDOW_HEIGHT);
+        boolean staleFullscreenBounds = storedWidth >= visual.getWidth() * 0.94
+                && storedHeight >= visual.getHeight() * 0.94;
+        double requestedWidth = staleFullscreenBounds ? DEFAULT_WINDOW_WIDTH : storedWidth;
+        double requestedHeight = staleFullscreenBounds ? DEFAULT_WINDOW_HEIGHT : storedHeight;
+        double width = Math.max(stage.getMinWidth(), Math.min(requestedWidth, visual.getWidth() - 32));
+        double height = Math.max(stage.getMinHeight(), Math.min(requestedHeight, visual.getHeight() - 32));
         stage.setWidth(width);
         stage.setHeight(height);
-        if (Double.isFinite(x) && Double.isFinite(y)
-                && Screen.getScreens().stream().anyMatch(screen -> screen.getVisualBounds().contains(x, y))) {
-            stage.setX(x);
-            stage.setY(y);
+        if (Double.isFinite(x) && Double.isFinite(y) && visual.contains(x, y)) {
+            stage.setX(Math.max(visual.getMinX(), Math.min(x, visual.getMaxX() - width)));
+            stage.setY(Math.max(visual.getMinY(), Math.min(y, visual.getMaxY() - height)));
         } else {
             stage.centerOnScreen();
         }
-        // Custom visual bounds maximize handled by app shell
     }
 
     public void saveWindow(Stage stage) {
         boolean isMax = dev.frost.obfuscator.gui.titlebar.CustomTitleBar.isCustomMaximized(stage);
         putBoolean("window.maximized", isMax);
-        if (!isMax) {
-            putDouble("window.x", stage.getX());
-            putDouble("window.y", stage.getY());
-            putDouble("window.width", stage.getWidth());
-            putDouble("window.height", stage.getHeight());
-        }
+        javafx.geometry.Rectangle2D normal = isMax
+                ? dev.frost.obfuscator.gui.titlebar.CustomTitleBar.normalBounds(stage)
+                : new javafx.geometry.Rectangle2D(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
+        if (normal == null) return;
+        putDouble("window.x", normal.getMinX());
+        putDouble("window.y", normal.getMinY());
+        putDouble("window.width", normal.getWidth());
+        putDouble("window.height", normal.getHeight());
     }
 
     public List<String> recentProjects() {

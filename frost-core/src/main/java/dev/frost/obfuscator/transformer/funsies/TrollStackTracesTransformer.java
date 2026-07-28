@@ -34,12 +34,12 @@ public final class TrollStackTracesTransformer extends Transformer {
     public void transform(Context context) {
         String message = context.config().getOption("message",
                 "  /\\_/\\\\\n ( o.o )  Frost says: stack trace unavailable\n  > ^ <");
-        int calls = 0;
-        for (ClassNode node : context.pool().getClasses()) {
+        java.util.concurrent.atomic.LongAdder calls = new java.util.concurrent.atomic.LongAdder();
+        context.pool().forEachClass(node -> {
             if ((node.access & (Opcodes.ACC_INTERFACE | Opcodes.ACC_ANNOTATION)) != 0
                     || !shouldProcess(node.name, context.config(), context.pool().getGlobalExclusions(),
                     context.pool().getGlobalInclusions())) {
-                continue;
+                return;
             }
             String helperName = helperName(node);
             Set<String> descriptors = new HashSet<>();
@@ -57,7 +57,7 @@ public final class TrollStackTracesTransformer extends Transformer {
                     method.instructions.set(call,
                             new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, helperName, helperDesc, false));
                     descriptors.add(helperDesc);
-                    calls++;
+                    calls.increment();
                 }
             }
             if (!descriptors.isEmpty()) {
@@ -68,9 +68,9 @@ public final class TrollStackTracesTransformer extends Transformer {
                 }
                 context.pool().markDirty(node.name);
             }
-        }
-        context.stats().add("trolledStackTraceCalls", calls);
-        log("Rewrote {} explicit printStackTrace calls", calls);
+        });
+        context.stats().add("trolledStackTraceCalls", calls.sum());
+        log("Rewrote {} explicit printStackTrace calls", calls.sum());
     }
 
     private boolean isSupported(String desc) {

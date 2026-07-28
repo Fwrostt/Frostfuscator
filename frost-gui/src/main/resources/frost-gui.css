@@ -670,7 +670,7 @@
 .custom-combo > .label,
 .custom-combo-value {
     -fx-text-fill: -fx-text;
-    -fx-font-weight: 550;
+    -fx-font-weight: 600;
 }
 
 .menu-button:showing > .label,
@@ -1099,8 +1099,7 @@
 }
 
 .analytics-page {
-    -fx-min-width: 960;
-    -fx-max-width: none;
+    -fx-min-width: 0;
 }
 
 .analytics-metric {
@@ -1109,7 +1108,7 @@
     -fx-min-height: 112;
     -fx-background-color: -fx-surface-raised;
     -fx-background-radius: 10;
-    -fx-padding: 16 18;
+    -fx-padding: 16;
 }
 
 .analytics-metric-value {
@@ -1529,15 +1528,17 @@
 
 /* ── Bytecode Viewer ────────────────────────────────────────────── */
 .viewer-workbench-title {
-    -fx-font-size: 1.25em;
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 1.42em;
     -fx-font-weight: 700;
 }
 .viewer-workbench-subtitle {
     -fx-text-fill: -fx-text-muted;
-    -fx-font-size: 0.9em;
+    -fx-font-size: 0.88em;
 }
 .viewer-workbench-bar {
-    -fx-padding: 0 0 4 0;
+    -fx-min-height: 52;
+    -fx-padding: 0 0 10 0;
 }
 .viewer-workbench-actions {
     -fx-alignment: center-right;
@@ -1576,12 +1577,12 @@
     -fx-padding: 0;
     -fx-border-color: -fx-border;
     -fx-border-width: 1;
-    -fx-border-radius: 8;
-    -fx-background-radius: 8;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
 }
 .viewer-workspace > .split-pane-divider {
     -fx-background-color: -fx-border;
-    -fx-padding: 0 1 0 1;
+    -fx-padding: 0 0.5 0 0.5;
     -fx-cursor: h-resize;
 }
 .viewer-archive-panel,
@@ -1590,16 +1591,20 @@
     -fx-background-color: -fx-surface;
 }
 .viewer-archive-panel {
-    -fx-padding: 12 8 8 8;
-    -fx-background-radius: 8 0 0 8;
+    -fx-padding: 14 10 10 10;
+    -fx-background-radius: 12 0 0 12;
 }
 .viewer-source-pane {
     -fx-background-color: -fx-bg;
 }
 .viewer-inspector {
-    -fx-padding: 12;
-    -fx-background-radius: 0 8 8 0;
+    -fx-padding: 14 12 12 12;
+    -fx-background-radius: 0 12 12 0;
     -fx-min-width: 0;
+}
+.viewer-panel-icon {
+    -fx-icon-color: -fx-accent-token;
+    -fx-icon-size: 15;
 }
 .viewer-panel-title,
 .viewer-document-title,
@@ -1611,7 +1616,7 @@
     -fx-font-size: 1.05em;
 }
 .viewer-document-header {
-    -fx-padding: 12 16;
+    -fx-padding: 13 16 12 16;
     -fx-background-color: -fx-surface;
     -fx-border-color: transparent transparent -fx-border transparent;
     -fx-border-width: 0 0 1 0;
@@ -1636,10 +1641,18 @@
     -fx-font-size: 0.9em;
 }
 .viewer-editor-toolbar {
-    -fx-padding: 6 12;
+    -fx-padding: 8 12;
     -fx-background-color: -fx-surface;
     -fx-border-color: transparent transparent -fx-border transparent;
     -fx-border-width: 0 0 1 0;
+}
+.viewer-toolbar-group {
+    -fx-padding: 0 8 0 0;
+    -fx-border-color: transparent -fx-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.viewer-edit-group {
+    -fx-padding: 0 0 0 2;
 }
 .viewer-editor-toolbar .custom-combo,
 .viewer-editor-toolbar .text-input {
@@ -1673,6 +1686,30 @@
     -fx-background-color: -fx-accent-soft;
     -fx-text-fill: -fx-accent-token;
 }
+.viewer-icon-action {
+    -fx-min-width: 32;
+    -fx-pref-width: 32;
+    -fx-max-width: 32;
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+.viewer-icon-action .ikonli-font-icon {
+    -fx-icon-color: -fx-text-muted;
+    -fx-icon-size: 14;
+}
+.viewer-icon-action:hover .ikonli-font-icon {
+    -fx-icon-color: -fx-accent-token;
+}
+.menu-button.viewer-icon-action > .label {
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+.menu-button.viewer-icon-action > .arrow-button {
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+    -fx-opacity: 0;
+}
 
 .viewer-segmented-bar {
     -fx-background-color: -fx-surface;
@@ -1701,9 +1738,9 @@
     -fx-font-weight: 700;
 }
 .viewer-source-search {
-    -fx-min-width: 100;
-    -fx-pref-width: 160;
-    -fx-max-width: 220;
+    -fx-min-width: 112;
+    -fx-pref-width: 196;
+    -fx-max-width: 320;
 }
 .viewer-search {
     -fx-min-height: 32;
@@ -1773,7 +1810,7 @@
     -fx-background-color: transparent;
 }
 .viewer-code .lineno .text {
-    -fx-fill: #6f7278;
+    -fx-fill: -fx-text-muted;
     -fx-font-family: 'JetBrains Mono', 'Consolas', monospace;
     -fx-font-size: 12px;
 }
@@ -1799,13 +1836,23 @@
     -fx-background-color: -fx-surface;
 }
 .viewer-editor-tabs > .tab-header-area > .headers-region > .tab {
-    -fx-padding: 8 16;
+    -fx-padding: 9 16 8 16;
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 0 0 2 0;
 }
 .viewer-editor-tabs > .tab-header-area > .headers-region > .tab .tab-label {
     -fx-text-fill: -fx-text-muted;
 }
+.viewer-editor-tabs > .tab-header-area > .headers-region > .tab:hover {
+    -fx-background-color: -fx-surface-raised;
+}
+.viewer-editor-tabs > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -fx-accent-soft;
+    -fx-border-color: transparent transparent -fx-accent-token transparent;
+}
 .viewer-editor-tabs > .tab-header-area > .headers-region > .tab:selected .tab-label {
     -fx-text-fill: -fx-accent-token;
+    -fx-font-weight: 700;
 }
 .viewer-editor-tabs > .tab-content-area {
     -fx-background-color: -fx-bg;
@@ -1850,14 +1897,61 @@
     -fx-background-color: -fx-accent-soft;
 }
 .viewer-status-bar {
-    -fx-padding: 4 0;
+    -fx-min-height: 28;
+    -fx-padding: 6 4 2 4;
 }
 .viewer-empty-state {
-    -fx-spacing: 12;
+    -fx-spacing: 16;
+    -fx-padding: 40 48;
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: 14;
+}
+.viewer-empty-mark {
+    -fx-min-width: 72;
+    -fx-pref-width: 72;
+    -fx-max-width: 72;
+    -fx-min-height: 72;
+    -fx-pref-height: 72;
+    -fx-max-height: 72;
+    -fx-background-color: -fx-accent-soft;
+    -fx-background-radius: 14;
 }
 .viewer-empty-icon {
+    -fx-icon-color: -fx-accent-token;
+    -fx-icon-size: 30;
+}
+.viewer-empty-title {
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 1.45em;
+    -fx-font-weight: 700;
+}
+.viewer-empty-copy {
+    -fx-font-size: 1em;
+    -fx-text-alignment: center;
+}
+.viewer-empty-workflow {
+    -fx-padding: 4 0 8 0;
+}
+.viewer-empty-step-index {
+    -fx-min-width: 22;
+    -fx-pref-width: 22;
+    -fx-min-height: 22;
+    -fx-pref-height: 22;
+    -fx-alignment: center;
+    -fx-background-color: -fx-surface-raised;
+    -fx-background-radius: 999;
+    -fx-text-fill: -fx-accent-token;
+    -fx-font-size: 0.84em;
+    -fx-font-weight: 700;
+}
+.viewer-empty-step-label {
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 0.92em;
+    -fx-font-weight: 600;
+}
+.viewer-empty-arrow {
     -fx-icon-color: -fx-text-muted;
-    -fx-icon-size: 48;
+    -fx-icon-size: 13;
 }
 .viewer-tool-drawer {
     -fx-background-color: -fx-surface;
@@ -1866,57 +1960,58 @@
     -fx-padding: 12;
     -fx-min-width: 0;
 }
-/* ── Syntax Highlighting (IntelliJ Darcula Palette) ─────────────── */
+/* ── Theme-adaptive syntax highlighting ────────────────────────── */
 .viewer-code .text,
 .styled-text-area .text {
-    -fx-fill: #A9B7C6;
+    -fx-fill: -fx-text;
 }
 .viewer-code .syntax-keyword,
 .styled-text-area .syntax-keyword {
-    -fx-fill: #CC7832;
+    -fx-fill: -fx-warning;
     -fx-font-weight: bold;
 }
 .viewer-code .syntax-instruction,
 .styled-text-area .syntax-instruction {
-    -fx-fill: #9876AA;
+    -fx-fill: -fx-info;
     -fx-font-weight: bold;
 }
 .viewer-code .syntax-directive,
 .styled-text-area .syntax-directive {
-    -fx-fill: #808080;
+    -fx-fill: -fx-text-muted;
 }
 .viewer-code .syntax-label,
 .styled-text-area .syntax-label {
-    -fx-fill: #769AA5;
+    -fx-fill: -fx-accent-token;
 }
 .viewer-code .syntax-string,
 .styled-text-area .syntax-string {
-    -fx-fill: #6A8759;
+    -fx-fill: -fx-success;
 }
 .viewer-code .syntax-number,
 .styled-text-area .syntax-number {
-    -fx-fill: #6897BB;
+    -fx-fill: -fx-info;
 }
 .viewer-code .syntax-comment,
 .styled-text-area .syntax-comment {
-    -fx-fill: #808080;
+    -fx-fill: -fx-text-muted;
     -fx-font-style: italic;
 }
 .viewer-code .syntax-annotation,
 .styled-text-area .syntax-annotation {
-    -fx-fill: #BBB529;
+    -fx-fill: -fx-warning;
 }
 .viewer-code .syntax-type,
 .styled-text-area .syntax-type {
-    -fx-fill: #4EC9B0;
+    -fx-fill: -fx-accent-token;
 }
 .viewer-code .syntax-method,
 .styled-text-area .syntax-method {
-    -fx-fill: #FFC66D;
+    -fx-fill: -fx-text;
+    -fx-font-weight: 700;
 }
 .viewer-code .syntax-punctuation,
 .styled-text-area .syntax-punctuation {
-    -fx-fill: #A9B7C6;
+    -fx-fill: -fx-text;
 }
 .viewer-string-workbench {
     -fx-background-color: -fx-surface;
@@ -2101,6 +2196,104 @@
 }
 .viewer-error-drawer .list-cell:filled:hover {
     -fx-background-color: -fx-surface;
+}
+
+/* ── Encryptor ─────────────────────────────────────────────────── */
+.encryptor-page {
+    -fx-min-width: 0;
+}
+.encryptor-page-header {
+    -fx-padding: 0 0 4 0;
+}
+.encryptor-operation {
+    -fx-min-width: 0;
+}
+.encryptor-mode-bar {
+    -fx-padding: 4;
+    -fx-background-color: -fx-bg;
+    -fx-background-radius: 10;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+.encryptor-mode-button {
+    -fx-min-height: 36;
+    -fx-padding: 8 16;
+    -fx-background-color: transparent;
+    -fx-background-radius: 7;
+    -fx-border-width: 0;
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+}
+.encryptor-mode-button:hover {
+    -fx-background-color: -fx-surface-raised;
+    -fx-text-fill: -fx-text;
+}
+.encryptor-mode-button:selected {
+    -fx-background-color: -fx-accent-soft;
+    -fx-text-fill: -fx-accent-token;
+}
+.encryptor-mode-button .ikonli-font-icon {
+    -fx-icon-color: -fx-text-muted;
+    -fx-icon-size: 15;
+}
+.encryptor-mode-button:selected .ikonli-font-icon {
+    -fx-icon-color: -fx-accent-token;
+}
+.encryptor-field-label {
+    -fx-padding: 4 0 0 0;
+}
+.encryptor-hint,
+.encryptor-security-copy,
+.encryptor-result-path {
+    -fx-text-fill: -fx-text-muted;
+}
+.encryptor-hint,
+.encryptor-result-path {
+    -fx-font-size: 0.9em;
+}
+.encryptor-progress {
+    -fx-pref-height: 5;
+}
+.encryptor-status-band {
+    -fx-min-height: 64;
+    -fx-padding: 12;
+    -fx-background-color: -fx-bg;
+    -fx-background-radius: 10;
+}
+.encryptor-status-icon {
+    -fx-icon-color: -fx-accent-token;
+    -fx-icon-size: 20;
+}
+.encryptor-status-copy {
+    -fx-text-fill: -fx-text;
+    -fx-font-weight: 700;
+}
+.encryptor-status-success {
+    -fx-text-fill: -fx-success;
+}
+.encryptor-status-error {
+    -fx-text-fill: -fx-error;
+}
+.encryptor-security {
+    -fx-background-color: -fx-accent-soft;
+    -fx-border-color: transparent;
+}
+.encryptor-security-icon {
+    -fx-min-width: 24;
+    -fx-icon-color: -fx-accent-token;
+    -fx-icon-size: 18;
+}
+.encryptor-security-title {
+    -fx-text-fill: -fx-text;
+    -fx-font-weight: 700;
+}
+.encryptor-security-copy {
+    -fx-font-size: 0.9em;
+}
+.encryptor-drop-active .encryptor-operation {
+    -fx-border-color: -fx-accent-token;
 }
 
 /* ── IDE Autocompletion Popup ────────────────────────────────── */

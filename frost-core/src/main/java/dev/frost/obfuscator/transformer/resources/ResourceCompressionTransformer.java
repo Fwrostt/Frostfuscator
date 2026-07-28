@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
 public class ResourceCompressionTransformer extends Transformer {
@@ -27,10 +28,12 @@ public class ResourceCompressionTransformer extends Transformer {
         boolean removeOriginals = getBooleanOption(context, "remove-originals", true);
         String prefix = context.config().getOption("output-prefix", "META-INF/frostfuscator/resources/");
         List<String> compressed = new ArrayList<>();
+        Set<String> preservedPackages = ResourceCompatibility.preservedPackages(context);
 
         for (Map.Entry<String, byte[]> entry : new ArrayList<>(context.resources().entrySet())) {
             String name = entry.getKey();
-            if (!shouldCompress(name, prefix)) {
+            if (!shouldCompress(name, prefix)
+                    || ResourceCompatibility.isPreservedLibraryResource(name, preservedPackages)) {
                 continue;
             }
 

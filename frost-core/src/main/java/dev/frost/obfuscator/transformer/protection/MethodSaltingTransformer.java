@@ -9,6 +9,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.Random;
+import java.util.concurrent.atomic.LongAdder;
 
 public class MethodSaltingTransformer extends Transformer {
 
@@ -24,17 +25,18 @@ public class MethodSaltingTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int saltedMethods = 0;
+        LongAdder saltedMethods = new LongAdder();
         int maxSaltsPerMethod = config.getOptionInt("max-salts", 4);
         int probability = config.getOptionInt("probability", 75);
         long seed = config.getOptionLong("seed", 777L);
 
-        for (ClassNode classNode : pool.getClasses()) {
+        pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
-            if ((classNode.access & Opcodes.ACC_INTERFACE) != 0) continue;
+            if ((classNode.access & Opcodes.ACC_INTERFACE) != 0) return;
 
+            boolean classChanged = false;
             for (MethodNode method : classNode.methods) {
                 if (method.instructions == null || method.instructions.size() == 0) continue;
                 if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
@@ -44,12 +46,14 @@ public class MethodSaltingTransformer extends Transformer {
 
                 int saltsAdded = injectMethodSalts(method, maxSaltsPerMethod, random);
                 if (saltsAdded > 0) {
-                    saltedMethods++;
+                    saltedMethods.increment();
+                    classChanged = true;
                 }
             }
-        }
+            if (classChanged) pool.markDirty(classNode.name);
+        });
 
-        Logger.info("Salted {} method(s) with unique opcode sequences", saltedMethods);
+        Logger.info("Salted {} method(s) with unique opcode sequences", saltedMethods.sum());
     }
 
     private int injectMethodSalts(MethodNode method, int maxSalts, Random random) {
@@ -62,7 +66,7 @@ public class MethodSaltingTransformer extends Transformer {
             if (node instanceof LineNumberNode || node instanceof LabelNode || node instanceof FrameNode) continue;
 
             InsnList saltSequence = generateSalt(random);
-            insns.insert(node, saltSequence);
+            insns.insertBefore(node, saltSequence);
             count++;
         }
         return count;
@@ -74,24 +78,21 @@ public class MethodSaltingTransformer extends Transformer {
 
         switch (type) {
             case 0 -> {
-                // Double NOP sequence
-                salt.add(new InsnNode(Opcodes.NOP));
-                salt.add(new InsnNode(Opcodes.NOP));
+                salt.add(new InsnNode(Opcodes.ICONST_0));
+                salt.add(new InsnNode(Opcodes.POP));
             }
             case 1 -> {
-                // Identity integer addition: + 0
-                salt.add(new InsnNode(Opcodes.ICONST_0));
-                salt.add(new InsnNode(Opcodes.IADD));
+                salt.add(new InsnNode(Opcodes.LCONST_0));
+                salt.add(new InsnNode(Opcodes.POP2));
             }
             case 2 -> {
-                // Identity integer multiplication: * 1
-                salt.add(new InsnNode(Opcodes.ICONST_1));
-                salt.add(new InsnNode(Opcodes.IMUL));
+                salt.add(new InsnNode(Opcodes.ACONST_NULL));
+                salt.add(new InsnNode(Opcodes.POP));
             }
             case 3 -> {
-                // Identity integer subtraction: - 0
-                salt.add(new InsnNode(Opcodes.ICONST_0));
-                salt.add(new InsnNode(Opcodes.ISUB));
+                salt.add(new InsnNode(Opcodes.ICONST_1));
+                salt.add(new InsnNode(Opcodes.INEG));
+                salt.add(new InsnNode(Opcodes.POP));
             }
         }
         return salt;

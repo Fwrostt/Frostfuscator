@@ -31,6 +31,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.concurrent.atomic.LongAdder;
 
 public class LicenseGuardTransformer extends Transformer {
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -68,16 +69,15 @@ public class LicenseGuardTransformer extends Transformer {
 
         String coverage = option(config, "entrypoints", "coverage", "injection-mode").toLowerCase(Locale.ROOT);
         boolean injectClinit = boolOption(config, true, "inject-clinit", "injectClinit");
-        int guardedMethods = 0;
-        int guardedClasses = 0;
+        LongAdder guardedMethods = new LongAdder();
+        LongAdder guardedClasses = new LongAdder();
 
-        List<ClassNode> classes = new ArrayList<>(pool.getClasses());
-        for (ClassNode classNode : classes) {
+        pool.forEachClass(classNode -> {
             if (RUNTIME_CLASS.equals(classNode.name)) {
-                continue;
+                return;
             }
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                continue;
+                return;
             }
 
             boolean entryClass = isEntryClass(context, classNode.name);
@@ -92,15 +92,15 @@ public class LicenseGuardTransformer extends Transformer {
             }
 
             if (classGuards > 0) {
-                guardedMethods += classGuards;
-                guardedClasses++;
+                guardedMethods.add(classGuards);
+                guardedClasses.increment();
                 pool.markDirty(classNode.name);
             }
-        }
+        });
 
-        context.stats().add("licenseGuardedClasses", guardedClasses);
-        context.stats().add("licenseGuardedMethods", guardedMethods);
-        log("Injected license guard into {} methods across {} classes", guardedMethods, guardedClasses);
+        context.stats().add("licenseGuardedClasses", guardedClasses.sum());
+        context.stats().add("licenseGuardedMethods", guardedMethods.sum());
+        log("Injected license guard into {} methods across {} classes", guardedMethods.sum(), guardedClasses.sum());
     }
 
     private Properties buildPolicy(TransformerConfig config) {

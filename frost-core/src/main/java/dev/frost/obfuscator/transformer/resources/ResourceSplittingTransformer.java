@@ -35,12 +35,14 @@ public final class ResourceSplittingTransformer extends Transformer {
         int threshold = intOption(context, "minimum-size", 65536, 1, Integer.MAX_VALUE);
         boolean removeOriginals = booleanOption(context, "remove-originals", true);
         List<String> index = new ArrayList<>();
+        Set<String> preservedPackages = ResourceCompatibility.preservedPackages(context);
         int resources = 0;
         int parts = 0;
         for (Map.Entry<String, byte[]> entry : new ArrayList<>(context.resources().entrySet())) {
             String name = entry.getKey();
             byte[] data = entry.getValue();
-            if (!eligible(name) || data.length < threshold) continue;
+            if (!eligible(name) || data.length < threshold
+                    || ResourceCompatibility.isPreservedLibraryResource(name, preservedPackages)) continue;
             String id = shortHash(name.getBytes(StandardCharsets.UTF_8));
             String prefix = "META-INF/frostfuscator/splits/" + id + "/";
             int count = (data.length + partSize - 1) / partSize;
