@@ -48,7 +48,7 @@ public class FlowRangeTransformer extends Transformer {
             }
 
             if (changed > 0) {
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
                 detail("Wrapped {} methods in synthetic exception ranges in {}", changed, classNode.name);
             }
         });

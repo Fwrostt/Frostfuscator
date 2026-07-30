@@ -1,0 +1,22 @@
+package dev.frost.graph;
+
+/** Identifies the semantic purpose of a graph independently of its renderer. */
+public enum GraphType {
+    CLASS_DEPENDENCY,
+    METHOD_CALL,
+    INHERITANCE,
+    PACKAGE_DEPENDENCY,
+    CONTROL_FLOW,
+    EXCEPTION_FLOW,
+    TRANSFORMER_PIPELINE,
+    TRANSFORMER_DEPENDENCY,
+    CONFIGURATION_PREVIEW,
+    OBFUSCATION_PREVIEW,
+    INCLUDED_EXCLUDED,
+    MAPPING,
+    GENERATED_MEMBER,
+    TRANSFORMATION_DIFF,
+    BUILD_EXECUTION,
+    TRANSFORMER_RESULT,
+    CUSTOM
+}

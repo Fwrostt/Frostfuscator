@@ -8,6 +8,7 @@ import dev.frost.obfuscator.gui.validation.Problem;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import dev.frost.graph.transform.BuildExecutionSnapshot;
 
 import java.nio.file.Path;
 
@@ -31,6 +32,8 @@ public final class ProjectState {
     private final LongProperty revision = new SimpleLongProperty(this, "revision", 0);
     private final ObservableList<Problem> problems = FXCollections.observableArrayList();
     private final ObservableList<BuildRecord> buildHistory = FXCollections.observableArrayList();
+    private final ObjectProperty<BuildExecutionSnapshot> buildGraph = new SimpleObjectProperty<>(this, "buildGraph");
+    private volatile String graphNavigationClass;
 
     public ObjectProperty<ObfuscationConfig> configurationProperty() { return configuration; }
     public ObfuscationConfig configuration() { return configuration.get(); }
@@ -66,6 +69,12 @@ public final class ProjectState {
     public LongProperty revisionProperty() { return revision; }
     public ObservableList<Problem> problems() { return problems; }
     public ObservableList<BuildRecord> buildHistory() { return buildHistory; }
+    public ObjectProperty<BuildExecutionSnapshot> buildGraphProperty() { return buildGraph; }
+    public BuildExecutionSnapshot buildGraph() { return buildGraph.get(); }
+    public void setBuildGraph(BuildExecutionSnapshot value) { buildGraph.set(value); }
+    public void requestGraphClassOpen(String internalName) { graphNavigationClass = internalName; }
+    public String graphNavigationClass() { return graphNavigationClass; }
+    public void clearGraphNavigationClass() { graphNavigationClass = null; }
 
     public void touch() {
         dirty.set(true);

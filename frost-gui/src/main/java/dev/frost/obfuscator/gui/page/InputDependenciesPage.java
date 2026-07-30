@@ -4,6 +4,7 @@ import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
 import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.component.StatusChip;
+import dev.frost.obfuscator.gui.component.TextFieldAutoComplete;
 import dev.frost.obfuscator.gui.component.Ui;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
 import javafx.application.Platform;
@@ -12,7 +13,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import org.controlsfx.control.textfield.TextFields;
 
 import java.nio.file.Path;
 
@@ -43,7 +43,7 @@ public final class InputDependenciesPage implements PageView {
         input.setText(nullToEmpty(context.projectState().configuration().getInput()));
         output.setText(nullToEmpty(context.projectState().configuration().getOutput()));
         libraries.setText(nullToEmpty(context.projectState().configuration().getLibs()));
-        TextFields.bindAutoCompletion(input, context.preferences().recentProjects());
+        TextFieldAutoComplete.install(input, context.preferences().recentProjects());
 
         HBox inputRow = fileRow(input, "Choose JAR", this::chooseInput);
         HBox outputRow = fileRow(output, "Choose output", this::chooseOutput);

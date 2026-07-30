@@ -9,6 +9,7 @@ import dev.frost.obfuscator.util.AccessHelper;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.RecordComponentNode;
 
 import java.util.*;
 
@@ -41,6 +42,13 @@ public class FieldRenameTransformer extends Transformer {
             }
 
             for (FieldNode field : classNode.fields) {
+                if (reflectiveFieldNames.contains(field.name)) {
+                    mappings.preserveField(classNode.name, field.name, field.desc);
+                }
+                if (mappings.isFieldPreserved(classNode.name, field.name, field.desc)) {
+                    detail("Keeping reflectively referenced field {}.{}", classNode.name, field.name);
+                    continue;
+                }
                 if (field.name.startsWith("frost$") || field.name.startsWith("__frost") || isExcludedMember(field.name, config)) {
                     continue;
                 }
@@ -53,9 +61,19 @@ public class FieldRenameTransformer extends Transformer {
                     continue;
                 }
 
+                RecordComponentNode component = findRecordComponent(classNode, field.name, field.desc);
+                if (component != null
+                        && mappings.isMethodPreserved(classNode.name, component.name, "()" + component.descriptor)) {
+                    continue;
+                }
+
                 String newName = generateName(dictionary, used);
                 if (!newName.equals(field.name)) {
-                    mappings.mapField(classNode.name, field.name, field.desc, newName);
+                    if (component == null) {
+                        mappings.mapField(classNode.name, field.name, field.desc, newName);
+                    } else {
+                        mappings.mapRecordComponent(classNode.name, field.name, field.desc, newName);
+                    }
                     renamedFields++;
                 }
             }
@@ -81,6 +99,14 @@ public class FieldRenameTransformer extends Transformer {
         } while (used.contains(name));
         used.add(name);
         return name;
+    }
+
+    private RecordComponentNode findRecordComponent(ClassNode owner, String name, String descriptor) {
+        if (owner.recordComponents == null) return null;
+        for (RecordComponentNode component : owner.recordComponents) {
+            if (component.name.equals(name) && component.descriptor.equals(descriptor)) return component;
+        }
+        return null;
     }
 
     private Set<String> collectReflectiveFieldNames(ClassPool pool) {

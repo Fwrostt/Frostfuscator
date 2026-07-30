@@ -16,7 +16,8 @@ public final class NativeBuildPipeline {
     private final NativeLibraryVerifier verifier = new NativeLibraryVerifier();
 
     public CompilationResult build(CompilerInput input, JniSymbolRegistry symbolRegistry) throws IOException, InterruptedException {
-        return build(input, symbolRegistry, Set.of(CompilerKind.CLANG, CompilerKind.GCC, CompilerKind.MSVC));
+        return build(input, symbolRegistry,
+                Set.of(CompilerKind.CLANG, CompilerKind.GCC, CompilerKind.MSVC, CompilerKind.ZIG));
     }
 
     public CompilationResult build(
@@ -37,7 +38,7 @@ public final class NativeBuildPipeline {
                 .filter(compiler -> allowedCompilers.contains(compiler.kind()))
                 .toList();
         if (detectedCompilers.isEmpty()) {
-            throw new IOException("No supported C++ compiler found. Install MSVC, MinGW GCC, or Clang and ensure it is discoverable.");
+            throw new IOException("No supported C++ compiler found. Install Clang, GCC/MinGW, MSVC, or Zig and ensure it is discoverable.");
         }
 
         List<String> failures = new ArrayList<>();

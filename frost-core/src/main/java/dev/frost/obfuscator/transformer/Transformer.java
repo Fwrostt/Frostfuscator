@@ -5,19 +5,34 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.util.Logger;
 
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public abstract class Transformer {
 
     public enum Priority {
         PRE_OBFUSCATION,
+        PRE_RENAME,
         NORMAL,
+        POST_FLOW,
         POST_REMAP,
         FINAL,
         CLASSLOADER_ENCRYPTION
     }
 
     public abstract String getName();
+
+    /** Stable graph/config identifier. Existing transformers use their registry name. */
+    public String graphId() { return getName(); }
+
+    /** Transformer ids which must execute first. */
+    public Set<String> dependencies() { return Set.of(); }
+
+    /** Transformer ids which should not be enabled together. */
+    public Set<String> conflicts() { return Set.of(); }
+
+    /** Lower values execute first within the same engine priority group. */
+    public int orderWeight() { return 0; }
 
     public String getCategory() {
         return "Obfuscation";

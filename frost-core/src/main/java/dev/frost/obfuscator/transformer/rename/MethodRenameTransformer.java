@@ -41,6 +41,17 @@ public class MethodRenameTransformer extends Transformer {
                     continue;
                 }
 
+                RecordComponentNode component = findRecordAccessor(classNode, method);
+                if (component != null) {
+                    String componentName = mappings.getMappedRecordComponent(
+                            classNode.name, component.name, component.descriptor);
+                    if (!componentName.equals(component.name)) {
+                        mappings.mapRecordComponent(
+                                classNode.name, component.name, component.descriptor, componentName);
+                    }
+                    continue;
+                }
+
                 if (AccessHelper.isMainMethod(method)) {
                     continue;
                 }
@@ -107,6 +118,15 @@ public class MethodRenameTransformer extends Transformer {
             return true;
         }
         return false;
+    }
+
+    private RecordComponentNode findRecordAccessor(ClassNode owner, MethodNode method) {
+        if (owner.recordComponents == null) return null;
+        for (RecordComponentNode component : owner.recordComponents) {
+            if (component.name.equals(method.name)
+                    && method.desc.equals("()" + component.descriptor)) return component;
+        }
+        return null;
     }
 
     private static String mappingKey(String owner, String name, String desc) {

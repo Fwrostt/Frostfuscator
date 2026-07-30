@@ -110,7 +110,7 @@ class PluginSystemIntegrationTest {
         // Run registered transformer
         dev.frost.api.transformer.PluginTransformer apiTransformer = apiContext.registeredTransformers().get(0);
         PluginTransformerAdapter adapter = new PluginTransformerAdapter(apiTransformer);
-        assertEquals("Synthetic Class Generator", adapter.getName());
+        assertEquals("sample:synthetic-class-generator", adapter.getName());
         assertEquals("CUSTOM", adapter.getCategory());
 
         // Trigger PostObfuscationEvent

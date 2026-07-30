@@ -9,6 +9,7 @@ dependencies {
     implementation project(':frost-core')
     implementation 'info.picocli:picocli:4.7.5'
     implementation 'org.slf4j:slf4j-simple:2.0.13'
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
 }
 
 application {
@@ -21,9 +22,6 @@ jar {
 
 shadowJar {
     archiveFileName.set('Frostfuscator.jar')
-    minimize {
-        exclude(dependency('org.slf4j:.*'))
-    }
     manifest {
         attributes('Main-Class': application.mainClass)
     }

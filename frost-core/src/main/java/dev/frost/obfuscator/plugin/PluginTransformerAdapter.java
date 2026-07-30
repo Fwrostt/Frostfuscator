@@ -10,6 +10,7 @@ import dev.frost.obfuscator.util.Logger;
 import org.objectweb.asm.tree.ClassNode;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 /**
@@ -29,8 +30,13 @@ public final class PluginTransformerAdapter extends Transformer {
 
     @Override
     public String getName() {
-        return apiTransformer.name();
+        return apiTransformer.id();
     }
+
+    @Override public String graphId() { return apiTransformer.id(); }
+    @Override public Set<String> dependencies() { return apiTransformer.dependencies(); }
+    @Override public Set<String> conflicts() { return apiTransformer.conflicts(); }
+    @Override public int orderWeight() { return apiTransformer.orderWeight(); }
 
     @Override
     public String getCategory() {
@@ -41,6 +47,10 @@ public final class PluginTransformerAdapter extends Transformer {
     public Priority priority() {
         if (apiTransformer.pass() == ExecutionPass.PRE_PROCESSING) {
             return Priority.PRE_OBFUSCATION;
+        } else if (apiTransformer.pass() == ExecutionPass.PRE_RENAME) {
+            return Priority.PRE_RENAME;
+        } else if (apiTransformer.pass() == ExecutionPass.POST_FLOW) {
+            return Priority.POST_FLOW;
         } else if (apiTransformer.pass() == ExecutionPass.POST_PROCESSING) {
             return Priority.POST_REMAP;
         } else if (apiTransformer.pass() == ExecutionPass.FINALIZATION) {

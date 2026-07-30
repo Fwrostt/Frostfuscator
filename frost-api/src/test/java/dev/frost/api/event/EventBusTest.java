@@ -104,6 +104,21 @@ class EventBusTest {
     }
 
     @Test
+    void equalPriorityHandlersKeepRegistrationOrder() {
+        EventBus bus = new EventBus();
+        List<String> log = new ArrayList<>();
+
+        bus.registerHandler(TestEvent.class, EventPriority.NORMAL, false, event -> log.add("first"));
+        bus.registerHandler(TestEvent.class, EventPriority.HIGHEST, false, event -> log.add("highest"));
+        bus.registerHandler(TestEvent.class, EventPriority.NORMAL, false, event -> log.add("second"));
+        bus.registerHandler(TestEvent.class, EventPriority.MONITOR, false, event -> log.add("monitor"));
+
+        bus.post(new TestEvent("ordered"));
+
+        assertEquals(List.of("highest", "first", "second", "monitor"), log);
+    }
+
+    @Test
     void testUnregister() {
         EventBus bus = new EventBus();
         TestListener listener = new TestListener();

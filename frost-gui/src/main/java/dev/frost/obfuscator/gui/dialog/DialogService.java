@@ -28,6 +28,14 @@ public final class DialogService {
         return remember(optional(chooser.showOpenDialog(owner)), "jar");
     }
 
+    public Optional<Path> openPluginJar() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Load Frostfuscator plugin");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Frostfuscator plugins", "*.jar"));
+        restoreDirectory(chooser, "plugin");
+        return remember(optional(chooser.showOpenDialog(owner)), "plugin");
+    }
+
     public Optional<Path> openConfig() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Load Frostfuscator configuration");

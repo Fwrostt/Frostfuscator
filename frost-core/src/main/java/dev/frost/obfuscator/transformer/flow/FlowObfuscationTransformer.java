@@ -193,7 +193,7 @@ public class FlowObfuscationTransformer extends Transformer {
                 }
             }
             if (changed) {
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
             }
             } finally {
                 ACTIVE_RANDOM.remove();

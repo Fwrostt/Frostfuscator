@@ -53,7 +53,7 @@ public class FlowExceptionTransformer extends Transformer {
             }
 
             if (changed > 0) {
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
                 detail("Inserted {} exception-driven guards in {}", changed, classNode.name);
             }
         });

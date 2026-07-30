@@ -72,7 +72,7 @@ public class FlowOutlinerTransformer extends Transformer {
 
             if (!additions.isEmpty()) {
                 classNode.methods.addAll(additions);
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
                 outlinedCount.add(changed);
                 detail("Outlined {} method bodies in {}", changed, classNode.name);
             }

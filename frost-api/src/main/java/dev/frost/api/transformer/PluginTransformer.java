@@ -1,6 +1,7 @@
 package dev.frost.api.transformer;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Interface for custom obfuscation transformers created by plugins.
@@ -30,6 +31,18 @@ public interface PluginTransformer {
     default ExecutionPass pass() {
         return ExecutionPass.PRIMARY;
     }
+
+    /**
+     * Stable ordering inside {@link #pass()}. Lower weights execute first; equal weights retain
+     * registration order.
+     */
+    default int orderWeight() {
+        return 0;
+    }
+
+    default Set<String> dependencies() { return Set.of(); }
+
+    default Set<String> conflicts() { return Set.of(); }
 
     /**
      * Checks if transformer is enabled based on configuration.

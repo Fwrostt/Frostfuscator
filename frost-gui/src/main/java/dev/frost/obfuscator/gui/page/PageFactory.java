@@ -22,6 +22,7 @@ public final class PageFactory {
             case RESOURCES -> new ResourcesPage(context);
             case ENCRYPTOR -> new EncryptorPage(context);
             case BYTECODE -> new BytecodeViewerPage(context, navigation);
+            case GRAPHS -> new GraphPage(context, navigation);
             case BUILD -> new BuildPage(context);
             case VALIDATION -> new ValidationPage(context, navigation);
             case REPORTS -> new ReportsPage(context);

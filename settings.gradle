@@ -15,6 +15,7 @@ dependencyResolutionManagement {
 rootProject.name = 'Frostfuscator'
 
 include 'frost-api'
+include 'frost-graph'
 include 'frost-runtime'
 include 'frost-core'
 include 'frost-cli'

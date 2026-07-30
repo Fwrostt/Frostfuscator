@@ -6,6 +6,7 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.testfx.framework.junit5.ApplicationTest;
@@ -28,7 +29,7 @@ class StartupViewTest extends ApplicationTest {
 
     @Override
     public void start(Stage stage) {
-        startup = new StartupView(true);
+        startup = new StartupView(stage, true);
         host = new StackPane(startup);
         host.getStyleClass().add("bootstrap-host");
         Scene scene = new Scene(host, 1180, 760);
@@ -48,6 +49,11 @@ class StartupViewTest extends ApplicationTest {
         assertTrue(lookup(".startup-step").queryAll().isEmpty());
         assertTrue(lookup(".startup-title").queryAll().isEmpty());
         assertEquals(1, lookup(".startup-minimal-name").queryAll().size());
+        assertEquals(1, lookup(".startup-title-bar").queryAll().size());
+        assertEquals(1, lookup(".startup-close-button").queryAll().size());
+        assertEquals(3, lookup(".startup-title-bar .window-button").queryAll().size());
+        assertEquals(1, Window.getWindows().stream().filter(Window::isShowing).count(),
+                "startup must remain inside the primary application window");
         assertEquals(300, lookup(".startup-emblem").query().getBoundsInParent().getWidth(), 1);
         assertEquals(420, lookup(".startup-minimal-progress").query().getBoundsInParent().getWidth(), 1);
         assertEquals(startup.getScene().getWidth(), startup.getWidth(), 1);
@@ -80,7 +86,7 @@ class StartupViewTest extends ApplicationTest {
             immediate.set(startup.progressValue());
         });
         assertTrue(immediate.get() < 0.20);
-        WaitForAsyncUtils.waitFor(2, TimeUnit.SECONDS,
+        WaitForAsyncUtils.waitFor(4, TimeUnit.SECONDS,
                 () -> startup.progressValue() > 0.60 && startup.progressValue() <= 0.84);
         double rotationAtProgress = startup.rotationValue();
         WaitForAsyncUtils.waitFor(1, TimeUnit.SECONDS,

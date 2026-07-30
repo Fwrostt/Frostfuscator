@@ -7,15 +7,23 @@ import dev.frost.obfuscator.gui.component.Ui;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
 import dev.frost.obfuscator.gui.theme.ThemeDefinition;
 import dev.frost.obfuscator.gui.theme.ThemeManager;
+import dev.frost.obfuscator.plugin.LoadedPlugin;
+import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.concurrent.CompletableFuture;
 
 public final class SettingsPage implements PageView {
     private static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
@@ -25,6 +33,12 @@ public final class SettingsPage implements PageView {
     private final FlowPane themeChoices = new FlowPane(Ui.SPACE_3, Ui.SPACE_3);
     private final Map<String, TextField> tokenFields = new LinkedHashMap<>();
     private final VBox preview = new VBox(Ui.SPACE_3);
+    private Label storagePath;
+    private Label storageStatus;
+    private Button resetStorage;
+    private final TableView<LoadedPlugin> pluginTable = new TableView<>();
+    private final Label pluginStatus = Ui.label("Scanning the plugin directory…", "section-description");
+    private final BooleanProperty pluginOperationRunning = new SimpleBooleanProperty();
 
     public SettingsPage(AppContext context) {
         this.context = context;
@@ -36,9 +50,89 @@ public final class SettingsPage implements PageView {
                 themesSection(),
                 customThemeSection(),
                 comfortSection(),
+                pluginsSection(),
                 storageSection());
         refreshThemes();
         refreshPreview();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Node pluginsSection() {
+        pluginTable.getStyleClass().addAll("analytics-table", "settings-plugin-table");
+        pluginTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        pluginTable.setFixedCellSize(40);
+        pluginTable.setPrefHeight(230);
+        pluginTable.setPlaceholder(Ui.label("No runtime plugins loaded. Add a plugin JAR or place one in the folder below.",
+                "empty-state-copy"));
+
+        TableColumn<LoadedPlugin, String> name = pluginColumn("Plugin", 190,
+                plugin -> plugin.descriptor().name());
+        TableColumn<LoadedPlugin, String> version = pluginColumn("Version", 90,
+                plugin -> plugin.descriptor().version());
+        TableColumn<LoadedPlugin, String> transformers = pluginColumn("Transformers", 105,
+                plugin -> Integer.toString(plugin.transformerCount()));
+        TableColumn<LoadedPlugin, String> location = pluginColumn("JAR", 360,
+                plugin -> plugin.jarPath().toString());
+        pluginTable.getColumns().setAll(name, version, transformers, location);
+
+        Button load = Ui.button("Load plugin JAR…", "primary-button", () ->
+                context.dialogs().openPluginJar().ifPresent(path -> runPluginOperation(
+                        "Loading " + path.getFileName() + "…", context.pluginRuntimeService().load(path))));
+        Button reload = Ui.button("Reload selected", "secondary-button", () -> {
+            LoadedPlugin selected = pluginTable.getSelectionModel().getSelectedItem();
+            if (selected != null) runPluginOperation("Reloading " + selected.descriptor().name() + "…",
+                    context.pluginRuntimeService().reload(selected.jarPath()));
+        });
+        Button unload = Ui.button("Unload selected", "secondary-button", () -> {
+            LoadedPlugin selected = pluginTable.getSelectionModel().getSelectedItem();
+            if (selected == null || !context.dialogs().confirm("Unload " + selected.descriptor().name() + "?",
+                    "Its transformers and event listeners will be removed immediately.", "Unload plugin")) return;
+            runPluginOperation("Unloading " + selected.descriptor().name() + "…",
+                    context.pluginRuntimeService().unload(selected.jarPath()));
+        });
+        Button rescan = Ui.button("Rescan folder", "secondary-button", () -> runPluginOperation(
+                "Scanning the plugin directory…", context.pluginRuntimeService().scanDefaultDirectory()));
+
+        load.disableProperty().bind(pluginOperationRunning.or(context.projectState().busyProperty()));
+        rescan.disableProperty().bind(pluginOperationRunning.or(context.projectState().busyProperty()));
+        reload.disableProperty().bind(pluginOperationRunning.or(context.projectState().busyProperty())
+                .or(pluginTable.getSelectionModel().selectedItemProperty().isNull()));
+        unload.disableProperty().bind(reload.disableProperty());
+
+        HBox actions = new HBox(Ui.SPACE_3, load, reload, unload, rescan);
+        actions.setAlignment(Pos.CENTER_LEFT);
+        Label directory = Ui.label(context.pluginRuntimeService().pluginDirectory().toString(), "info-value");
+        directory.setWrapText(true);
+        pluginTable.getItems().setAll(context.pluginRuntimeService().loadedPlugins());
+        runPluginOperation("Scanning the plugin directory…", context.pluginRuntimeService().scanDefaultDirectory());
+        return Ui.section("Runtime plugins",
+                "Load, update, and unload plugin JARs without restarting Frostfuscator. Runtime changes are disabled during builds.",
+                pluginTable, actions, Ui.fieldRow("Plugin folder", directory), pluginStatus);
+    }
+
+    private TableColumn<LoadedPlugin, String> pluginColumn(String title, double width,
+                                                           java.util.function.Function<LoadedPlugin, String> value) {
+        TableColumn<LoadedPlugin, String> column = new TableColumn<>(title);
+        column.setPrefWidth(width);
+        column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+        return column;
+    }
+
+    private void runPluginOperation(String pendingMessage, CompletableFuture<List<LoadedPlugin>> operation) {
+        pluginOperationRunning.set(true);
+        pluginStatus.setText(pendingMessage);
+        operation.whenComplete((plugins, failure) -> Platform.runLater(() -> {
+            pluginOperationRunning.set(false);
+            if (failure != null) {
+                Throwable cause = failure;
+                while (cause.getCause() != null) cause = cause.getCause();
+                pluginStatus.setText("Plugin operation failed: " + cause.getMessage());
+                return;
+            }
+            pluginTable.getItems().setAll(plugins);
+            pluginStatus.setText(plugins.isEmpty() ? "No plugins are loaded."
+                    : plugins.size() + " plugin" + (plugins.size() == 1 ? "" : "s") + " loaded and active.");
+        }));
     }
 
     private Node themesSection() {
@@ -124,12 +218,56 @@ public final class SettingsPage implements PageView {
     }
 
     private Node storageSection() {
-        Label path = Ui.label(context.preferences().paths().root().toString(), "info-value");
-        path.setWrapText(true);
-        path.setMaxWidth(Double.MAX_VALUE);
+        storagePath = Ui.label(context.preferences().paths().root().toString(), "info-value");
+        storagePath.setWrapText(true);
+        storagePath.setMaxWidth(Double.MAX_VALUE);
+        storageStatus = Ui.label(
+                "New build logs are saved in logs/builds. Every crash gets its own file in logs/crashes.",
+                "section-description");
+        storageStatus.setWrapText(true);
+        Button choose = Ui.button("Choose folder", "secondary-button", this::chooseStorageFolder);
+        resetStorage = Ui.button("Use default", "secondary-button", this::useDefaultStorage);
+        resetStorage.setDisable(context.preferences().paths().root()
+                .equals(dev.frost.obfuscator.gui.state.AppDataPaths.systemDefault().root()));
+        HBox actions = new HBox(Ui.SPACE_3, choose, resetStorage);
+        actions.setAlignment(Pos.CENTER_LEFT);
         return Ui.section("Application data",
                 "Preferences, custom themes, the active workspace, recent projects, build history, console output, and crash logs are kept together here.",
-                Ui.fieldRow("Storage folder", path));
+                Ui.fieldRow("Storage folder", storagePath), actions, storageStatus);
+    }
+
+    private void chooseStorageFolder() {
+        context.dialogs().chooseDirectory("Choose Frostfuscator storage folder")
+                .ifPresent(this::relocateStorage);
+    }
+
+    private void relocateStorage(Path selected) {
+        try {
+            context.preferences().flush();
+            Path next = context.preferences().paths().relocateTo(selected).root();
+            storagePath.setText(next.toString());
+            storageStatus.setText("Your current data was copied safely. Restart Frostfuscator to use this folder; the old folder remains as a backup.");
+            resetStorage.setDisable(next.equals(dev.frost.obfuscator.gui.state.AppDataPaths.systemDefault().root()));
+            context.notifications().show("Storage folder saved. Restart Frostfuscator to apply it.");
+        } catch (IOException exception) {
+            context.dialogs().error("Could not change storage folder", exception);
+        }
+    }
+
+    private void useDefaultStorage() {
+        if (!context.dialogs().confirm("Use the default storage folder?",
+                "Current Frostfuscator data will be copied to the default folder. The custom folder will remain as a backup.",
+                "Use default")) return;
+        try {
+            context.preferences().flush();
+            Path next = context.preferences().paths().relocateToDefault().root();
+            storagePath.setText(next.toString());
+            storageStatus.setText("Your current data was copied safely. Restart Frostfuscator to use the default folder.");
+            resetStorage.setDisable(true);
+            context.notifications().show("Default storage restored. Restart Frostfuscator to apply it.");
+        } catch (IOException exception) {
+            context.dialogs().error("Could not restore the default storage folder", exception);
+        }
     }
 
     private void refreshThemes() {

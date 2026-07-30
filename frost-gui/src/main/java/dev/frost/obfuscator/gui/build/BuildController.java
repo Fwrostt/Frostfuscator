@@ -12,11 +12,14 @@ import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
 import dev.frost.obfuscator.gui.config.ConfigurationBinder;
 import dev.frost.obfuscator.gui.console.ConsoleModel;
 import dev.frost.obfuscator.gui.console.LogEntry;
+import dev.frost.obfuscator.gui.logging.DiagnosticLogFiles;
+import dev.frost.obfuscator.gui.state.AppDataPaths;
 import dev.frost.obfuscator.gui.state.ProjectState;
 import dev.frost.obfuscator.gui.validation.ProjectValidator;
 import dev.frost.obfuscator.util.Logger;
 import javafx.application.Platform;
 
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.*;
@@ -29,6 +32,7 @@ public final class BuildController implements AutoCloseable {
     private final ConsoleModel console;
     private final ProjectValidator validator;
     private final JarAnalyzer analyzer;
+    private final AppDataPaths paths;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "frostfuscator-build-controller");
         thread.setDaemon(true);
@@ -39,12 +43,13 @@ public final class BuildController implements AutoCloseable {
     private volatile Thread buildThread;
 
     public BuildController(ProjectState state, ConfigurationBinder binder, ConsoleModel console,
-                           ProjectValidator validator, JarAnalyzer analyzer) {
+                           ProjectValidator validator, JarAnalyzer analyzer, AppDataPaths paths) {
         this.state = state;
         this.binder = binder;
         this.console = console;
         this.validator = validator;
         this.analyzer = analyzer;
+        this.paths = paths;
     }
 
     public void validate() {
@@ -78,7 +83,20 @@ public final class BuildController implements AutoCloseable {
         state.buildProgressProperty().set(0.04);
         state.buildStatusProperty().set("Validating configuration");
         console.clear();
+        DiagnosticLogFiles.Session buildLog = null;
+        try {
+            buildLog = DiagnosticLogFiles.startBuild(paths);
+        } catch (java.io.IOException exception) {
+            console.append(LogEntry.Level.WARNING,
+                    "The build log could not be created: " + exception.getMessage());
+        }
+        DiagnosticLogFiles.Session activeBuildLog = buildLog;
+        Consumer<LogEntry> persistenceListener = activeBuildLog == null ? null : activeBuildLog::append;
+        if (persistenceListener != null) console.addListener(persistenceListener);
         console.append(LogEntry.Level.INFO, "Build started.");
+        if (activeBuildLog != null) {
+            console.append(LogEntry.Level.INFO, "Build log: " + activeBuildLog.path());
+        }
         console.append(LogEntry.Level.INFO, "Input: " + config.getInput());
         console.append(LogEntry.Level.INFO, "Output: " + config.getOutput());
         console.append(LogEntry.Level.INFO, "Validating configuration and preparing the class graph.");
@@ -97,7 +115,16 @@ public final class BuildController implements AutoCloseable {
                 buildCancellation.throwIfCancelled();
                 Platform.runLater(() -> state.buildStatusProperty().set("Protecting classes"));
                 ProjectAnalysis inputAnalysis = state.analysis();
-                ProtectionStats stats = new ObfuscationEngine(config, null, buildCancellation).run();
+                ObfuscationEngine engine = new ObfuscationEngine(config, null, buildCancellation);
+                engine.addClassProgressListener(progress -> {
+                    if (progress.stage() != dev.frost.obfuscator.engine.ClassPool.ProgressStage.COMPLETED) return;
+                    Platform.runLater(() -> state.buildStatusProperty().set(
+                            "Running " + progress.transformerId() + " · "
+                                    + progress.className().replace('/', '.') + " ("
+                                    + progress.completedClasses() + "/" + progress.totalClasses() + ")"));
+                });
+                ProtectionStats stats = engine.run();
+                dev.frost.graph.transform.BuildExecutionSnapshot buildGraph = engine.lastBuildGraph().orElse(null);
                 buildCancellation.throwIfCancelled();
                 Duration duration = Duration.between(started, LocalDateTime.now());
                 BuildAnalytics measuredAnalytics;
@@ -129,6 +156,7 @@ public final class BuildController implements AutoCloseable {
                     state.buildProgressProperty().set(1);
                     state.buildStatusProperty().set("Build completed");
                     state.setBuildAnalytics(analytics);
+                    state.setBuildGraph(buildGraph);
                     state.buildHistory().add(0, new BuildRecord(LocalDateTime.now(), BuildRecord.Status.SUCCESS,
                             state.outputPath(), duration, "Protected JAR created"));
                 });
@@ -159,6 +187,8 @@ public final class BuildController implements AutoCloseable {
                 }
             } finally {
                 Logger.removeListener(listener);
+                if (persistenceListener != null) console.removeListener(persistenceListener);
+                if (activeBuildLog != null) activeBuildLog.close();
                 synchronized (this) {
                     if (cancellation == buildCancellation) cancellation = null;
                 }
@@ -171,17 +201,26 @@ public final class BuildController implements AutoCloseable {
     private void scheduleIdleMemoryCleanup() {
         try {
             executor.execute(() -> {
+                long before = usedHeapBytes();
                 int releasedRuntimeClasses = JarProcessor.releaseRuntimeClassCache();
                 System.gc();
-                if (releasedRuntimeClasses > 0) {
-                    console.append(LogEntry.Level.INFO,
-                            "Released " + releasedRuntimeClasses
-                                    + " cached runtime class stubs after the build.");
-                }
+                long after = usedHeapBytes();
+                console.append(LogEntry.Level.INFO,
+                        "Idle memory cleanup released " + releasedRuntimeClasses
+                                + " cached runtime class stubs; live heap "
+                                + mebibytes(before) + " MiB -> " + mebibytes(after) + " MiB.");
             });
         } catch (RejectedExecutionException ignored) {
             JarProcessor.releaseRuntimeClassCache();
         }
+    }
+
+    private long usedHeapBytes() {
+        return ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+    }
+
+    private long mebibytes(long bytes) {
+        return Math.max(0, bytes) / (1024 * 1024);
     }
 
     private void finishCancelled(LocalDateTime started) {

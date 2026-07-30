@@ -141,6 +141,7 @@ public class ConfigLoader {
             nativeConfig.setUseGcc(getBoolean(frostJniMap, "useGcc", true));
             nativeConfig.setUseClang(getBoolean(frostJniMap, "useClang", true));
             nativeConfig.setUseMsvc(getBoolean(frostJniMap, "useMsvc", true));
+            nativeConfig.setUseZig(getBoolean(frostJniMap, "useZig", true));
             nativeConfig.setMode(getString(frostJniMap, "mode", "SELECTIVE"));
             nativeConfig.setCompileMode(getString(frostJniMap, "compileMode", "FAST"));
             nativeConfig.setUnityBuild(getBoolean(frostJniMap, "unityBuild", true));

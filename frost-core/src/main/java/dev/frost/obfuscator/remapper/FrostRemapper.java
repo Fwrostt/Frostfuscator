@@ -1,5 +1,7 @@
 package dev.frost.obfuscator.remapper;
 
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
 
 public class FrostRemapper extends Remapper {
@@ -40,11 +42,29 @@ public class FrostRemapper extends Remapper {
     }
 
     @Override
+    public String mapRecordComponentName(String owner, String name, String descriptor) {
+        return mappings.getMappedRecordComponent(owner, name, descriptor);
+    }
+
+    @Override
     public String mapMethodName(String owner, String name, String descriptor) {
         if (name.equals("<init>") || name.equals("<clinit>")) {
             return name;
         }
         return mappings.getMappedMethod(owner, name, descriptor);
+    }
+
+    public String mapPermittedSubclass(String internalName) {
+        return mapType(internalName);
+    }
+
+    public ClassRemapper createClassRemapper(ClassVisitor visitor) {
+        return new ClassRemapper(visitor, this) {
+            @Override
+            public void visitPermittedSubclass(String permittedSubclass) {
+                cv.visitPermittedSubclass(mapPermittedSubclass(permittedSubclass));
+            }
+        };
     }
 
     private String mapClassString(String value) {

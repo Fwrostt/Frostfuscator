@@ -9,6 +9,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 public final class NumericField extends HBox {
@@ -35,6 +36,7 @@ public final class NumericField extends HBox {
         HBox.setHgrow(editor, Priority.ALWAYS);
         Label unitLabel = new Label(unit == null ? "" : unit);
         unitLabel.getStyleClass().add("numeric-unit");
+        unitLabel.setMinWidth(Region.USE_PREF_SIZE);
         unitLabel.setVisible(unit != null && !unit.isBlank());
         unitLabel.setManaged(unitLabel.isVisible());
         Button reset = iconButton("fth-rotate-ccw", "Reset to recommended value");

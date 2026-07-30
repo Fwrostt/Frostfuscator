@@ -86,6 +86,7 @@ public final class ConfigWriter {
         nativeConfig.put("useGcc", config.isUseGcc());
         nativeConfig.put("useClang", config.isUseClang());
         nativeConfig.put("useMsvc", config.isUseMsvc());
+        nativeConfig.put("useZig", config.isUseZig());
         nativeConfig.put("mode", config.getMode());
         nativeConfig.put("compileMode", config.getCompileMode());
         nativeConfig.put("unityBuild", config.isUnityBuild());

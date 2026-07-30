@@ -6,6 +6,8 @@ import dev.frost.obfuscator.gui.build.BuildController;
 import dev.frost.obfuscator.gui.config.ConfigurationBinder;
 import dev.frost.obfuscator.gui.console.ConsoleModel;
 import dev.frost.obfuscator.gui.crypto.FileEncryptionService;
+import dev.frost.obfuscator.gui.plugin.PluginRuntimeService;
+import dev.frost.obfuscator.gui.jni.NativeToolchainService;
 import dev.frost.obfuscator.gui.dialog.DialogService;
 import dev.frost.obfuscator.gui.notification.NotificationCenter;
 import dev.frost.obfuscator.gui.state.PreferencesStore;
@@ -36,6 +38,8 @@ public final class AppContext implements AutoCloseable {
     private final WorkspacePersistence workspacePersistence;
     private final BytecodeViewerService bytecodeViewerService;
     private final FileEncryptionService fileEncryptionService;
+    private final PluginRuntimeService pluginRuntimeService;
+    private final NativeToolchainService nativeToolchainService;
 
     private AppContext(
             Stage stage,
@@ -53,7 +57,9 @@ public final class AppContext implements AutoCloseable {
             NotificationCenter notifications,
             WorkspacePersistence workspacePersistence,
             BytecodeViewerService bytecodeViewerService,
-            FileEncryptionService fileEncryptionService
+            FileEncryptionService fileEncryptionService,
+            PluginRuntimeService pluginRuntimeService,
+            NativeToolchainService nativeToolchainService
     ) {
         this.stage = stage;
         this.preferences = preferences;
@@ -71,6 +77,8 @@ public final class AppContext implements AutoCloseable {
         this.workspacePersistence = workspacePersistence;
         this.bytecodeViewerService = bytecodeViewerService;
         this.fileEncryptionService = fileEncryptionService;
+        this.pluginRuntimeService = pluginRuntimeService;
+        this.nativeToolchainService = nativeToolchainService;
     }
 
     public static AppContext create(Stage stage, PreferencesStore preferences) {
@@ -106,13 +114,18 @@ public final class AppContext implements AutoCloseable {
             state.configuration().getLibraries().setPaths(new ArrayList<>());
         }
         ValidationCoordinator validation = new ValidationCoordinator(state, validator);
-        BuildController builds = new BuildController(state, binder, console, validator, analyzer);
+        BuildController builds = new BuildController(state, binder, console, validator, analyzer,
+                preferences.paths());
         DialogService dialogs = new DialogService(stage, preferences);
         NotificationCenter notifications = new NotificationCenter();
         BytecodeViewerService viewer = new BytecodeViewerService();
         FileEncryptionService fileEncryption = new FileEncryptionService();
+        PluginRuntimeService plugins = new PluginRuntimeService(preferences.paths().root().resolve("plugins"));
+        NativeToolchainService toolchains = new NativeToolchainService();
+        plugins.scanDefaultDirectory();
         return new AppContext(stage, preferences, state, themes, binder, analyzer, recommendations,
-                validator, validation, console, builds, dialogs, notifications, workspace, viewer, fileEncryption);
+                validator, validation, console, builds, dialogs, notifications, workspace, viewer, fileEncryption,
+                plugins, toolchains);
     }
 
     public Stage stage() { return stage; }
@@ -131,6 +144,8 @@ public final class AppContext implements AutoCloseable {
     public WorkspacePersistence workspacePersistence() { return workspacePersistence; }
     public BytecodeViewerService bytecodeViewerService() { return bytecodeViewerService; }
     public FileEncryptionService fileEncryptionService() { return fileEncryptionService; }
+    public PluginRuntimeService pluginRuntimeService() { return pluginRuntimeService; }
+    public NativeToolchainService nativeToolchainService() { return nativeToolchainService; }
 
     @Override
     public void close() {
@@ -139,6 +154,8 @@ public final class AppContext implements AutoCloseable {
         workspacePersistence.close();
         bytecodeViewerService.close();
         fileEncryptionService.close();
+        pluginRuntimeService.close();
+        nativeToolchainService.close();
         preferences.close();
     }
 }

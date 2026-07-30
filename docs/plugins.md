@@ -85,3 +85,15 @@ java -jar Frostfuscator.jar -i app.jar -o app-protected.jar --plugins plugins --
 ```
 
 Unknown enabled transformers fail validation, so missing or misspelled plugin passes are caught before jar processing starts.
+
+## Graph extensions
+
+The public API supports renderer-free graph extensions:
+
+- `registerGraphBuilder(CustomGraphBuilder)`
+- `registerGraphMetadataProvider(GraphMetadataProvider)`
+- `registerGraphFilter(GraphFilter)`
+- `registerGraphContextAction(GraphContextAction)`
+- `registerGraphExportType(GraphExportType)`
+
+Extensions receive immutable `Graph`, `GraphNode`, `GraphEdge`, and `GraphMetadata` records plus a sanitized `GraphPluginContext`. They do not receive JavaFX, WebView, Cytoscape, JavaScript, or renderer-bridge access. Custom exporters implement the normal `GraphExporter` contract and can therefore run headlessly.

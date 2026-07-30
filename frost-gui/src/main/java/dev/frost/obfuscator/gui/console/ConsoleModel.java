@@ -9,7 +9,9 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,9 +22,14 @@ public final class ConsoleModel {
             "(?<![\\w.$/])((?:[A-Za-z_$][\\w$]*[./])+[A-Z_$][\\w$]*(?:#[\\w$<>]+)?(?::\\d+)?)");
     private final ObservableList<LogEntry> entries = FXCollections.observableArrayList();
     private final ConcurrentLinkedQueue<LogEntry> pending = new ConcurrentLinkedQueue<>();
+    private final CopyOnWriteArrayList<Consumer<LogEntry>> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean flushScheduled = new AtomicBoolean();
 
     public ObservableList<LogEntry> entries() { return entries; }
+
+    public void addListener(Consumer<LogEntry> listener) { listeners.add(listener); }
+
+    public void removeListener(Consumer<LogEntry> listener) { listeners.remove(listener); }
 
     public void restore(List<LogEntry> restored) {
         List<LogEntry> safe = restored == null ? List.of() : restored;
@@ -56,6 +63,13 @@ public final class ConsoleModel {
     }
 
     private void enqueue(LogEntry entry) {
+        for (Consumer<LogEntry> listener : listeners) {
+            try {
+                listener.accept(entry);
+            } catch (RuntimeException ignored) {
+                // A persistence/export listener must not interrupt console delivery.
+            }
+        }
         if (Platform.isFxApplicationThread()) {
             entries.add(entry);
             return;

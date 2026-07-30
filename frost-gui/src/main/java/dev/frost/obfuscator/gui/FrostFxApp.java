@@ -3,11 +3,9 @@ package dev.frost.obfuscator.gui;
 import atlantafx.base.theme.PrimerDark;
 import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.app.AppShell;
-import dev.frost.obfuscator.gui.app.NativeStartupOverlay;
 import dev.frost.obfuscator.gui.app.StartupView;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
 import dev.frost.obfuscator.gui.console.LogEntry;
-import dev.frost.obfuscator.gui.navigation.PageId;
 import dev.frost.obfuscator.gui.state.PreferencesStore;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
@@ -23,8 +21,6 @@ import javafx.util.Duration;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class FrostFxApp extends Application {
     private AppContext context;
-    private NativeStartupOverlay nativeStartup;
+    private volatile boolean closing;
 
     public static void launchApp(String[] args) {
         launch(args);
@@ -50,7 +46,7 @@ public final class FrostFxApp extends Application {
         stage.setMinWidth(900);
         stage.setMinHeight(600);
 
-        StartupView startup = new StartupView(preferences.getBoolean("ui.reducedMotion", false));
+        StartupView startup = new StartupView(stage, preferences.getBoolean("ui.reducedMotion", false));
         StackPane host = new StackPane(startup);
         host.getStyleClass().add("bootstrap-host");
         Rectangle windowClip = new Rectangle();
@@ -69,38 +65,32 @@ public final class FrostFxApp extends Application {
             Platform.runLater(() -> dev.frost.obfuscator.gui.titlebar.CustomTitleBar
                     .restoreInitialMaximized(stage, host));
         }
-        stage.show();
-        nativeStartup = NativeStartupOverlay.show(
-                stage, preferences.getBoolean("ui.reducedMotion", false));
-        startup.setProgressMirror(nativeStartup::update);
-        Runnable syncStartupBounds = () -> nativeStartup.syncBounds(
-                stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
-        stage.xProperty().addListener((obs, old, value) -> syncStartupBounds.run());
-        stage.yProperty().addListener((obs, old, value) -> syncStartupBounds.run());
-        stage.widthProperty().addListener((obs, old, value) -> syncStartupBounds.run());
-        stage.heightProperty().addListener((obs, old, value) -> syncStartupBounds.run());
         long shownAt = System.nanoTime();
 
         stage.setOnCloseRequest(event -> {
+            closing = true;
             preferences.saveWindow(stage);
             if (context != null) context.close();
             else preferences.close();
             startup.close();
-            if (nativeStartup != null) nativeStartup.close();
         });
+        stage.show();
 
         CompletableFuture.runAsync(this::loadFonts).whenComplete((ignored, fontFailure) ->
-                Platform.runLater(() -> initializeWorkspace(
-                        stage, scene, host, startup, preferences, shownAt)));
+                Platform.runLater(() -> {
+                    if (!closing) initializeWorkspace(stage, scene, host, startup, preferences, shownAt);
+                }));
     }
 
     private void initializeWorkspace(Stage stage, Scene scene, StackPane host, StartupView startup,
                                      PreferencesStore preferences, long shownAt) {
+        if (closing) return;
         startup.update("", 0.12);
         context = AppContext.createForStartup(stage, preferences);
         startup.update("", 0.20);
         context.workspacePersistence().restoreAsync().whenComplete((ignored, restoreFailure) ->
                 Platform.runLater(() -> {
+                    if (closing) return;
                     // Restore reusable configuration while transient input,
                     // build, analysis, and console state stays launch-scoped.
                     PauseTransition nextPulse = new PauseTransition(Duration.millis(48));
@@ -112,6 +102,7 @@ public final class FrostFxApp extends Application {
 
     private void initializeShell(Stage stage, Scene scene, StackPane host,
                                  StartupView startup, long shownAt) {
+        if (closing) return;
         long shellStarted = System.nanoTime();
         AppShell shell = new AppShell(context);
         context.themeManager().attach(scene, shell.root());
@@ -121,65 +112,37 @@ public final class FrostFxApp extends Application {
                 applyMaximizedChrome(shell, maximized));
         startup.prepareApplication(host, shell.root());
         long shellMillis = (System.nanoTime() - shellStarted) / 1_000_000L;
-        startup.update("", 0.30);
+        startup.update("", 0.72);
+        long validationStarted = System.nanoTime();
+        context.validationCoordinator().validateNow();
+        long validationMillis = (System.nanoTime() - validationStarted) / 1_000_000L;
+        long initialPageStarted = System.nanoTime();
+        shell.showInitialPage();
+        long initialPageMillis = (System.nanoTime() - initialPageStarted) / 1_000_000L;
+        startup.update("", 0.96);
 
-        restoreProjectAnalysis().whenComplete((restored, failure) -> Platform.runLater(() -> {
-            long validationStarted = System.nanoTime();
-            if (restored != null) restored.ifPresent(context.projectState()::setAnalysis);
-            context.validationCoordinator().validateNow();
-            long validationMillis = (System.nanoTime() - validationStarted) / 1_000_000L;
-            startup.update("", 0.38);
-            Map<PageId, Long> pageTimes = new EnumMap<>(PageId.class);
-            preloadNextSmooth(shell, startup, PageId.values(), 0, pageTimes, () -> {
-                long initialPageStarted = System.nanoTime();
-                shell.showInitialPage();
-                long initialPageMillis = (System.nanoTime() - initialPageStarted) / 1_000_000L;
-                startup.update("", 0.96);
-
-                // Give the first page two clean pulses to CSS/layout behind the
-                // splash instead of forcing one long synchronous layout pass.
-                PauseTransition settle = new PauseTransition(Duration.millis(110));
-                settle.setOnFinished(event -> {
-                    long totalMillis = (System.nanoTime() - shownAt) / 1_000_000L;
-                    long pageMillis = pageTimes.values().stream().mapToLong(Long::longValue).sum();
-                    Map.Entry<PageId, Long> slowestPage = pageTimes.entrySet().stream()
-                            .max(Map.Entry.comparingByValue()).orElse(null);
-                    String slowest = slowestPage == null ? "none"
-                            : slowestPage.getKey().name().toLowerCase(java.util.Locale.ROOT)
-                                    + " " + slowestPage.getValue() + " ms";
-                    context.consoleModel().append(LogEntry.Level.DEBUG,
-                            "Startup preloaded " + shell.preloadedPageCount() + " pages in "
-                                    + pageMillis + " ms; workspace ready in " + totalMillis
-                                    + " ms; slowest page " + slowest + "; longest animation frame "
-                                    + startup.largestFrameGapMillis() + " ms; shell " + shellMillis
-                                    + " ms; validation " + validationMillis + " ms; initial page "
-                                    + initialPageMillis + " ms.");
-                    startup.reveal(host, shell.root(),
-                            context.themeManager().reducedMotionProperty().get(),
-                            nativeStartup == null ? () -> {
-                            } : nativeStartup::dismiss);
-                });
-                settle.play();
-            });
-        }));
+        PauseTransition settle = new PauseTransition(Duration.millis(90));
+        settle.setOnFinished(event -> {
+            if (closing) return;
+            long totalMillis = (System.nanoTime() - shownAt) / 1_000_000L;
+            context.consoleModel().append(LogEntry.Level.DEBUG,
+                    "Interactive shell ready in " + totalMillis + " ms; longest startup frame "
+                            + startup.largestFrameGapMillis() + " ms; shell " + shellMillis
+                            + " ms; validation " + validationMillis + " ms; initial page "
+                            + initialPageMillis + " ms.");
+            startup.reveal(host, shell.root(), context.themeManager().reducedMotionProperty().get(),
+                    this::restoreProjectAnalysisAfterReveal);
+        });
+        settle.play();
     }
 
-    private void preloadNextSmooth(AppShell shell, StartupView startup, PageId[] pages, int index,
-                                   Map<PageId, Long> timings, Runnable complete) {
-        if (index >= pages.length) {
-            startup.update("", 0.89);
-            complete.run();
-            return;
-        }
-
-        PauseTransition frameBudget = new PauseTransition(Duration.millis(index == 0 ? 52 : 38));
-        frameBudget.setOnFinished(event -> {
-            PageId page = pages[index];
-            timings.put(page, shell.preloadPage(page));
-            startup.update("", 0.38 + (0.52 * (index + 1) / pages.length));
-            preloadNextSmooth(shell, startup, pages, index + 1, timings, complete);
-        });
-        frameBudget.play();
+    private void restoreProjectAnalysisAfterReveal() {
+        if (closing) return;
+        restoreProjectAnalysis().whenComplete((restored, failure) -> Platform.runLater(() -> {
+            if (closing || context == null) return;
+            if (restored != null) restored.ifPresent(context.projectState()::setAnalysis);
+            context.validationCoordinator().validateNow();
+        }));
     }
 
     private CompletableFuture<Optional<ProjectAnalysis>> restoreProjectAnalysis() {

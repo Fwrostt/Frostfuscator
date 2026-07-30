@@ -70,9 +70,19 @@ public final class EventBus {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void registerRawHandler(Object owner, Class<?> eventType, EventPriority priority, boolean ignoreCancelled, Consumer handler) {
         HandlerRegistration reg = new HandlerRegistration(owner, eventType, priority, ignoreCancelled, handler);
-        handlerMap.computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>()).add(reg);
-        List<HandlerRegistration<?>> list = handlerMap.get(eventType);
-        Collections.sort(list);
+        List<HandlerRegistration<?>> list = handlerMap.computeIfAbsent(eventType,
+                ignored -> new CopyOnWriteArrayList<>());
+        synchronized (list) {
+            // Insert after handlers with the same priority so registration order remains stable.
+            int low = 0;
+            int high = list.size();
+            while (low < high) {
+                int middle = (low + high) >>> 1;
+                if (list.get(middle).compareTo(reg) <= 0) low = middle + 1;
+                else high = middle;
+            }
+            list.add(low, reg);
+        }
     }
 
     /**
@@ -84,6 +94,21 @@ public final class EventBus {
         for (List<HandlerRegistration<?>> list : handlerMap.values()) {
             list.removeIf(reg -> reg.instance() == owner);
         }
+    }
+
+    /** Removes every listener whose owner was defined by the supplied plugin class loader. */
+    public int unregisterClassLoader(ClassLoader classLoader) {
+        if (classLoader == null) return 0;
+        int removed = 0;
+        for (List<HandlerRegistration<?>> list : handlerMap.values()) {
+            int before = list.size();
+            list.removeIf(registration -> registration.instance() != null
+                    && registration.instance().getClass().getClassLoader() == classLoader);
+            removed += before - list.size();
+        }
+        registeredInstances.removeIf(instance -> instance != null
+                && instance.getClass().getClassLoader() == classLoader);
+        return removed;
     }
 
     /**

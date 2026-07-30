@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,6 +53,34 @@ class ClassPoolParallelismTest {
         }
         assertEquals("sample/C00", names.getFirst());
         assertEquals("sample/C63", names.getLast());
+        pool.closeParallelism();
+    }
+
+    @Test
+    void reportsPerClassProgressWithTransformerIdentity() {
+        ClassPool pool = new ClassPool();
+        for (String name : List.of("sample/Three", "sample/One", "sample/Two")) {
+            ClassNode node = new ClassNode();
+            node.name = name;
+            pool.addClass(name, node);
+        }
+        pool.configureParallelism(true, 2, 1);
+        List<ClassPool.ClassProgress> progress = new CopyOnWriteArrayList<>();
+        pool.addProgressListener(progress::add);
+
+        try (ClassPool.ProgressSubscription ignored = pool.transformerProgressScope("test-transformer")) {
+            pool.forEachClass(node -> { });
+        }
+
+        List<ClassPool.ClassProgress> completed = progress.stream()
+                .filter(item -> item.stage() == ClassPool.ProgressStage.COMPLETED)
+                .toList();
+        assertEquals(3, completed.size());
+        assertTrue(completed.stream().allMatch(item -> item.transformerId().equals("test-transformer")));
+        assertTrue(completed.stream().allMatch(item -> item.totalClasses() == 3));
+        assertEquals(Set.of(1, 2, 3), completed.stream()
+                .map(ClassPool.ClassProgress::completedClasses)
+                .collect(java.util.stream.Collectors.toSet()));
         pool.closeParallelism();
     }
 }

@@ -4,6 +4,7 @@ import dev.frost.api.decompiler.CustomDecompilerProvider;
 import dev.frost.api.encryption.StringEncryptorPlugin;
 import dev.frost.api.event.EventBus;
 import dev.frost.api.gui.UiExtensionPoint;
+import dev.frost.api.graph.*;
 import dev.frost.api.remapper.NameGeneratorPlugin;
 import dev.frost.api.transformer.PluginTransformer;
 
@@ -28,6 +29,11 @@ public class PluginContext {
     private final List<UiExtensionPoint> uiExtensions = new CopyOnWriteArrayList<>();
     private final List<StringEncryptorPlugin> stringEncryptors = new CopyOnWriteArrayList<>();
     private final List<NameGeneratorPlugin> nameGenerators = new CopyOnWriteArrayList<>();
+    private final List<CustomGraphBuilder> graphBuilders = new CopyOnWriteArrayList<>();
+    private final List<GraphMetadataProvider> graphMetadataProviders = new CopyOnWriteArrayList<>();
+    private final List<GraphFilter> graphFilters = new CopyOnWriteArrayList<>();
+    private final List<GraphContextAction> graphContextActions = new CopyOnWriteArrayList<>();
+    private final List<GraphExportType> graphExportTypes = new CopyOnWriteArrayList<>();
     private final Map<String, Object> configMap = new ConcurrentHashMap<>();
 
     public PluginContext(PluginDescriptor descriptor, Path pluginDirectory, PluginLogger logger, EventBus eventBus) {
@@ -117,6 +123,34 @@ public class PluginContext {
     public List<NameGeneratorPlugin> registeredNameGenerators() {
         return Collections.unmodifiableList(nameGenerators);
     }
+
+    public void registerGraphBuilder(CustomGraphBuilder builder) {
+        graphBuilders.add(Objects.requireNonNull(builder, "builder"));
+        logger.info("Registered graph builder: {} ({})", builder.displayName(), builder.id());
+    }
+    public List<CustomGraphBuilder> registeredGraphBuilders() { return List.copyOf(graphBuilders); }
+
+    public void registerGraphMetadataProvider(GraphMetadataProvider provider) {
+        graphMetadataProviders.add(Objects.requireNonNull(provider, "provider"));
+    }
+    public List<GraphMetadataProvider> registeredGraphMetadataProviders() { return List.copyOf(graphMetadataProviders); }
+
+    public void registerGraphFilter(GraphFilter filter) {
+        graphFilters.add(Objects.requireNonNull(filter, "filter"));
+        logger.info("Registered graph filter: {} ({})", filter.displayName(), filter.id());
+    }
+    public List<GraphFilter> registeredGraphFilters() { return List.copyOf(graphFilters); }
+
+    public void registerGraphContextAction(GraphContextAction action) {
+        graphContextActions.add(Objects.requireNonNull(action, "action"));
+    }
+    public List<GraphContextAction> registeredGraphContextActions() { return List.copyOf(graphContextActions); }
+
+    public void registerGraphExportType(GraphExportType exportType) {
+        graphExportTypes.add(Objects.requireNonNull(exportType, "exportType"));
+        logger.info("Registered graph export type: {} ({})", exportType.displayName(), exportType.format());
+    }
+    public List<GraphExportType> registeredGraphExportTypes() { return List.copyOf(graphExportTypes); }
 
     public Map<String, Object> config() {
         return configMap;

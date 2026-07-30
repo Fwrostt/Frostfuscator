@@ -652,6 +652,7 @@ public final class BytecodeViewerPage implements PageView {
                 loadedSnapshots.put(primaryArchive, value);
                 status.setText("Archive indexed");
                 rebuildTree();
+                openPendingGraphTarget();
             }));
         }
     }
@@ -801,6 +802,8 @@ public final class BytecodeViewerPage implements PageView {
     }
 
     private void select(ArchiveNode node) {
+        operation.incrementAndGet();
+        service.cancelActiveDecompilation();
         selectedNode = node;
         closeToolDrawer();
         if (node.kind == NodeKind.CLASS) {
@@ -2033,11 +2036,26 @@ public final class BytecodeViewerPage implements PageView {
     public void onShown() {
         active = true;
         refreshArchive();
+        openPendingGraphTarget();
     }
 
     @Override
     public void onHidden() {
         active = false;
+        operation.incrementAndGet();
+        service.cancelActiveDecompilation();
+    }
+
+    private void openPendingGraphTarget() {
+        String internalName = context.projectState().graphNavigationClass();
+        if (internalName == null || internalName.isBlank() || hierarchy.getRoot() == null) return;
+        String path = internalName.replace('.', '/');
+        if (!path.endsWith(".class")) path += ".class";
+        TreeItem<ArchiveNode> found = findTreeItem(hierarchy.getRoot(), path);
+        if (found == null) return;
+        hierarchy.getSelectionModel().select(found);
+        select(found.getValue());
+        context.projectState().clearGraphNavigationClass();
     }
 
     private static Button compactButton(String text, String iconName, Runnable action) {

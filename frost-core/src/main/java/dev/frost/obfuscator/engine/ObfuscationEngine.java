@@ -17,6 +17,7 @@ import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.transformer.reporting.StatisticsReportTransformer;
 import dev.frost.obfuscator.util.Logger;
+import dev.frost.graph.transform.BuildExecutionSnapshot;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.tree.ClassNode;
 
@@ -24,12 +25,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ObfuscationEngine {
 
     private final ObfuscationConfig config;
     private final List<String> cliTransformers;
     private final BuildCancellation cancellation;
+    private final List<ClassPool.ClassProgressListener> classProgressListeners = new CopyOnWriteArrayList<>();
+    private volatile BuildExecutionSnapshot lastBuildGraph;
 
     public ObfuscationEngine(ObfuscationConfig config, List<String> cliTransformers) {
         this(config, cliTransformers, new BuildCancellation());
@@ -42,12 +46,19 @@ public class ObfuscationEngine {
         this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
     }
 
+    public ObfuscationEngine addClassProgressListener(ClassPool.ClassProgressListener listener) {
+        classProgressListeners.add(Objects.requireNonNull(listener, "listener"));
+        return this;
+    }
+
     public ProtectionStats run() throws IOException {
         cancellation.throwIfCancelled();
         long startTime = System.currentTimeMillis();
         Path inputPath = Path.of(config.getInput());
         Path outputPath = Path.of(config.getOutput());
         ProtectionStats stats = new ProtectionStats();
+        BuildGraphRecorder graphRecorder = null;
+        boolean outputWritten = false;
 
         Logger.info("===================================================");
         Logger.info("  Frostfuscator - Java obfuscation toolkit");
@@ -75,6 +86,7 @@ public class ObfuscationEngine {
         JarProcessor processor = new JarProcessor(cancellation);
         ClassPool pool = processor.loadJar(inputPath);
         pool.setCancellation(cancellation);
+        classProgressListeners.forEach(pool::addProgressListener);
         cancellation.throwIfCancelled();
         ObfuscationConfig.PerformanceConfig performance = config.getPerformance();
         pool.configureParallelism(performance.isParallel(), performance.getParallelism(),
@@ -164,19 +176,28 @@ public class ObfuscationEngine {
         MappingCollector mappings = new MappingCollector();
 
         List<Transformer> allTransformers = TransformerRegistry.getEnabled(config, cliTransformers);
+        graphRecorder = new BuildGraphRecorder(allTransformers, config);
         List<Transformer> preObfuscation = new ArrayList<>();
+        List<Transformer> preRename = new ArrayList<>();
         List<Transformer> normal = new ArrayList<>();
+        List<Transformer> postFlow = new ArrayList<>();
         List<Transformer> postRemap = new ArrayList<>();
         List<Transformer> finalPass = new ArrayList<>();
         List<Transformer> classloaderEncryption = new ArrayList<>();
         for (Transformer t : allTransformers) {
             switch (t.priority()) {
                 case PRE_OBFUSCATION -> preObfuscation.add(t);
+                case PRE_RENAME -> preRename.add(t);
+                case POST_FLOW -> postFlow.add(t);
                 case POST_REMAP -> postRemap.add(t);
                 case FINAL -> finalPass.add(t);
                 case CLASSLOADER_ENCRYPTION -> classloaderEncryption.add(t);
                 default -> normal.add(t);
             }
+        }
+        for (List<Transformer> group : List.of(preObfuscation, preRename, normal, postFlow,
+                postRemap, finalPass, classloaderEncryption)) {
+            group.sort(Comparator.comparingInt(Transformer::orderWeight));
         }
 
         if (!preObfuscation.isEmpty()) {
@@ -185,7 +206,7 @@ public class ObfuscationEngine {
                 cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
-                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+                executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
             }
             Logger.info("");
         }
@@ -198,11 +219,23 @@ public class ObfuscationEngine {
         Logger.info("");
 
         Logger.info("Pass 1: Collecting mappings");
+        for (Transformer transformer : preRename) {
+            cancellation.throwIfCancelled();
+            TransformerConfig tc = resolveConfig(transformer);
+            Logger.info("Running pre-rename transformer: {}", transformer.getName());
+            executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
+        }
         for (Transformer transformer : normal) {
             cancellation.throwIfCancelled();
             TransformerConfig tc = resolveConfig(transformer);
             Logger.info("Running transformer: {}", transformer.getName());
-            transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+            executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
+        }
+        for (Transformer transformer : postFlow) {
+            cancellation.throwIfCancelled();
+            TransformerConfig tc = resolveConfig(transformer);
+            Logger.info("Running post-flow transformer: {}", transformer.getName());
+            executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
         }
 
         Logger.info("");
@@ -239,7 +272,7 @@ public class ObfuscationEngine {
                 cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
-                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+                executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
             }
         }
 
@@ -251,7 +284,7 @@ public class ObfuscationEngine {
                 cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
-                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+                executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
             }
         }
 
@@ -309,7 +342,7 @@ public class ObfuscationEngine {
                 cancellation.throwIfCancelled();
                 TransformerConfig tc = resolveConfig(transformer);
                 Logger.info("Running transformer: {}", transformer.getName());
-                transformer.transform(new Context(pool, processor, mappings, tc, stats, inputPath, outputPath));
+                executeTransformer(transformer, tc, pool, processor, mappings, stats, inputPath, outputPath, graphRecorder);
             }
         }
 
@@ -323,6 +356,7 @@ public class ObfuscationEngine {
 
         cancellation.throwIfCancelled();
         processor.writeJar(pool, outputPath);
+        outputWritten = true;
         cancellation.throwIfCancelled();
 
         long elapsed = System.currentTimeMillis() - startTime;
@@ -337,7 +371,33 @@ public class ObfuscationEngine {
         Logger.info("===================================================");
         return stats;
         } finally {
-            pool.closeParallelism();
+            if (graphRecorder != null) {
+                lastBuildGraph = graphRecorder.snapshot(stats.counters(), outputWritten);
+            }
+            pool.releaseBuildState();
+            processor.releaseBuildState();
+        }
+    }
+
+    /** The compact, bytecode-free execution snapshot from the most recent run. */
+    public Optional<BuildExecutionSnapshot> lastBuildGraph() {
+        return Optional.ofNullable(lastBuildGraph);
+    }
+
+    private static void executeTransformer(Transformer transformer, TransformerConfig config, ClassPool pool,
+                                           JarProcessor processor, MappingCollector mappings, ProtectionStats stats,
+                                           Path inputPath, Path outputPath, BuildGraphRecorder recorder) {
+        BuildGraphRecorder.Measurement before = recorder.begin(pool, mappings, stats);
+        long started = System.nanoTime();
+        Throwable failure = null;
+        try (ClassPool.ProgressSubscription ignored = pool.transformerProgressScope(transformer.graphId())) {
+            transformer.transform(new Context(pool, processor, mappings, config, stats, inputPath, outputPath));
+        } catch (RuntimeException | Error throwable) {
+            failure = throwable;
+            throw throwable;
+        } finally {
+            recorder.complete(transformer, config, before, pool, mappings, stats,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started), failure);
         }
     }
 
@@ -408,7 +468,7 @@ public class ObfuscationEngine {
         List<RemappedClass> results = pool.mapClasses(original -> {
             String oldName = originalNames.get(original);
             ClassNode remapped = new ClassNode();
-            ClassRemapper classRemapper = new ClassRemapper(remapped, remapper);
+            ClassRemapper classRemapper = remapper.createClassRemapper(remapped);
             original.accept(classRemapper);
             boolean dirty = !remapped.name.equals(oldName)
                     || mappings.hasAnyMappingForClass(oldName) || totalMappings > 0;

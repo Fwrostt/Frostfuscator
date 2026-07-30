@@ -9,6 +9,8 @@ import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.InflaterInputStream;
@@ -42,7 +44,7 @@ public class DecryptedClassLoader extends ClassLoader {
                 if (findLoaded(hostLoader, entry.getKey()) != null) {
                     continue;
                 }
-                byte[] bytes = decrypt(entry.getKey(), entry.getValue());
+                byte[] bytes = decrypt(entry.getValue());
                 defineInto(hostClass, hostLoader, entry.getKey(), bytes);
             }
         } catch (Throwable throwable) {
@@ -79,7 +81,7 @@ public class DecryptedClassLoader extends ClassLoader {
             throw new ClassNotFoundException(name);
         }
         try {
-            byte[] bytes = decrypt(name, encryptedClass);
+            byte[] bytes = decrypt(encryptedClass);
             return defineClass(name, bytes, 0, bytes.length);
         } catch (Exception exception) {
             throw new ClassNotFoundException("Failed to decrypt class: " + name, exception);
@@ -117,9 +119,9 @@ public class DecryptedClassLoader extends ClassLoader {
                 throw new IllegalStateException("Unsupported encrypted class database");
             }
             int count = input.readInt();
-            Map<String, EncryptedClass> classes = new HashMap<>(Math.max(16, count * 2));
+            Map<String, EncryptedClass> storedClasses = new LinkedHashMap<>(Math.max(16, count * 2));
             for (int i = 0; i < count; i++) {
-                String name = input.readUTF();
+                String storedName = input.readUTF();
                 int flags = input.readUnsignedByte();
                 int originalLength = input.readInt();
                 int ivLength = input.readUnsignedByte();
@@ -128,20 +130,25 @@ public class DecryptedClassLoader extends ClassLoader {
                 int encryptedLength = input.readInt();
                 byte[] encryptedBytes = new byte[encryptedLength];
                 input.readFully(encryptedBytes);
-                classes.put(name, new EncryptedClass(flags, originalLength, iv, encryptedBytes));
+                storedClasses.put(storedName,
+                        new EncryptedClass(storedName, flags, originalLength, iv, encryptedBytes));
             }
+            Map<String, EncryptedClass> classes = new LinkedHashMap<>();
+            selectRegistryEntries(storedClasses.keySet(), Runtime.version().feature())
+                    .forEach((binaryName, storedName) -> classes.put(binaryName, storedClasses.get(storedName)));
             return classes;
         }
     }
 
-    private static byte[] decrypt(String name, EncryptedClass encryptedClass) throws Exception {
-        SecretKeySpec keySpec = new SecretKeySpec(deriveKey(name), "AES");
+    private static byte[] decrypt(EncryptedClass encryptedClass) throws Exception {
+        String encryptionName = encryptedClass.encryptionName;
+        SecretKeySpec keySpec = new SecretKeySpec(deriveKey(encryptionName), "AES");
         Cipher cipher = Cipher.getInstance(ALGORITHM);
         AlgorithmParameterSpec parameterSpec;
         if (ALGORITHM.contains("GCM")) {
             GCMParameterSpec gcm = new GCMParameterSpec(128, encryptedClass.iv);
             cipher.init(Cipher.DECRYPT_MODE, keySpec, gcm);
-            cipher.updateAAD(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            cipher.updateAAD(encryptionName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } else {
             parameterSpec = new IvParameterSpec(encryptedClass.iv);
             cipher.init(Cipher.DECRYPT_MODE, keySpec, parameterSpec);
@@ -151,6 +158,47 @@ public class DecryptedClassLoader extends ClassLoader {
             bytes = inflate(bytes, encryptedClass.originalLength);
         }
         return bytes;
+    }
+
+    static Map<String, String> selectRegistryEntries(Collection<String> storedNames, int runtimeFeature) {
+        Map<String, String> selected = new LinkedHashMap<>();
+        Map<String, Integer> selectedReleases = new HashMap<>();
+        for (String storedName : storedNames) {
+            int release = registryRelease(storedName);
+            if (release < 0 || release > runtimeFeature) continue;
+            String binaryName = registryBinaryName(storedName);
+            if (binaryName.isEmpty()) continue;
+            int selectedRelease = selectedReleases.getOrDefault(binaryName, -1);
+            if (release >= selectedRelease) {
+                selected.put(binaryName, storedName);
+                selectedReleases.put(binaryName, release);
+            }
+        }
+        return Map.copyOf(selected);
+    }
+
+    private static int registryRelease(String storedName) {
+        String prefix = "META-INF/versions/";
+        if (!storedName.startsWith(prefix)) return 0;
+        int separator = storedName.indexOf('/', prefix.length());
+        if (separator < 0) return -1;
+        try {
+            return Integer.parseInt(storedName.substring(prefix.length(), separator));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    private static String registryBinaryName(String storedName) {
+        String classPath = storedName;
+        String prefix = "META-INF/versions/";
+        if (storedName.startsWith(prefix)) {
+            int separator = storedName.indexOf('/', prefix.length());
+            if (separator < 0 || separator + 1 >= storedName.length()) return "";
+            classPath = storedName.substring(separator + 1);
+        }
+        if (classPath.endsWith(".class")) classPath = classPath.substring(0, classPath.length() - 6);
+        return classPath.replace('/', '.');
     }
 
     private static byte[] deriveKey(String name) throws Exception {
@@ -202,12 +250,14 @@ public class DecryptedClassLoader extends ClassLoader {
     }
 
     private static final class EncryptedClass {
+        final String encryptionName;
         final int flags;
         final int originalLength;
         final byte[] iv;
         final byte[] encryptedBytes;
 
-        EncryptedClass(int flags, int originalLength, byte[] iv, byte[] encryptedBytes) {
+        EncryptedClass(String encryptionName, int flags, int originalLength, byte[] iv, byte[] encryptedBytes) {
+            this.encryptionName = encryptionName;
             this.flags = flags;
             this.originalLength = originalLength;
             this.iv = iv;

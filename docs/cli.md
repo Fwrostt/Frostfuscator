@@ -6,6 +6,12 @@ The CLI is packaged as `Frostfuscator.jar`.
 java -jar Frostfuscator.jar [options]
 ```
 
+Graph generation is a headless subcommand:
+
+```bash
+java -jar Frostfuscator.jar graph -i app.jar --type calls --format mermaid -o calls.mmd
+```
+
 ## Options
 
 | Option | Long option | Description |
@@ -35,6 +41,9 @@ java -jar Frostfuscator.jar [options]
 | | `--report=<format:path>` | Enable statistics report, for example `json:build/frost-report.json` or `html:report.html`. |
 | | `--seed=<number>` | Apply a deterministic seed to seed-aware transformer options. |
 | | `--dry-run` | Validate and print the run plan without writing output. |
+| | `--graph-pipeline=<path>` | Export the pre-build transformer pipeline. |
+| | `--graph-build=<path>` | Export actual completed-build execution results. |
+| | `--graph-format=<format>` | Use `json`, `mermaid`, or `dot` for ordinary-build graph exports. |
 | | `--frostjni[=true|false]` | Enable or disable FrostJNI. |
 | | `--jni-mode=<mode>` | FrostJNI mode: `SELECTIVE` or `FULL`. |
 | | `--jni-include-package=<list>` | Add FrostJNI package includes. |
@@ -103,3 +112,9 @@ FrostJNI runs inside the normal obfuscation pipeline. It generates C++, compiles
 Native protection requires Java 21 and a local C++ compiler. On Windows, install either MSYS2 MinGW-w64 with `g++` on `PATH`, or Clang with working Windows C/C++ runtime headers.
 
 FrostJNI registers converted methods internally from `JNI_OnLoad`; protected jars no longer include a `native/native-methods.txt` method map.
+
+## Graph subcommand
+
+`graph` accepts `--type dependencies|calls|inheritance|packages|cfg|pipeline|transformers|mappings|build`, `--format json|mermaid|dot`, and required `-o`. Bytecode types also require `-i`. CFG additionally uses `--class`, `--method`, and optional `--descriptor`. Large graph controls are `--lib`, `--include-libraries`, `--max-nodes`, `--max-edges`, `--depth`, and `--focus`.
+
+See [Graph Visualization](graphs.md) for examples, limits, caching, and security details.

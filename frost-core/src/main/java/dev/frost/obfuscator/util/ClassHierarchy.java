@@ -12,12 +12,16 @@ public class ClassHierarchy {
     private final Map<String, Map<String, Set<String>>> methodIndex = new HashMap<>();
     private final Set<String> appClasses = new HashSet<>();
 
-    public void build(Map<String, ClassNode> classes, Set<String> applicationClasses) {
+    public void clear() {
         parentMap.clear();
         childrenMap.clear();
         nodeMap.clear();
         methodIndex.clear();
         appClasses.clear();
+    }
+
+    public void build(Map<String, ClassNode> classes, Set<String> applicationClasses) {
+        clear();
         nodeMap.putAll(classes);
         appClasses.addAll(applicationClasses);
 

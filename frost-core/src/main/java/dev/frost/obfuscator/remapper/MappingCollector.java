@@ -26,6 +26,8 @@ public class MappingCollector {
     private final Map<String, String> fieldMappingsByUniqueName = new ConcurrentHashMap<>();
     private final Map<String, String> methodMappingsByUniqueName = new ConcurrentHashMap<>();
     private final java.util.Set<String> mappedMemberOwners = ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> preservedClasses = ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> preservedFields = ConcurrentHashMap.newKeySet();
     private final java.util.Set<String> preservedMethods = ConcurrentHashMap.newKeySet();
     private MethodNameAllocator methodNameAllocator;
 
@@ -37,15 +39,27 @@ public class MappingCollector {
     }
 
     public void mapClass(String oldName, String newName) {
+        if (isClassPreserved(oldName)) return;
         String previous = classMappings.put(oldName, newName);
         if (previous != null) reverseClassMappings.remove(previous, oldName);
         reverseClassMappings.put(newName, oldName);
     }
 
     public void mapField(String owner, String oldName, String desc, String newName) {
+        if (isFieldPreserved(owner, oldName, desc)) return;
         fieldMappings.put(fieldKey(owner, oldName, desc), newName);
         mappedMemberOwners.add(owner);
         indexUniqueMemberName(fieldMappingsByUniqueName, oldName, newName);
+    }
+
+    /**
+     * Records the single logical rename shared by a record component, its backing field,
+     * and its generated accessor method.
+     */
+    public void mapRecordComponent(String owner, String oldName, String desc, String newName) {
+        if (isFieldPreserved(owner, oldName, desc)) return;
+        mapField(owner, oldName, desc, newName);
+        mapMethod(owner, oldName, "()" + desc, newName);
     }
 
     public void mapMethod(String owner, String oldName, String desc, String newName) {
@@ -57,6 +71,30 @@ public class MappingCollector {
     /** Marks a generated method name as final without emitting an identity mapping. */
     public void preserveMethod(String owner, String name, String desc) {
         preservedMethods.add(methodKey(owner, name, desc));
+    }
+
+    public void preserveClass(String internalName) {
+        preservedClasses.add(internalName);
+    }
+
+    public boolean isClassPreserved(String internalName) {
+        if (preservedClasses.contains(internalName)) return true;
+        String mapped = classMappings.get(internalName);
+        if (mapped != null && preservedClasses.contains(mapped)) return true;
+        String original = reverseClassMappings.get(internalName);
+        return original != null && preservedClasses.contains(original);
+    }
+
+    public void preserveField(String owner, String name, String desc) {
+        preservedFields.add(fieldKey(owner, name, desc));
+    }
+
+    public boolean isFieldPreserved(String owner, String name, String desc) {
+        if (preservedFields.contains(fieldKey(owner, name, desc))) return true;
+        String mappedOwner = classMappings.get(owner);
+        if (mappedOwner != null && preservedFields.contains(fieldKey(mappedOwner, name, desc))) return true;
+        String originalOwner = reverseClassMappings.get(owner);
+        return originalOwner != null && preservedFields.contains(fieldKey(originalOwner, name, desc));
     }
 
     public boolean isMethodPreserved(String owner, String name, String desc) {
@@ -90,6 +128,10 @@ public class MappingCollector {
         }
 
         return oldName;
+    }
+
+    public String getMappedRecordComponent(String owner, String oldName, String desc) {
+        return getMappedField(owner, oldName, desc);
     }
 
     public String getMappedMethod(String owner, String oldName, String desc) {

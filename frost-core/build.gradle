@@ -5,6 +5,7 @@ plugins {
 description = 'Core Frostfuscator engine, transformers, config, JNI, and tests.'
 
 dependencies {
+    api project(':frost-graph')
     api project(':frost-api')
     api project(':frost-runtime')
 
@@ -49,5 +50,4 @@ tasks.register('generateTestInputResources') {
         dataFile.bytes = data
     }
 }
-
 

@@ -5,9 +5,24 @@ import dev.frost.obfuscator.util.Logger;
 import dev.frost.obfuscator.util.ClassFileVersion;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FrameNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.nodes.AnchorNode;
+import org.yaml.snakeyaml.nodes.MappingNode;
+import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.ScalarNode;
+import org.yaml.snakeyaml.nodes.SequenceNode;
+import org.yaml.snakeyaml.representer.Representer;
+import org.yaml.snakeyaml.serializer.NumberAnchorGenerator;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -30,8 +45,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class JarProcessor {
 
@@ -134,30 +147,11 @@ public class JarProcessor {
     }
 
     private byte[] buildClassBytes(ClassPool pool, ClassNode node) {
-        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS) {
-            @Override
-            protected String getCommonSuperClass(String type1, String type2) {
-                try {
-                    ClassNode c1 = pool.getClass(type1);
-                    if (c1 == null) c1 = pool.getLibraryClasses().get(type1);
-                    ClassNode c2 = pool.getClass(type2);
-                    if (c2 == null) c2 = pool.getLibraryClasses().get(type2);
-
-                    if (c1 != null && c2 != null) {
-                        if (isAssignableFrom(pool, type2, type1)) return type1;
-                        if (isAssignableFrom(pool, type1, type2)) return type2;
-                        String current = type1;
-                        while (current != null && !current.equals("java/lang/Object")) {
-                            if (isAssignableFrom(pool, type2, current)) return current;
-                            ClassNode cn = pool.getClass(current);
-                            if (cn == null) cn = pool.getLibraryClasses().get(current);
-                            current = (cn != null) ? cn.superName : null;
-                        }
-                    }
-                } catch (Exception ignored) {}
-                return "java/lang/Object";
-            }
-        };
+        // Nested classes are loaded with EXPAND_FRAMES and may be renamed or structurally
+        // transformed before repacking. Always discard expanded snapshots and regenerate a
+        // valid StackMapTable rather than relying on COMPUTE_MAXS to preserve them.
+        removeStaleFrames(node);
+        ClassWriter writer = new HierarchyClassWriter(pool, ClassWriter.COMPUTE_FRAMES);
         node.accept(writer);
         return writer.toByteArray();
     }
@@ -234,6 +228,20 @@ public class JarProcessor {
 
     public byte[] removeResource(String name) {
         return resources.remove(name);
+    }
+
+    void releaseBuildState() {
+        resources.clear();
+        originalClassBytes.clear();
+        preFlowClassBytes.clear();
+        runtimeChecksumClasses.clear();
+        detectedDescriptorEntrypoints.clear();
+        detectedFabricEntrypoints.clear();
+        detectedFabricMixins.clear();
+        nestedJars.clear();
+        manifest = null;
+        detectedMainClass = null;
+        isFabricMod = false;
     }
 
     public Map<String, byte[]> getOriginalClassBytes() {
@@ -772,17 +780,88 @@ public class JarProcessor {
         byte[] yamlData = resources.get(fileName);
         if (yamlData == null) return;
 
-        String content = new String(yamlData, StandardCharsets.UTF_8);
-        Pattern mainPattern = Pattern.compile("(?m)^(\\s*main\\s*:\\s*['\"]?)"
-                + Pattern.quote(oldMainClass)
-                + "(['\"]?\\s*(?:#.*)?)$");
-        Matcher matcher = mainPattern.matcher(content);
-        String updated = matcher.replaceFirst("$1" + Matcher.quoteReplacement(newMainClass) + "$2");
+        try {
+            LoaderOptions loaderOptions = new LoaderOptions();
+            loaderOptions.setProcessComments(true);
+            DumperOptions dumperOptions = new DumperOptions();
+            dumperOptions.setProcessComments(true);
+            dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            dumperOptions.setPrettyFlow(true);
+            dumperOptions.setIndent(2);
+            NumberAnchorGenerator generatedAnchors = new NumberAnchorGenerator(0);
+            dumperOptions.setAnchorGenerator(node -> node.getAnchor() != null
+                    ? node.getAnchor()
+                    : generatedAnchors.nextAnchor(node));
+            Yaml yaml = new Yaml(
+                    new SafeConstructor(loaderOptions),
+                    new Representer(dumperOptions),
+                    dumperOptions,
+                    loaderOptions);
+            Node document = yaml.compose(new StringReader(new String(yamlData, StandardCharsets.UTF_8)));
+            if (!(document instanceof MappingNode root)) {
+                Logger.warn("Cannot update main class in {}: YAML root is not a mapping", fileName);
+                return;
+            }
 
-        if (!content.equals(updated)) {
-            resources.put(fileName, updated.getBytes(StandardCharsets.UTF_8));
+            Node updatedDocument = document;
+            boolean updated = false;
+            for (NodeTuple entry : root.getValue()) {
+                if (!(entry.getKeyNode() instanceof ScalarNode key)
+                        || !"main".equals(key.getValue())
+                        || !(entry.getValueNode() instanceof ScalarNode value)) continue;
+                if (!oldMainClass.equals(value.getValue())) return;
+
+                ScalarNode replacement = new ScalarNode(value.getTag(), newMainClass,
+                        value.getStartMark(), value.getEndMark(), value.getScalarStyle());
+                replacement.setAnchor(value.getAnchor());
+                replacement.setBlockComments(value.getBlockComments());
+                replacement.setInLineComments(value.getInLineComments());
+                replacement.setEndComments(value.getEndComments());
+                updatedDocument = replaceYamlNode(
+                        document, value, replacement, new IdentityHashMap<>());
+                updated = true;
+                break;
+            }
+            if (!updated) return;
+
+            StringWriter output = new StringWriter();
+            yaml.serialize(updatedDocument, output);
+            resources.put(fileName, output.toString().getBytes(StandardCharsets.UTF_8));
             Logger.info("Updated main class in {} : {} -> {}", fileName, oldMainClass, newMainClass);
+        } catch (Exception exception) {
+            Logger.warn("Failed to update main class in {}: {}", fileName, exception.getMessage());
         }
+    }
+
+    private Node replaceYamlNode(
+            Node node, Node target, Node replacement, IdentityHashMap<Node, Node> visited) {
+        if (node == target) return replacement;
+        Node previous = visited.get(node);
+        if (previous != null) return previous;
+        visited.put(node, node);
+
+        if (node instanceof AnchorNode anchor) {
+            Node realNode = replaceYamlNode(anchor.getRealNode(), target, replacement, visited);
+            if (realNode == anchor.getRealNode()) return node;
+            AnchorNode updated = new AnchorNode(realNode);
+            visited.put(node, updated);
+            return updated;
+        }
+        if (node instanceof MappingNode mapping) {
+            List<NodeTuple> entries = new ArrayList<>(mapping.getValue().size());
+            for (NodeTuple entry : mapping.getValue()) {
+                entries.add(new NodeTuple(
+                        replaceYamlNode(entry.getKeyNode(), target, replacement, visited),
+                        replaceYamlNode(entry.getValueNode(), target, replacement, visited)));
+            }
+            mapping.setValue(entries);
+        } else if (node instanceof SequenceNode sequence) {
+            List<Node> values = sequence.getValue();
+            for (int index = 0; index < values.size(); index++) {
+                values.set(index, replaceYamlNode(values.get(index), target, replacement, visited));
+            }
+        }
+        return node;
     }
 
     public String getDetectedMainClass() {
@@ -833,12 +912,7 @@ public class JarProcessor {
         for (ClassNode classNode : pool.getClasses()) {
             cancellation.throwIfCancelled();
             try {
-                ClassWriter w = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
-                    @Override
-                    protected String getCommonSuperClass(String t1, String t2) {
-                        return "java/lang/Object";
-                    }
-                };
+                ClassWriter w = new HierarchyClassWriter(pool, ClassWriter.COMPUTE_FRAMES);
                 classNode.accept(w);
                 preFlowClassBytes.put(classNode.name, w.toByteArray());
             } catch (Exception e) {
@@ -896,54 +970,12 @@ public class JarProcessor {
                     }
                 }
 
-                // Strip all stale FrameNode entries before writing.
-                // Classes are loaded with EXPAND_FRAMES which creates FrameNodes,
-                // but after transformers modify the instruction list these become
-                // invalid (wrong positions, wrong stack state). COMPUTE_FRAMES
-                // regenerates them from scratch. Stale ones must be removed first
-                // or they can confuse the frame computation.
-                for (org.objectweb.asm.tree.MethodNode mn : classNode.methods) {
-                    if (mn.instructions == null) continue;
-                    AbstractInsnNode insn = mn.instructions.getFirst();
-                    while (insn != null) {
-                        AbstractInsnNode next = insn.getNext();
-                        if (insn instanceof org.objectweb.asm.tree.FrameNode) {
-                            mn.instructions.remove(insn);
-                        }
-                        insn = next;
-                    }
-                }
+                boolean computeFrames = pool.requiresFrameComputation(classNode.name);
+                if (computeFrames) removeStaleFrames(classNode);
 
                 try {
-                    ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
-                        @Override
-                        protected String getCommonSuperClass(String type1, String type2) {
-                            try {
-                                // Try to resolve using the class pool for better accuracy
-                                ClassNode c1 = pool.getClass(type1);
-                                if (c1 == null) c1 = pool.getLibraryClasses().get(type1);
-                                ClassNode c2 = pool.getClass(type2);
-                                if (c2 == null) c2 = pool.getLibraryClasses().get(type2);
-
-                                if (c1 != null && c2 != null) {
-                                    if (isAssignableFrom(pool, type2, type1)) return type1;
-                                    if (isAssignableFrom(pool, type1, type2)) return type2;
-
-                                    String current = type1;
-                                    while (current != null && !current.equals("java/lang/Object")) {
-                                        if (isAssignableFrom(pool, type2, current)) return current;
-                                        ClassNode cn = pool.getClass(current);
-                                        if (cn == null) cn = pool.getLibraryClasses().get(current);
-                                        current = (cn != null) ? cn.superName : null;
-                                    }
-                                }
-                            } catch (Exception ignored) {
-                                // Defensive: if hierarchy resolution fails for any reason,
-                                // fall through to the safe default
-                            }
-                            return "java/lang/Object";
-                        }
-                    };
+                    int writerFlags = computeFrames ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS;
+                    ClassWriter writer = new HierarchyClassWriter(pool, writerFlags);
                     classNode.accept(writer);
                     bytes = writer.toByteArray();
 
@@ -954,15 +986,15 @@ public class JarProcessor {
                         ClassReader verifyReader = new ClassReader(bytes);
                         ClassNode verifyNode = new ClassNode();
                         verifyReader.accept(verifyNode, ClassReader.EXPAND_FRAMES);
-                        for (org.objectweb.asm.tree.MethodNode mn : verifyNode.methods) {
+                        for (MethodNode mn : verifyNode.methods) {
                             if (mn.instructions == null || mn.instructions.size() == 0) continue;
-                            if ((mn.access & (org.objectweb.asm.Opcodes.ACC_ABSTRACT | org.objectweb.asm.Opcodes.ACC_NATIVE)) != 0) continue;
+                            if ((mn.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
                             org.objectweb.asm.tree.analysis.Analyzer<org.objectweb.asm.tree.analysis.BasicValue> analyzer =
                                     new org.objectweb.asm.tree.analysis.Analyzer<>(new org.objectweb.asm.tree.analysis.BasicVerifier());
                             analyzer.analyze(verifyNode.name, mn);
                         }
                     } catch (Exception verifyEx) {
-                        Logger.warn("Post-COMPUTE_FRAMES verification failed for {}: {}; using pre-flow snapshot",
+                        Logger.warn("Post-write verification failed for {}: {}; using pre-flow snapshot",
                                 classNode.name, verifyEx.getMessage());
                         byte[] snapshot = preFlowClassBytes.get(classNode.name);
                         if (snapshot != null) {
@@ -976,7 +1008,7 @@ public class JarProcessor {
                     bytes = preFlowClassBytes.getOrDefault(classNode.name,
                             originalClassBytes.get(originalName));
                 } catch (Exception e) {
-                    Logger.warn("COMPUTE_FRAMES failed for {}: {}; using pre-flow snapshot",
+                    Logger.warn("Class writing failed for {}: {}; using pre-flow snapshot",
                             classNode.name, e.getMessage());
                     bytes = preFlowClassBytes.getOrDefault(classNode.name,
                             originalClassBytes.get(originalName));
@@ -1046,28 +1078,102 @@ public class JarProcessor {
         }
     }
 
+    private static void removeStaleFrames(ClassNode classNode) {
+        for (MethodNode method : classNode.methods) {
+            if (method.instructions == null) continue;
+            AbstractInsnNode instruction = method.instructions.getFirst();
+            while (instruction != null) {
+                AbstractInsnNode next = instruction.getNext();
+                if (instruction instanceof FrameNode) method.instructions.remove(instruction);
+                instruction = next;
+            }
+        }
+    }
+
+    private String commonPoolType(ClassPool pool, String type1, String type2) {
+        if (isAssignableFrom(pool, type2, type1)) return type1;
+        if (isAssignableFrom(pool, type1, type2)) return type2;
+
+        ClassNode first = pool.getClass(type1);
+        if (first == null) return null;
+        String current = first.superName;
+        while (current != null) {
+            if (isAssignableFrom(pool, type2, current)) return current;
+            ClassNode node = pool.getClass(current);
+            current = node == null ? null : node.superName;
+        }
+        return null;
+    }
+
     private boolean isAssignableFrom(ClassPool pool, String child, String parent) {
         if (child.equals(parent)) return true;
         if (parent.equals("java/lang/Object")) return true;
 
-        String current = child;
-        int depth = 0;
-        while (current != null && !current.equals("java/lang/Object") && depth < 64) {
+        Set<String> visited = new HashSet<>();
+        Deque<String> pending = new ArrayDeque<>();
+        pending.add(child);
+        while (!pending.isEmpty() && visited.size() < 256) {
+            String current = pending.removeFirst();
+            if (!visited.add(current)) continue;
             if (current.equals(parent)) return true;
-            ClassNode cn = pool.getClass(current);
-            if (cn == null) cn = pool.getLibraryClasses().get(current);
-            if (cn == null) break;
-
-            // Check interfaces
-            if (cn.interfaces != null) {
-                for (String iface : cn.interfaces) {
-                    if (iface.equals(parent)) return true;
-                }
-            }
-
-            current = cn.superName;
-            depth++;
+            ClassNode node = pool.getClass(current);
+            if (node == null) continue;
+            if (node.superName != null) pending.addLast(node.superName);
+            if (node.interfaces != null) pending.addAll(node.interfaces);
         }
         return false;
+    }
+
+    private final class HierarchyClassWriter extends ClassWriter {
+        private final ClassPool pool;
+
+        private HierarchyClassWriter(ClassPool pool, int flags) {
+            super(flags);
+            this.pool = pool;
+        }
+
+        @Override
+        protected String getCommonSuperClass(String type1, String type2) {
+            if (type1.equals(type2)) return type1;
+            if (type1.startsWith("[") || type2.startsWith("[")) {
+                return commonArrayType(type1, type2);
+            }
+
+            String pooled = commonPoolType(pool, type1, type2);
+            if (pooled != null) return pooled;
+            try {
+                return super.getCommonSuperClass(type1, type2);
+            } catch (RuntimeException ignored) {
+                return "java/lang/Object";
+            }
+        }
+
+        private String commonArrayType(String type1, String type2) {
+            if (!type1.startsWith("[") || !type2.startsWith("[")) {
+                String nonArray = type1.startsWith("[") ? type2 : type1;
+                return nonArray.equals("java/lang/Cloneable") || nonArray.equals("java/io/Serializable")
+                        ? nonArray
+                        : "java/lang/Object";
+            }
+
+            String component1 = type1.substring(1);
+            String component2 = type2.substring(1);
+            if (component1.equals(component2)) return type1;
+            if (isReferenceDescriptor(component1) && isReferenceDescriptor(component2)) {
+                String common = getCommonSuperClass(toFrameType(component1), toFrameType(component2));
+                return common.startsWith("[") ? "[" + common : "[L" + common + ";";
+            }
+            return "java/lang/Object";
+        }
+
+        private boolean isReferenceDescriptor(String descriptor) {
+            return descriptor.charAt(0) == '[' || descriptor.charAt(0) == 'L';
+        }
+
+        private String toFrameType(String descriptor) {
+            return descriptor.charAt(0) == '['
+                    ? descriptor
+                    : Type.getType(descriptor).getInternalName();
+        }
     }
 }

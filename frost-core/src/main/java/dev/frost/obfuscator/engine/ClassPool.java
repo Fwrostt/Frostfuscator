@@ -1,20 +1,45 @@
 package dev.frost.obfuscator.engine;
 
 import dev.frost.obfuscator.util.ClassHierarchy;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FrameNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LookupSwitchInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
 
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class ClassPool {
 
+    public enum ProgressStage { STARTED, COMPLETED, FAILED }
+
+    public record ClassProgress(String transformerId, String operation, String className,
+                                int completedClasses, int totalClasses, ProgressStage stage) {}
+
+    @FunctionalInterface
+    public interface ClassProgressListener {
+        void onClassProgress(ClassProgress progress);
+    }
+
+    @FunctionalInterface
+    public interface ProgressSubscription extends AutoCloseable {
+        @Override void close();
+    }
+
     private final Map<String, ClassNode> classes = new LinkedHashMap<>();
     private final Map<String, ClassNode> libraryClasses = new LinkedHashMap<>();
     private final Map<String, String> originalNames = new java.util.concurrent.ConcurrentHashMap<>();
     private final Set<String> dirtyClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Set<String> frameDirtyClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Set<String> generatedDecoyClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Set<String> transformationExcludedClasses = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Map<String, String> transformationExclusionReasons = new java.util.concurrent.ConcurrentHashMap<>();
@@ -26,6 +51,8 @@ public class ClassPool {
     private ForkJoinPool transformExecutor;
     private int parallelThreshold = 32;
     private BuildCancellation cancellation = new BuildCancellation();
+    private final List<ClassProgressListener> progressListeners = new CopyOnWriteArrayList<>();
+    private volatile String activeTransformerId = "unscoped";
 
     public void addClass(String name, ClassNode node) {
         classes.put(name, node);
@@ -101,10 +128,22 @@ public class ClassPool {
     public void forEachClass(Consumer<? super ClassNode> operation) {
         Objects.requireNonNull(operation, "operation");
         List<ClassNode> snapshot = orderedClassSnapshot();
+        String transformerId = activeTransformerId;
+        AtomicInteger completed = new AtomicInteger();
         Consumer<ClassNode> cancellableOperation = classNode -> {
             cancellation.throwIfCancelled();
-            operation.accept(classNode);
-            cancellation.throwIfCancelled();
+            notifyProgress(new ClassProgress(transformerId, "forEachClass", classNode.name,
+                    completed.get(), snapshot.size(), ProgressStage.STARTED));
+            try {
+                operation.accept(classNode);
+                cancellation.throwIfCancelled();
+                notifyProgress(new ClassProgress(transformerId, "forEachClass", classNode.name,
+                        completed.incrementAndGet(), snapshot.size(), ProgressStage.COMPLETED));
+            } catch (RuntimeException | Error failure) {
+                notifyProgress(new ClassProgress(transformerId, "forEachClass", classNode.name,
+                        completed.get(), snapshot.size(), ProgressStage.FAILED));
+                throw failure;
+            }
         };
         if (transformExecutor == null || snapshot.size() < parallelThreshold) {
             snapshot.forEach(cancellableOperation);
@@ -116,11 +155,23 @@ public class ClassPool {
     public <T> List<T> mapClasses(Function<? super ClassNode, T> operation) {
         Objects.requireNonNull(operation, "operation");
         List<ClassNode> snapshot = orderedClassSnapshot();
+        String transformerId = activeTransformerId;
+        AtomicInteger completed = new AtomicInteger();
         Function<ClassNode, T> cancellableOperation = classNode -> {
             cancellation.throwIfCancelled();
-            T result = operation.apply(classNode);
-            cancellation.throwIfCancelled();
-            return result;
+            notifyProgress(new ClassProgress(transformerId, "mapClasses", classNode.name,
+                    completed.get(), snapshot.size(), ProgressStage.STARTED));
+            try {
+                T result = operation.apply(classNode);
+                cancellation.throwIfCancelled();
+                notifyProgress(new ClassProgress(transformerId, "mapClasses", classNode.name,
+                        completed.incrementAndGet(), snapshot.size(), ProgressStage.COMPLETED));
+                return result;
+            } catch (RuntimeException | Error failure) {
+                notifyProgress(new ClassProgress(transformerId, "mapClasses", classNode.name,
+                        completed.get(), snapshot.size(), ProgressStage.FAILED));
+                throw failure;
+            }
         };
         if (transformExecutor == null || snapshot.size() < parallelThreshold) {
             return snapshot.stream().map(cancellableOperation).toList();
@@ -137,10 +188,59 @@ public class ClassPool {
     }
 
     public void closeParallelism() {
-        if (transformExecutor != null) {
-            transformExecutor.shutdownNow();
-            transformExecutor = null;
+        ForkJoinPool executor = transformExecutor;
+        transformExecutor = null;
+        if (executor == null) return;
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) executor.shutdownNow();
+        } catch (InterruptedException exception) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
+    }
+
+    public ProgressSubscription addProgressListener(ClassProgressListener listener) {
+        Objects.requireNonNull(listener, "listener");
+        progressListeners.add(listener);
+        return () -> progressListeners.remove(listener);
+    }
+
+    public ProgressSubscription transformerProgressScope(String transformerId) {
+        String previous = activeTransformerId;
+        String current = transformerId == null || transformerId.isBlank() ? "unscoped" : transformerId;
+        activeTransformerId = current;
+        return () -> {
+            if (activeTransformerId.equals(current)) activeTransformerId = previous;
+        };
+    }
+
+    private void notifyProgress(ClassProgress progress) {
+        for (ClassProgressListener listener : progressListeners) {
+            try {
+                listener.onClassProgress(progress);
+            } catch (RuntimeException ignored) {
+                // Monitoring must never change transformer behavior.
+            }
+        }
+    }
+
+    void releaseBuildState() {
+        closeParallelism();
+        hierarchy.clear();
+        classes.clear();
+        libraryClasses.clear();
+        originalNames.clear();
+        dirtyClasses.clear();
+        frameDirtyClasses.clear();
+        generatedDecoyClasses.clear();
+        transformationExcludedClasses.clear();
+        transformationExclusionReasons.clear();
+        progressListeners.clear();
+        activeTransformerId = "unscoped";
+        globalExclusions = List.of();
+        globalInclusions = List.of();
     }
 
     private List<ClassNode> orderedClassSnapshot() {
@@ -168,6 +268,8 @@ public class ClassPool {
 
     public void remove(String name) {
         classes.remove(name);
+        dirtyClasses.remove(name);
+        frameDirtyClasses.remove(name);
         transformationExcludedClasses.remove(name);
         transformationExclusionReasons.remove(name);
     }
@@ -182,8 +284,10 @@ public class ClassPool {
             transformationExcludedClasses.add(newName);
             if (exclusionReason != null) transformationExclusionReasons.put(newName, exclusionReason);
         }
+        boolean framesDirty = frameDirtyClasses.remove(oldName);
         dirtyClasses.remove(oldName);
         dirtyClasses.add(newName);
+        if (framesDirty) frameDirtyClasses.add(newName);
     }
 
     public void setOriginalName(String currentName, String originalName) {
@@ -234,11 +338,45 @@ public class ClassPool {
 
     public void markDirty(String currentName) {
         dirtyClasses.add(currentName);
+        ClassNode classNode = classes.get(currentName);
+        if (classNode != null && hasUnframedControlFlow(classNode)) {
+            frameDirtyClasses.add(currentName);
+        }
+    }
+
+    /** Marks a class whose control-flow graph changed and therefore needs fresh StackMapTable frames. */
+    public void markFramesDirty(String currentName) {
+        dirtyClasses.add(currentName);
+        frameDirtyClasses.add(currentName);
     }
 
     public boolean isDirty(String currentName) {
         return dirtyClasses.contains(currentName);
     }
+
+    public boolean requiresFrameComputation(String currentName) {
+        return frameDirtyClasses.contains(currentName);
+    }
+
+    private boolean hasUnframedControlFlow(ClassNode classNode) {
+        for (MethodNode method : classNode.methods) {
+            if (method.instructions == null) continue;
+            boolean hasFrame = false;
+            boolean hasControlFlow = method.tryCatchBlocks != null && !method.tryCatchBlocks.isEmpty();
+            for (AbstractInsnNode instruction : method.instructions) {
+                hasFrame |= instruction instanceof FrameNode;
+                hasControlFlow |= instruction instanceof JumpInsnNode
+                        || instruction instanceof TableSwitchInsnNode
+                        || instruction instanceof LookupSwitchInsnNode;
+            }
+            if (hasControlFlow && !hasFrame) return true;
+        }
+        return false;
+    }
+
+    public int dirtyClassCount() { return dirtyClasses.size(); }
+
+    public int generatedClassCount() { return generatedDecoyClasses.size(); }
 
     public void buildHierarchy() {
         cancellation.throwIfCancelled();

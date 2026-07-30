@@ -23,7 +23,7 @@ install:
 
 ## 📦 How to Include `frost-api` in Your Plugin Project
 
-Replace `TAG_OR_COMMIT` with a released Git tag (e.g. `1.3.0`), branch name (e.g. `main-SNAPSHOT`), or specific commit hash.
+Replace `TAG_OR_COMMIT` with a released Git tag (e.g. `1.3.2`), branch name (e.g. `main-SNAPSHOT`), or specific commit hash.
 
 ### Gradle (Groovy DSL) — `build.gradle`
 
@@ -35,7 +35,7 @@ repositories {
 
 dependencies {
     // Frostfuscator Plugin API
-    compileOnly 'com.github.Fwrostt.Frostfuscator:frost-api:1.3.0'
+    compileOnly 'com.github.Fwrostt.Frostfuscator:frost-api:1.3.2'
 }
 ```
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.Fwrostt.Frostfuscator:frost-api:1.3.0")
+    compileOnly("com.github.Fwrostt.Frostfuscator:frost-api:1.3.2")
 }
 ```
 
@@ -66,7 +66,7 @@ dependencies {
     <dependency>
         <groupId>com.github.Fwrostt.Frostfuscator</groupId>
         <artifactId>frost-api</artifactId>
-        <version>1.3.0</version>
+        <version>1.3.2</version>
         <scope>provided</scope>
     </dependency>
 </dependencies>
@@ -79,7 +79,7 @@ dependencies {
 1. Push your latest code to your GitHub repository (`https://github.com/Fwrostt/Frostfuscator`).
 2. Create a release tag on GitHub:
    ```bash
-   git tag -a v1.3.0 -m "Release v1.3.0 with frost-api support"
-   git push origin v1.3.0
+   git tag -a v1.3.2 -m "Release v1.3.2"
+   git push origin v1.3.2
    ```
 3. Visit `https://jitpack.io/#Fwrostt/Frostfuscator` and click **Get it** to trigger the automated JitPack build.

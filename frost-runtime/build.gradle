@@ -3,3 +3,7 @@ plugins {
 }
 
 description = 'Runtime helpers embedded into protected applications.'
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
+}

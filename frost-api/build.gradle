@@ -4,6 +4,7 @@ plugins {
 }
 
 dependencies {
+    api project(':frost-graph')
     api "org.ow2.asm:asm:${rootProject.ext.asmVersion}"
     api "org.ow2.asm:asm-tree:${rootProject.ext.asmVersion}"
 

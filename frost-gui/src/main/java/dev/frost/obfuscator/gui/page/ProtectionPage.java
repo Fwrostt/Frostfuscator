@@ -9,6 +9,8 @@ import dev.frost.obfuscator.gui.motion.Motion;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
 import dev.frost.obfuscator.gui.protection.*;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.jni.compiler.DetectedCompiler;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -386,6 +388,7 @@ public final class ProtectionPage implements PageView {
         target.setUseGcc(defaults.isUseGcc());
         target.setUseClang(defaults.isUseClang());
         target.setUseMsvc(defaults.isUseMsvc());
+        target.setUseZig(defaults.isUseZig());
         target.setMode(defaults.getMode());
         target.setCompileMode(defaults.getCompileMode());
         target.setUnityBuild(defaults.isUnityBuild());
@@ -422,6 +425,7 @@ public final class ProtectionPage implements PageView {
         CheckBox clang = check("Use Clang", nativeConfig.isUseClang());
         CheckBox gcc = check("Use GCC / MinGW", nativeConfig.isUseGcc());
         CheckBox msvc = check("Use MSVC Build Tools", nativeConfig.isUseMsvc());
+        CheckBox zig = check("Use Zig", nativeConfig.isUseZig());
         CheckBox strip = check("Strip native symbols", nativeConfig.isStripSymbols());
         CheckBox unity = check("Use a unity build", nativeConfig.isUnityBuild());
         CheckBox keepSources = check("Keep generated sources", nativeConfig.isKeepGeneratedSources());
@@ -443,6 +447,7 @@ public final class ProtectionPage implements PageView {
             nativeConfig.setUseClang(clang.isSelected());
             nativeConfig.setUseGcc(gcc.isSelected());
             nativeConfig.setUseMsvc(msvc.isSelected());
+            nativeConfig.setUseZig(zig.isSelected());
             nativeConfig.setStripSymbols(strip.isSelected());
             nativeConfig.setUnityBuild(unity.isSelected());
             nativeConfig.setKeepGeneratedSources(keepSources.isSelected());
@@ -458,16 +463,21 @@ public final class ProtectionPage implements PageView {
         for (TextInputControl control : List.of(library, temp, includePackages, includeClasses, includeMethods, exclusions)) {
             control.textProperty().addListener((obs, old, value) -> sync.run());
         }
-        for (CheckBox box : List.of(clang, gcc, msvc, strip, unity, keepSources, embed, failFast, continueOnFailure)) {
+        for (CheckBox box : List.of(clang, gcc, msvc, zig, strip, unity, keepSources, embed, failFast, continueOnFailure)) {
             box.selectedProperty().addListener((obs, old, value) -> sync.run());
         }
         mode.valueProperty().addListener((obs, old, value) -> sync.run());
         compile.valueProperty().addListener((obs, old, value) -> sync.run());
         optimization.valueProperty().addListener((obs, old, value) -> sync.run());
 
-        FlowPane compilerChoices = new FlowPane(Ui.SPACE_4, Ui.SPACE_3, clang, gcc, msvc);
+        FlowPane compilerChoices = new FlowPane(Ui.SPACE_4, Ui.SPACE_3, clang, gcc, msvc, zig);
+        VBox detectedToolchains = new VBox(Ui.SPACE_2,
+                Ui.label("Scanning local compiler installations…", "section-description"));
+        Button rescanToolchains = Ui.button("Rescan toolchains", "secondary-button", () -> { });
+        rescanToolchains.setOnAction(event -> detectToolchains(detectedToolchains, rescanToolchains));
+        detectToolchains(detectedToolchains, rescanToolchains);
         VBox compilers = Ui.section("Compiler", "Choose the native compiler families FrostJNI may use.",
-                compilerChoices, Ui.fieldRow("Compile mode", compile),
+                compilerChoices, detectedToolchains, rescanToolchains, Ui.fieldRow("Compile mode", compile),
                 Ui.fieldRow("Optimization", optimization), strip, unity);
         VBox selection = Ui.section("Native selection", "Selective mode converts only the listed targets.",
                 Ui.fieldRow("Mode", mode), Ui.fieldRow("Packages", includePackages),
@@ -477,6 +487,34 @@ public final class ProtectionPage implements PageView {
                 Ui.fieldRow("Library name", library), Ui.fieldRow("Work directory", temp),
                 keepSources, embed, failFast, continueOnFailure);
         return new VBox(Ui.SPACE_8, compilers, selection, output);
+    }
+
+    private void detectToolchains(VBox target, Button trigger) {
+        if (trigger != null) trigger.setDisable(true);
+        target.getChildren().setAll(Ui.label("Scanning local compiler installations…", "section-description"));
+        context.nativeToolchainService().detect().whenComplete((compilers, failure) -> Platform.runLater(() -> {
+            if (trigger != null) trigger.setDisable(false);
+            target.getChildren().clear();
+            if (failure != null) {
+                target.getChildren().add(Ui.label("Toolchain detection failed: " + failure.getMessage(), "validation-error"));
+                return;
+            }
+            if (compilers.isEmpty()) {
+                target.getChildren().add(Ui.label(
+                        "No supported compiler was found. Install Clang, GCC/MinGW, MSVC Build Tools, or Zig.",
+                        "section-description"));
+                return;
+            }
+            for (DetectedCompiler compiler : compilers) {
+                Label path = Ui.label(compiler.executable().toString(), "section-description");
+                path.setWrapText(true);
+                String version = compiler.version().isBlank() ? compiler.kind().name() : compiler.version();
+                VBox details = new VBox(Ui.SPACE_1, Ui.label(version, "info-value"), path);
+                HBox row = new HBox(Ui.SPACE_3, new StatusChip(compiler.displayName(), "success"), details);
+                row.setAlignment(Pos.CENTER_LEFT);
+                target.getChildren().add(row);
+            }
+        }));
     }
 
     private void refreshImpact() {

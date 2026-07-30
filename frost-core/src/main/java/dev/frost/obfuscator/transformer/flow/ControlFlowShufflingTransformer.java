@@ -37,6 +37,7 @@ public class ControlFlowShufflingTransformer extends Transformer {
                 return;
             }
 
+            boolean changed = false;
             for (MethodNode method : classNode.methods) {
                 if (method.instructions == null || method.instructions.size() < 6) continue;
                 if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
@@ -47,8 +48,10 @@ public class ControlFlowShufflingTransformer extends Transformer {
 
                 if (shuffleControlFlow(method, random)) {
                     shuffledMethods.increment();
+                    changed = true;
                 }
             }
+            if (changed) pool.markFramesDirty(classNode.name);
         });
 
         Logger.info("Shuffled control flow basic blocks in {} method(s)", shuffledMethods.sum());

@@ -1,6 +1,7 @@
 package dev.frost.loader;
 
 public class FrostVM {
+    private static final Object CATEGORY2_MARKER = new Object();
     // Internal Opcodes
     private static final int OP_NOP = 0;
     private static final int OP_ACONST_NULL = 1;
@@ -254,9 +255,40 @@ public class FrostVM {
     private static void pushValue(Object[] stack, int sp, Object val, Class<?> type) {
         if (type == long.class || type == double.class) {
             stack[sp] = val;
-            stack[sp+1] = null;
+            stack[sp+1] = CATEGORY2_MARKER;
         } else {
             stack[sp] = val;
+        }
+    }
+
+    private static StackValue popStackValue(Object[] stack, int sp) {
+        if (sp <= 0) throw new IllegalStateException("Operand stack underflow");
+        if (stack[sp - 1] == CATEGORY2_MARKER) {
+            if (sp < 2) throw new IllegalStateException("Orphaned category-2 stack marker");
+            return new StackValue(stack[sp - 2], 2);
+        }
+        return new StackValue(stack[sp - 1], 1);
+    }
+
+    private static int pushStackValue(Object[] stack, int sp, StackValue value) {
+        stack[sp++] = value.value;
+        if (value.width == 2) stack[sp++] = CATEGORY2_MARKER;
+        return sp;
+    }
+
+    private static void requireWidth(StackValue value, int width, String opcode) {
+        if (value.width != width) {
+            throw new IllegalStateException(opcode + " received an invalid category-" + value.width + " operand");
+        }
+    }
+
+    private static final class StackValue {
+        final Object value;
+        final int width;
+
+        StackValue(Object value, int width) {
+            this.value = value;
+            this.width = width;
         }
     }
 
@@ -528,11 +560,11 @@ public class FrostVM {
                     break;
                 case OP_LCONST_0:
                     stack[sp++] = 0L;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_LCONST_1:
                     stack[sp++] = 1L;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_FCONST_0:
                     stack[sp++] = 0.0f;
@@ -545,11 +577,11 @@ public class FrostVM {
                     break;
                 case OP_DCONST_0:
                     stack[sp++] = 0.0d;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_DCONST_1:
                     stack[sp++] = 1.0d;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_BIPUSH:
                     stack[sp++] = (int) bytecode[pc++];
@@ -565,7 +597,7 @@ public class FrostVM {
                     }
                     if (val instanceof Long || val instanceof Double) {
                         stack[sp++] = val;
-                        stack[sp++] = null;
+                        stack[sp++] = CATEGORY2_MARKER;
                     } else {
                         stack[sp++] = val;
                     }
@@ -579,7 +611,7 @@ public class FrostVM {
                 case OP_LOAD2: {
                     int idx = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
                     stack[sp++] = locals[idx];
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_STORE: {
@@ -603,7 +635,7 @@ public class FrostVM {
                     int idx = ((Integer) stack[--sp]);
                     long[] arr = (long[]) stack[--sp];
                     stack[sp++] = arr[idx];
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FALOAD: {
@@ -616,7 +648,7 @@ public class FrostVM {
                     int idx = ((Integer) stack[--sp]);
                     double[] arr = (double[]) stack[--sp];
                     stack[sp++] = arr[idx];
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_AALOAD: {
@@ -710,70 +742,135 @@ public class FrostVM {
                     break;
                 }
                 case OP_POP:
+                    requireWidth(popStackValue(stack, sp), 1, "POP");
                     sp--;
                     break;
-                case OP_POP2:
-                    sp -= 2;
+                case OP_POP2: {
+                    StackValue value1 = popStackValue(stack, sp);
+                    if (value1.width == 2) {
+                        sp -= 2;
+                    } else {
+                        sp--;
+                        StackValue value2 = popStackValue(stack, sp);
+                        requireWidth(value2, 1, "POP2");
+                        sp--;
+                    }
                     break;
-                case OP_DUP:
-                    stack[sp] = stack[sp-1];
-                    sp++;
+                }
+                case OP_DUP: {
+                    StackValue value1 = popStackValue(stack, sp);
+                    requireWidth(value1, 1, "DUP");
+                    sp = pushStackValue(stack, sp, value1);
                     break;
+                }
                 case OP_DUP_X1: {
-                    Object val1 = stack[--sp];
-                    Object val2 = stack[--sp];
-                    stack[sp++] = val1;
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                    requireWidth(value1, 1, "DUP_X1");
+                    requireWidth(value2, 1, "DUP_X1");
+                    sp = pushStackValue(stack, sp, value1);
+                    sp = pushStackValue(stack, sp, value2);
+                    sp = pushStackValue(stack, sp, value1);
                     break;
                 }
                 case OP_DUP_X2: {
-                    Object val1 = stack[--sp];
-                    Object val2 = stack[--sp];
-                    Object val3 = stack[--sp];
-                    stack[sp++] = val1;
-                    stack[sp++] = val3;
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                    requireWidth(value1, 1, "DUP_X2");
+                    if (value2.width == 2) {
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                    } else {
+                        StackValue value3 = popStackValue(stack, sp); sp -= value3.width;
+                        requireWidth(value3, 1, "DUP_X2");
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value3);
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                    }
                     break;
                 }
                 case OP_DUP2: {
-                    Object val1 = stack[sp-1];
-                    Object val2 = stack[sp-2];
-                    stack[sp] = val2;
-                    stack[sp+1] = val1;
-                    sp += 2;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    if (value1.width == 2) {
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value1);
+                    } else {
+                        StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                        requireWidth(value2, 1, "DUP2");
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                    }
                     break;
                 }
                 case OP_DUP2_X1: {
-                    Object val1 = stack[--sp];
-                    Object val2 = stack[--sp];
-                    Object val3 = stack[--sp];
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
-                    stack[sp++] = val3;
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                    if (value1.width == 2) {
+                        requireWidth(value2, 1, "DUP2_X1");
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                    } else {
+                        requireWidth(value2, 1, "DUP2_X1");
+                        StackValue value3 = popStackValue(stack, sp); sp -= value3.width;
+                        requireWidth(value3, 1, "DUP2_X1");
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                        sp = pushStackValue(stack, sp, value3);
+                        sp = pushStackValue(stack, sp, value2);
+                        sp = pushStackValue(stack, sp, value1);
+                    }
                     break;
                 }
                 case OP_DUP2_X2: {
-                    Object val1 = stack[--sp];
-                    Object val2 = stack[--sp];
-                    Object val3 = stack[--sp];
-                    Object val4 = stack[--sp];
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
-                    stack[sp++] = val4;
-                    stack[sp++] = val3;
-                    stack[sp++] = val2;
-                    stack[sp++] = val1;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                    if (value1.width == 2) {
+                        if (value2.width == 2) {
+                            sp = pushStackValue(stack, sp, value1);
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                        } else {
+                            StackValue value3 = popStackValue(stack, sp); sp -= value3.width;
+                            requireWidth(value3, 1, "DUP2_X2");
+                            sp = pushStackValue(stack, sp, value1);
+                            sp = pushStackValue(stack, sp, value3);
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                        }
+                    } else {
+                        requireWidth(value2, 1, "DUP2_X2");
+                        StackValue value3 = popStackValue(stack, sp); sp -= value3.width;
+                        if (value3.width == 2) {
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                            sp = pushStackValue(stack, sp, value3);
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                        } else {
+                            StackValue value4 = popStackValue(stack, sp); sp -= value4.width;
+                            requireWidth(value4, 1, "DUP2_X2");
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                            sp = pushStackValue(stack, sp, value4);
+                            sp = pushStackValue(stack, sp, value3);
+                            sp = pushStackValue(stack, sp, value2);
+                            sp = pushStackValue(stack, sp, value1);
+                        }
+                    }
                     break;
                 }
                 case OP_SWAP: {
-                    Object val1 = stack[--sp];
-                    Object val2 = stack[--sp];
-                    stack[sp++] = val1;
-                    stack[sp++] = val2;
+                    StackValue value1 = popStackValue(stack, sp); sp -= value1.width;
+                    StackValue value2 = popStackValue(stack, sp); sp -= value2.width;
+                    requireWidth(value1, 1, "SWAP");
+                    requireWidth(value2, 1, "SWAP");
+                    sp = pushStackValue(stack, sp, value1);
+                    sp = pushStackValue(stack, sp, value2);
                     break;
                 }
                 case OP_IADD: {
@@ -788,7 +885,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 + v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FADD: {
@@ -803,7 +900,7 @@ public class FrostVM {
                     sp -= 2;
                     double v1 = ((Double) stack[sp]);
                     stack[sp++] = v1 + v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_ISUB: {
@@ -818,7 +915,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 - v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FSUB: {
@@ -833,7 +930,7 @@ public class FrostVM {
                     sp -= 2;
                     double v1 = ((Double) stack[sp]);
                     stack[sp++] = v1 - v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IMUL: {
@@ -848,7 +945,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 * v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FMUL: {
@@ -863,7 +960,7 @@ public class FrostVM {
                     sp -= 2;
                     double v1 = ((Double) stack[sp]);
                     stack[sp++] = v1 * v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IDIV: {
@@ -878,7 +975,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 / v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FDIV: {
@@ -893,7 +990,7 @@ public class FrostVM {
                     sp -= 2;
                     double v1 = ((Double) stack[sp]);
                     stack[sp++] = v1 / v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IREM: {
@@ -908,7 +1005,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 % v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_FREM: {
@@ -923,7 +1020,7 @@ public class FrostVM {
                     sp -= 2;
                     double v1 = ((Double) stack[sp]);
                     stack[sp++] = v1 % v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_INEG:
@@ -949,7 +1046,7 @@ public class FrostVM {
                     sp -= 2;
                     long v = ((Long) stack[sp]);
                     stack[sp++] = v << s;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_ISHR: {
@@ -963,7 +1060,7 @@ public class FrostVM {
                     sp -= 2;
                     long v = ((Long) stack[sp]);
                     stack[sp++] = v >> s;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IUSHR: {
@@ -977,7 +1074,7 @@ public class FrostVM {
                     sp -= 2;
                     long v = ((Long) stack[sp]);
                     stack[sp++] = v >>> s;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IAND: {
@@ -992,7 +1089,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 & v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IOR: {
@@ -1007,7 +1104,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 | v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IXOR: {
@@ -1022,7 +1119,7 @@ public class FrostVM {
                     sp -= 2;
                     long v1 = ((Long) stack[sp]);
                     stack[sp++] = v1 ^ v2;
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_IINC: {
@@ -1033,14 +1130,14 @@ public class FrostVM {
                 }
                 case OP_I2L:
                     stack[sp-1] = Long.valueOf(((Number) stack[sp-1]).longValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_I2F:
                     stack[sp-1] = Float.valueOf(((Number) stack[sp-1]).floatValue());
                     break;
                 case OP_I2D:
                     stack[sp-1] = Double.valueOf(((Number) stack[sp-1]).doubleValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_L2I: {
                     Number val = (Number) stack[sp - 2];
@@ -1058,7 +1155,7 @@ public class FrostVM {
                     Number val = (Number) stack[sp - 2];
                     sp -= 2;
                     stack[sp++] = Double.valueOf(val.doubleValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_F2I:
@@ -1066,11 +1163,11 @@ public class FrostVM {
                     break;
                 case OP_F2L:
                     stack[sp-1] = Long.valueOf(((Number) stack[sp-1]).longValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_F2D:
                     stack[sp-1] = Double.valueOf(((Number) stack[sp-1]).doubleValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 case OP_D2I: {
                     Number val = (Number) stack[sp - 2];
@@ -1082,7 +1179,7 @@ public class FrostVM {
                     Number val = (Number) stack[sp - 2];
                     sp -= 2;
                     stack[sp++] = Long.valueOf(val.longValue());
-                    stack[sp++] = null;
+                    stack[sp++] = CATEGORY2_MARKER;
                     break;
                 }
                 case OP_D2F: {

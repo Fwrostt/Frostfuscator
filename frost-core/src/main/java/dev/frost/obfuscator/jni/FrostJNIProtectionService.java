@@ -385,6 +385,9 @@ public final class FrostJNIProtectionService {
         if (config.isUseMsvc()) {
             allowed.add(CompilerKind.MSVC);
         }
+        if (config.isUseZig()) {
+            allowed.add(CompilerKind.ZIG);
+        }
         return allowed;
     }
 

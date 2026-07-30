@@ -63,6 +63,7 @@ import dev.frost.obfuscator.transformer.rename.LocalVariableRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.MethodRenameTransformer;
 import dev.frost.obfuscator.plugin.PluginDescriptor;
 import dev.frost.obfuscator.plugin.PluginLoader;
+import dev.frost.obfuscator.plugin.LoadedPlugin;
 import dev.frost.obfuscator.util.Logger;
 
 import java.nio.file.Path;
@@ -71,7 +72,7 @@ import java.util.*;
 public class TransformerRegistry {
 
     private static final Map<String, Transformer> TRANSFORMERS = new LinkedHashMap<>();
-    private static final Set<Path> DISCOVERED_PLUGIN_DIRECTORIES = new LinkedHashSet<>();
+    private static final PluginLoader PLUGIN_LOADER = new PluginLoader();
 
     static {
         register(new LicenseGuardTransformer());
@@ -144,9 +145,19 @@ public class TransformerRegistry {
         }
     }
 
-    public static void registerExternal(Transformer transformer) {
-        register(transformer);
+    public static synchronized void registerExternal(Transformer transformer) {
+        Objects.requireNonNull(transformer, "transformer");
+        if (TRANSFORMERS.containsKey(transformer.getName())) {
+            throw new IllegalArgumentException("Transformer id is already registered: " + transformer.getName());
+        }
+        TRANSFORMERS.put(transformer.getName(), transformer);
         Logger.info("Registered plugin transformer: {}", transformer.getName());
+    }
+
+    public static synchronized void unregisterExternal(Transformer transformer) {
+        if (transformer != null && TRANSFORMERS.remove(transformer.getName(), transformer)) {
+            Logger.info("Unregistered plugin transformer: {}", transformer.getName());
+        }
     }
 
     private static void discoverPlugins() {
@@ -158,27 +169,33 @@ public class TransformerRegistry {
     }
 
     public static List<PluginDescriptor> discoverPlugins(List<Path> directories) {
-        List<Path> newDirectories = new ArrayList<>();
-        for (Path directory : directories) {
-            if (directory == null) {
-                continue;
-            }
-            Path normalized = directory.toAbsolutePath().normalize();
-            if (DISCOVERED_PLUGIN_DIRECTORIES.add(normalized)) {
-                newDirectories.add(normalized);
-            }
-        }
-        if (newDirectories.isEmpty()) {
-            return List.of();
-        }
-        return new PluginLoader().loadDirectories(newDirectories, TransformerRegistry::registerExternal);
+        return PLUGIN_LOADER.loadDirectories(directories, TransformerRegistry::registerExternal,
+                TransformerRegistry::unregisterExternal).stream().map(LoadedPlugin::descriptor).toList();
+    }
+
+    public static Optional<LoadedPlugin> loadPlugin(Path jarPath) {
+        return PLUGIN_LOADER.loadPlugin(jarPath, TransformerRegistry::registerExternal,
+                TransformerRegistry::unregisterExternal);
+    }
+
+    public static Optional<LoadedPlugin> reloadPlugin(Path jarPath) {
+        return PLUGIN_LOADER.reloadPlugin(jarPath, TransformerRegistry::registerExternal,
+                TransformerRegistry::unregisterExternal);
+    }
+
+    public static boolean unloadPlugin(Path jarPath) {
+        return PLUGIN_LOADER.unloadPlugin(jarPath);
+    }
+
+    public static List<LoadedPlugin> loadedPlugins() {
+        return PLUGIN_LOADER.loadedPlugins();
     }
 
     public static List<Transformer> getEnabled(ObfuscationConfig config) {
         return getEnabled(config, null);
     }
 
-    public static List<Transformer> getEnabled(ObfuscationConfig config, List<String> cliOverride) {
+    public static synchronized List<Transformer> getEnabled(ObfuscationConfig config, List<String> cliOverride) {
         List<Transformer> result = new ArrayList<>();
 
         if (cliOverride == null || cliOverride.isEmpty()) {
@@ -211,11 +228,11 @@ public class TransformerRegistry {
         return result;
     }
 
-    public static Transformer getByName(String name) {
+    public static synchronized Transformer getByName(String name) {
         return TRANSFORMERS.get(name);
     }
 
-    public static Collection<String> getAllNames() {
-        return Collections.unmodifiableSet(TRANSFORMERS.keySet());
+    public static synchronized Collection<String> getAllNames() {
+        return Set.copyOf(TRANSFORMERS.keySet());
     }
 }

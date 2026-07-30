@@ -10,6 +10,8 @@ import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
+import dev.frost.obfuscator.graph.GraphService;
+import dev.frost.graph.*;
 import picocli.CommandLine;
 
 import java.nio.file.Path;
@@ -24,7 +26,8 @@ import java.util.concurrent.Callable;
 @CommandLine.Command(
         name = "frostfuscator",
         mixinStandardHelpOptions = true,
-        description = "Java obfuscation toolkit"
+        description = "Java obfuscation toolkit",
+        subcommands = {Main.GraphCommand.class}
 )
 public class Main implements Callable<Integer> {
 
@@ -158,6 +161,15 @@ public class Main implements Callable<Integer> {
     @CommandLine.Option(names = {"--jni-compiler"}, split = ",", description = "Allowed FrostJNI compilers: clang,gcc,msvc")
     private List<String> jniCompilers = new ArrayList<>();
 
+    @CommandLine.Option(names = "--graph-pipeline", description = "Export the pre-build transformer pipeline graph")
+    private String graphPipelineOutput;
+
+    @CommandLine.Option(names = "--graph-build", description = "Export the completed build execution graph")
+    private String graphBuildOutput;
+
+    @CommandLine.Option(names = "--graph-format", defaultValue = "json", description = "Graph format: json, mermaid, dot")
+    private String graphFormat;
+
     @Override
     public Integer call() {
         try {
@@ -203,8 +215,17 @@ public class Main implements Callable<Integer> {
                 return 0;
             }
 
+            GraphService graphs = new GraphService();
+            if (graphPipelineOutput != null && !graphPipelineOutput.isBlank()) {
+                graphs.export(graphs.transformerGraph("pipeline", config, cliTransformers, GraphOptions.defaults()),
+                        graphFormat, Path.of(graphPipelineOutput));
+            }
             ObfuscationEngine engine = new ObfuscationEngine(config, cliTransformers);
             engine.run();
+            if (graphBuildOutput != null && !graphBuildOutput.isBlank() && engine.lastBuildGraph().isPresent()) {
+                graphs.export(graphs.completedBuildGraph(engine.lastBuildGraph().orElseThrow(), GraphOptions.defaults()),
+                        graphFormat, Path.of(graphBuildOutput));
+            }
 
             return 0;
         } catch (Exception e) {
@@ -217,6 +238,54 @@ public class Main implements Callable<Integer> {
     public static void main(String[] args) {
         int exitCode = new CommandLine(new Main()).execute(args);
         System.exit(exitCode);
+    }
+
+    @CommandLine.Command(name = "graph", mixinStandardHelpOptions = true,
+            description = "Generate a renderer-neutral graph from a JAR or transformer configuration")
+    static final class GraphCommand implements Callable<Integer> {
+        @CommandLine.Option(names = {"-i", "--input"}, description = "Input JAR") String input;
+        @CommandLine.Option(names = {"-o", "--output"}, required = true, description = "Output graph file") String output;
+        @CommandLine.Option(names = "--type", required = true,
+                description = "dependencies, calls, inheritance, packages, cfg, pipeline, transformers, mappings, build") String type;
+        @CommandLine.Option(names = "--format", defaultValue = "json", description = "json, mermaid, dot") String format;
+        @CommandLine.Option(names = {"-c", "--config"}, description = "YAML config file") String config;
+        @CommandLine.Option(names = "--class", description = "CFG class (binary or internal name)") String className;
+        @CommandLine.Option(names = "--method", description = "CFG method name") String method;
+        @CommandLine.Option(names = "--descriptor", description = "CFG JVM method descriptor") String descriptor;
+        @CommandLine.Option(names = "--lib", split = ",", description = "Dependency archive or directory") List<Path> libraries = new ArrayList<>();
+        @CommandLine.Option(names = "--include-libraries", description = "Include external/library nodes") boolean includeLibraries;
+        @CommandLine.Option(names = "--max-nodes", defaultValue = "600") int maxNodes;
+        @CommandLine.Option(names = "--max-edges", defaultValue = "1800") int maxEdges;
+        @CommandLine.Option(names = "--depth", defaultValue = "2") int depth;
+        @CommandLine.Option(names = "--focus", description = "Focus node id, label, class, or owner") String focus;
+        @CommandLine.Option(names = "--direction", defaultValue = "BOTH",
+                description = "Focused traversal: OUTGOING, INCOMING, or BOTH") TraversalDirection direction;
+
+        @Override public Integer call() {
+            try {
+                GraphService service = new GraphService();
+                GraphOptions options = new GraphOptions(maxNodes, maxEdges, depth, includeLibraries,
+                        "packages".equalsIgnoreCase(type), false, Set.of(), Set.of(), focus, direction);
+                Graph graph;
+                if (Set.of("pipeline", "preview", "configuration", "transformers", "mappings", "build").contains(type.toLowerCase(Locale.ROOT))) {
+                    ObfuscationConfig loaded = config == null ? ConfigLoader.loadDefault() : ConfigLoader.load(Path.of(config));
+                    graph = service.transformerGraph(type, loaded, null, options);
+                } else {
+                    if (input == null || input.isBlank()) throw new IllegalArgumentException("-i/--input is required for " + type);
+                    graph = service.bytecodeGraph(type, service.load(Path.of(input), libraries), className, method,
+                            descriptor, options, GraphCancellation.NONE,
+                            (done, total, message) -> { if (done == total || done % 250 == 0) Logger.info("Graph: {} ({}/{})", message, done, total); });
+                }
+                service.export(graph, format, Path.of(output));
+                Logger.info("{} graph exported to {} ({} nodes, {} edges{})", type, output,
+                        graph.nodes().size(), graph.edges().size(), graph.truncated() ? ", truncated" : "");
+                graph.warnings().forEach(warning -> Logger.warn("Graph warning [{}]: {}", warning.code(), warning.message()));
+                return 0;
+            } catch (Exception exception) {
+                Logger.error("Graph generation failed: {}", exception.getMessage());
+                return 1;
+            }
+        }
     }
 
     private void applyCliOptions(ObfuscationConfig config) {

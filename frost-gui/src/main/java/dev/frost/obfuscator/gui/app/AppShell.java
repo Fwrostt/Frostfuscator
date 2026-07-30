@@ -91,7 +91,7 @@ public final class AppShell {
         }
         sidebar.select(page);
         view.onShown();
-        if (immediate) {
+        if (immediate || previous == null) {
             content.getChildren().setAll(node);
             node.setOpacity(1);
             node.setTranslateX(0);
@@ -113,7 +113,8 @@ public final class AppShell {
         // lists across pulses. Attaching and detaching them inside one
         // synchronous warm-up pass can race JavaFX cached-bounds updates.
         // Construct these pages now and let their first real attachment layout.
-        if (page == PageId.REPORTS || page == PageId.RESOURCES || page == PageId.ENCRYPTOR) {
+        if (page == PageId.REPORTS || page == PageId.RESOURCES || page == PageId.ENCRYPTOR
+                || page == PageId.GRAPHS) {
             return (System.nanoTime() - started) / 1_000_000L;
         }
         content.getChildren().setAll(node);
@@ -168,6 +169,7 @@ public final class AppShell {
     }
 
     private void rebuildPageCache() {
+        cache.values().forEach(PageView::onHidden);
         cache.clear();
         active = null;
         for (PageId page : PageId.values()) cache.put(page, pages.create(page));

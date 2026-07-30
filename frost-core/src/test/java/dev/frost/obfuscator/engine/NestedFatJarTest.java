@@ -56,6 +56,11 @@ class NestedFatJarTest {
         assertNotNull(pool.getClass("com/example/nested/NestedClass"));
         assertNotNull(pool.getClass("com/example/main/MainApp"));
 
+        // Moving succeeds on Windows only when both the outer JarFile and nested entry stream closed.
+        Path movedJar = tempDir.resolve("outer-app-moved.jar");
+        Files.move(outerJarPath, movedJar);
+        Files.move(movedJar, outerJarPath);
+
         Path outputJarPath = tempDir.resolve("outer-app-protected.jar");
         processor.writeJar(pool, outputJarPath);
 

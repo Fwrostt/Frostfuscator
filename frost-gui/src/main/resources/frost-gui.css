@@ -44,6 +44,11 @@
     -fx-background-radius: 12;
 }
 
+.startup-title-bar {
+    -fx-border-color: transparent transparent -fx-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
 .bootstrap-host.window-maximized,
 .bootstrap-host.window-maximized .startup-view,
 .bootstrap-host.window-maximized .startup-backdrop {
@@ -690,11 +695,15 @@
 
 .menu-button > .arrow-button > .arrow,
 .custom-combo > .arrow-button > .arrow,
-.combo-box > .arrow-button > .arrow,
-.advanced-disclosure > .title > .arrow-button > .arrow {
-    -fx-shape: "M 0 0 L 4 4 L 0 8";
+.combo-box > .arrow-button > .arrow {
+    -fx-shape: "M 0 0 L 8 0 L 4 5 Z";
     -fx-background-color: -fx-text-muted;
-    -fx-padding: 4 3;
+    -fx-padding: 2.5 4;
+    -fx-rotate: 0;
+}
+
+.advanced-disclosure > .title > .arrow-button > .arrow {
+    -fx-background-color: -fx-text-muted;
 }
 
 .menu-button:hover > .arrow-button > .arrow,
@@ -708,6 +717,7 @@
 .custom-combo:showing > .arrow-button > .arrow,
 .combo-box:showing > .arrow-button > .arrow {
     -fx-background-color: -fx-accent-token;
+    -fx-rotate: 180;
 }
 
 .context-menu,
@@ -718,7 +728,7 @@
     -fx-border-radius: 8;
     -fx-border-width: 1;
     -fx-padding: 4;
-    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.45), 16, 0, 0, 8);
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.45), 8, 0, 0, 4);
 }
 
 .menu-item {
@@ -1207,6 +1217,26 @@
     -fx-text-fill: -fx-text;
     -fx-padding: 9 10;
     -fx-border-width: 0;
+}
+
+.settings-plugin-table {
+    -fx-min-height: 190;
+}
+
+.density-compact .analytics-table .column-header {
+    -fx-padding: 5 10;
+}
+
+.density-compact .analytics-table .table-cell {
+    -fx-padding: 5 10;
+}
+
+.density-spacious .analytics-table .column-header {
+    -fx-padding: 11 12;
+}
+
+.density-spacious .analytics-table .table-cell {
+    -fx-padding: 12 12;
 }
 
 .profile-presets {
@@ -2363,4 +2393,386 @@
     -fx-font-family: 'JetBrains Mono', 'Consolas', monospace;
     -fx-font-size: 11px;
     -fx-text-fill: -fx-text-muted;
+}
+.graph-page,
+.graph-page-header {
+    -fx-background-color: -fx-bg;
+}
+
+.graph-setup-panel {
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: 10;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 16 18;
+}
+
+.graph-kind-description {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.94em;
+    -fx-padding: 0 0 9 0;
+}
+
+.graph-target-controls {
+    -fx-alignment: center-left;
+}
+
+.graph-scope-row {
+    -fx-alignment: bottom-left;
+}
+
+.graph-analysis-actions {
+    -fx-alignment: bottom-right;
+    -fx-padding: 19 0 0 0;
+}
+
+.graph-analysis-actions .button {
+    -fx-min-height: 40;
+    -fx-pref-height: 40;
+}
+
+.graph-compact-field {
+    -fx-alignment: top-left;
+}
+
+.graph-page .combo-box-base {
+    -fx-background-color: -fx-bg;
+    -fx-background-radius: 6;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-page .combo-box-base:hover {
+    -fx-border-color: -fx-text-muted;
+}
+
+.graph-page .combo-box-base:focused,
+.graph-page .combo-box-base:showing {
+    -fx-border-color: -fx-accent-token;
+}
+
+.graph-page .combo-box > .list-cell,
+.graph-page .searchable-combo-box > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text;
+    -fx-padding: 8 10;
+}
+
+.graph-target-controls > .graph-compact-field .custom-combo,
+.graph-target-controls > .graph-compact-field .numeric-field {
+    -fx-min-height: 40;
+    -fx-pref-height: 40;
+}
+
+.graph-limits-button {
+    -fx-min-height: 40;
+    -fx-pref-height: 40;
+    -fx-alignment: center-left;
+}
+
+.graph-limits-menu-item,
+.graph-limits-menu-item:focused,
+.graph-limits-menu-item:hover {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.graph-limits-menu-item > .label-container,
+.graph-limits-menu-item > .label-container > .label {
+    -fx-padding: 0;
+}
+
+.searchable-dropdown:empty .custom-combo-value {
+    -fx-text-fill: -fx-text-muted;
+}
+
+.searchable-dropdown-popup {
+    -fx-padding: 4;
+    -fx-background-color: -fx-surface-raised;
+}
+
+.searchable-dropdown-search {
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+}
+
+.searchable-dropdown-results {
+    -fx-background-color: -fx-surface-raised;
+    -fx-border-color: transparent;
+    -fx-padding: 2 0 0 0;
+}
+
+.searchable-dropdown-results .list-cell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5;
+    -fx-text-fill: -fx-text;
+    -fx-padding: 7 10;
+}
+
+.searchable-dropdown-results .list-cell:hover,
+.searchable-dropdown-results .list-cell:selected {
+    -fx-background-color: -fx-accent-soft;
+    -fx-text-fill: -fx-text;
+}
+
+.searchable-dropdown-empty {
+    -fx-text-fill: -fx-text-muted;
+}
+
+.graph-generation-status {
+    -fx-min-height: 20;
+}
+
+.graph-progress-copy,
+.graph-status-copy {
+    -fx-text-fill: -fx-text;
+}
+
+.graph-progress-copy {
+    -fx-font-size: 0.94em;
+}
+
+.graph-scope-summary {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.9em;
+}
+
+.graph-limits-panel {
+    -fx-min-width: 290;
+    -fx-padding: 12;
+    -fx-background-color: transparent;
+}
+
+.graph-limit-help {
+    -fx-max-width: 270;
+    -fx-wrap-text: true;
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.86em;
+}
+
+.graph-viewer-host,
+.graph-viewer,
+.graph-canvas,
+.graph-split {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.graph-viewer-host {
+    -fx-background-color: -fx-surface;
+}
+
+.graph-viewer {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+}
+
+.graph-command-bar {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: transparent transparent -fx-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 9 11;
+}
+
+.graph-command-bar .text-field {
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+}
+
+.graph-command-bar .menu-button,
+.graph-command-bar > .button,
+.graph-compact-button {
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-padding: 7 11;
+}
+
+.graph-command-bar .menu-button:selected,
+.graph-command-bar > .button:selected {
+    -fx-background-color: -fx-accent-soft;
+    -fx-border-color: -fx-accent-token;
+    -fx-text-fill: -fx-accent-token;
+}
+
+.graph-zoom-group .graph-compact-button {
+    -fx-min-width: 36;
+    -fx-background-color: transparent;
+    -fx-border-color: -fx-border;
+    -fx-border-width: 1 0 1 1;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-zoom-group .graph-zoom-last {
+    -fx-min-width: 44;
+    -fx-pref-width: 44;
+    -fx-border-width: 1;
+}
+
+.graph-zoom-group .graph-compact-button:hover,
+.graph-compact-button:hover {
+    -fx-background-color: -fx-surface-raised;
+}
+
+.graph-filter-panel {
+    -fx-min-width: 260;
+    -fx-padding: 12;
+    -fx-background-color: -fx-surface-raised;
+}
+
+.graph-filter-panel .combo-box {
+    -fx-min-height: 38;
+}
+
+.graph-split,
+.graph-split > .split-pane-divider {
+    -fx-background-color: -fx-bg;
+    -fx-padding: 0;
+}
+
+.graph-split > .split-pane-divider {
+    -fx-pref-width: 1;
+    -fx-background-color: -fx-border;
+}
+
+.graph-canvas,
+.graph-web-view,
+.graph-web-view .scroll-pane,
+.graph-web-view .viewport,
+.graph-web-view .content {
+    -fx-background-color: -fx-bg;
+}
+
+.graph-empty-state {
+    -fx-background-color: -fx-bg;
+    -fx-padding: 48;
+}
+
+.graph-empty-title {
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 1.35em;
+    -fx-font-weight: 700;
+}
+
+.graph-empty-copy {
+    -fx-text-fill: -fx-text-muted;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+    -fx-line-spacing: 2;
+}
+
+.graph-empty-hint {
+    -fx-background-color: -fx-accent-soft;
+    -fx-background-radius: 7;
+    -fx-text-fill: -fx-accent-token;
+    -fx-padding: 8 12;
+}
+
+.graph-inspector {
+    -fx-background-color: -fx-surface;
+    -fx-padding: 16 14;
+}
+
+.graph-inspector-title {
+    -fx-text-fill: -fx-text;
+    -fx-font-size: 1.12em;
+    -fx-font-weight: 700;
+}
+
+.graph-inspector-kind,
+.graph-navigation-hint {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.9em;
+}
+
+.graph-inspector-scroll,
+.graph-inspector-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.graph-inspector-scroll {
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.graph-fact {
+    -fx-padding: 0 0 10 0;
+    -fx-border-color: transparent transparent -fx-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.graph-fact-label {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 0.82em;
+}
+
+.graph-fact-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-inspector .list-view {
+    -fx-max-width: infinity;
+    -fx-background-color: -fx-bg;
+    -fx-border-color: -fx-border;
+    -fx-border-width: 1;
+}
+
+.graph-inspector .list-cell {
+    -fx-background-color: -fx-bg;
+    -fx-text-fill: -fx-text-muted;
+    -fx-padding: 7 8;
+}
+
+.graph-inspector .list-cell:hover,
+.graph-inspector .list-cell:selected {
+    -fx-background-color: -fx-surface-raised;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-viewer .combo-box {
+    -fx-background-color: -fx-bg;
+    -fx-background-radius: 6;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+}
+
+.graph-viewer .combo-box > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-viewer .combo-box > .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.graph-viewer .combo-box > .arrow-button > .arrow {
+    -fx-background-color: -fx-text-muted;
+}
+
+.graph-inspector-close {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 1.15em;
+}
+
+.graph-inspector-close:hover {
+    -fx-background-color: -fx-surface-raised;
+    -fx-text-fill: -fx-text;
+}
+
+.graph-footer {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 12;
 }

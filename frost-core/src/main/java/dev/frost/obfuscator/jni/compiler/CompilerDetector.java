@@ -6,6 +6,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Locates available native compilers for the current machine.
@@ -36,7 +39,16 @@ public final class CompilerDetector {
             findOnPath("g++").map(path -> new DetectedCompiler(CompilerKind.GCC, path, "GCC")).ifPresent(compilers::add);
             findOnPath("clang++").map(path -> new DetectedCompiler(CompilerKind.CLANG, path, "Clang")).ifPresent(compilers::add);
         }
-        return compilers;
+        findExecutable("zig", zigFallbacks())
+                .map(path -> new DetectedCompiler(CompilerKind.ZIG, path, "Zig"))
+                .ifPresent(compilers::add);
+        Map<String, DetectedCompiler> unique = new LinkedHashMap<>();
+        for (DetectedCompiler compiler : compilers) {
+            DetectedCompiler versioned = new DetectedCompiler(compiler.kind(), compiler.executable(),
+                    compiler.displayName(), detectVersion(compiler));
+            unique.putIfAbsent(compiler.kind() + "@" + compiler.executable().toAbsolutePath().normalize(), versioned);
+        }
+        return List.copyOf(unique.values());
     }
 
     private Optional<DetectedCompiler> detectMsvc() {
@@ -55,16 +67,21 @@ public final class CompilerDetector {
                     "-find",
                     "VC/Tools/MSVC/**/bin/Hostx64/x64/cl.exe"
             ).start();
+            if (!process.waitFor(8, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return Optional.empty();
+            }
             String output = new String(process.getInputStream().readAllBytes()).trim();
-            if (process.waitFor() == 0 && !output.isBlank()) {
+            if (process.exitValue() == 0 && !output.isBlank()) {
                 return output.lines()
                         .findFirst()
                         .map(Path::of)
                         .filter(Files::isRegularFile)
                         .map(path -> new DetectedCompiler(CompilerKind.MSVC, path, "MSVC"));
             }
-        } catch (IOException | InterruptedException exception) {
+        } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+        } catch (IOException ignored) {
         }
         return Optional.empty();
     }
@@ -97,6 +114,39 @@ public final class CompilerDetector {
         return fallbackPaths.stream()
                 .filter(Files::isRegularFile)
                 .findFirst();
+    }
+
+    private List<Path> zigFallbacks() {
+        List<Path> paths = new ArrayList<>(List.of(
+                Path.of("C:/Program Files/Zig/zig.exe"),
+                Path.of("C:/zig/zig.exe"),
+                Path.of("C:/ProgramData/chocolatey/bin/zig.exe")
+        ));
+        String userProfile = System.getenv("USERPROFILE");
+        if (userProfile != null && !userProfile.isBlank()) {
+            paths.add(Path.of(userProfile, "scoop", "apps", "zig", "current", "zig.exe"));
+        }
+        return paths;
+    }
+
+    private String detectVersion(DetectedCompiler compiler) {
+        List<String> command = compiler.kind() == CompilerKind.MSVC
+                ? List.of(compiler.executable().toString())
+                : List.of(compiler.executable().toString(), "--version");
+        try {
+            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return "";
+            }
+            return new String(process.getInputStream().readAllBytes()).lines()
+                    .map(String::trim).filter(line -> !line.isBlank()).findFirst().orElse("");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return "";
+        } catch (IOException ignored) {
+            return "";
+        }
     }
 }
 

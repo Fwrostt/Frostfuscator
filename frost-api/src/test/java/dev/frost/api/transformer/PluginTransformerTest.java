@@ -91,6 +91,23 @@ class PluginTransformerTest {
         assertTrue(context.classes.containsKey("com/example/SyntheticClass"));
         assertTrue(context.resources.containsKey("dummy.txt"));
         assertEquals(ExecutionPass.PRIMARY, transformer.pass());
+        assertEquals(0, transformer.orderWeight());
         assertEquals(TransformerCategory.CUSTOM, transformer.category());
+    }
+
+    @Test
+    void exposesSemanticPipelineHooksAndCustomWeights() {
+        PluginTransformer transformer = new PluginTransformer() {
+            @Override public String id() { return "test:post-flow"; }
+            @Override public String name() { return "Post-flow test"; }
+            @Override public ExecutionPass pass() { return ExecutionPass.POST_FLOW; }
+            @Override public int orderWeight() { return -25; }
+            @Override public void transform(TransformerContext context) { }
+        };
+
+        assertEquals(ExecutionPass.POST_FLOW, transformer.pass());
+        assertEquals(-25, transformer.orderWeight());
+        assertTrue(ExecutionPass.PRE_RENAME.order() < ExecutionPass.PRIMARY.order());
+        assertTrue(ExecutionPass.POST_FLOW.order() > ExecutionPass.PRIMARY.order());
     }
 }

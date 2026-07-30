@@ -19,6 +19,7 @@ public final class CustomComboBox<T> extends MenuButton {
     private final List<T> values = new ArrayList<>();
     private final ObjectProperty<T> value = new SimpleObjectProperty<>(this, "value");
     private final Function<T, String> formatter;
+    private final Function<T, String> itemFormatter;
     private final Label displayLabel = new Label();
 
     public CustomComboBox(Collection<T> values) {
@@ -26,7 +27,13 @@ public final class CustomComboBox<T> extends MenuButton {
     }
 
     public CustomComboBox(Collection<T> values, Function<T, String> formatter) {
+        this(values, formatter, formatter);
+    }
+
+    public CustomComboBox(Collection<T> values, Function<T, String> formatter,
+                          Function<T, String> itemFormatter) {
         this.formatter = formatter;
+        this.itemFormatter = itemFormatter;
         getStyleClass().add("custom-combo");
         setMinWidth(Region.USE_PREF_SIZE);
         setMaxWidth(Double.MAX_VALUE);
@@ -60,13 +67,15 @@ public final class CustomComboBox<T> extends MenuButton {
         values.addAll(items);
         getItems().clear();
         for (T item : values) {
-            MenuItem menuItem = new MenuItem(formatter.apply(item));
+            MenuItem menuItem = new MenuItem(itemFormatter.apply(item));
             menuItem.setOnAction(event -> setValue(item));
             getItems().add(menuItem);
         }
         if (getValue() == null && !values.isEmpty()) setValue(values.getFirst());
         else syncText();
     }
+
+    public List<T> getValues() { return List.copyOf(values); }
 
     private void move(int offset) {
         if (values.isEmpty()) return;

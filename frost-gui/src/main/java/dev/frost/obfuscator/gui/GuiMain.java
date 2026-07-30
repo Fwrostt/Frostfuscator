@@ -1,14 +1,10 @@
 package dev.frost.obfuscator.gui;
 
+import dev.frost.obfuscator.gui.logging.DiagnosticLogFiles;
 import dev.frost.obfuscator.gui.state.AppDataPaths;
 
 import javax.swing.JOptionPane;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
 
 public final class GuiMain {
 
@@ -17,37 +13,30 @@ public final class GuiMain {
 
     public static void main(String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            Path logPath = writeCrashLog(throwable);
+            Path logPath = writeCrashLog(throwable, thread);
             System.err.println("Unhandled exception on " + thread.getName() + ". Crash log: " + logPath);
         });
         try {
             FrostFxApp.launchApp(args);
         } catch (Throwable throwable) {
-            Path logPath = writeCrashLog(throwable);
+            Path logPath = writeCrashLog(throwable, Thread.currentThread());
             showFailureDialog(throwable, logPath);
             System.exit(1);
         }
     }
 
-    private static Path writeCrashLog(Throwable throwable) {
-        Path logPath = AppDataPaths.systemDefault().logsDirectory().resolve("gui-crash.log");
+    private static Path writeCrashLog(Throwable throwable, Thread thread) {
         try {
-            Files.createDirectories(logPath.getParent());
-            StringWriter stackTrace = new StringWriter();
-            try (PrintWriter writer = new PrintWriter(stackTrace)) {
-                writer.println("Frostfuscator GUI failed to start");
-                writer.println("Time: " + LocalDateTime.now());
-                writer.println("Java: " + System.getProperty("java.version"));
-                writer.println("Java home: " + System.getProperty("java.home"));
-                writer.println("OS: " + System.getProperty("os.name") + " " + System.getProperty("os.version"));
-                writer.println();
-                throwable.printStackTrace(writer);
+            return DiagnosticLogFiles.writeCrash(throwable, thread);
+        } catch (Exception primaryFailure) {
+            try {
+                Path temporaryRoot = Path.of(System.getProperty("java.io.tmpdir"),
+                        AppDataPaths.DIRECTORY_NAME + "-crash-fallback");
+                return DiagnosticLogFiles.writeCrash(new AppDataPaths(temporaryRoot), throwable, thread);
+            } catch (Exception ignored) {
+                return Path.of("Crash log could not be written");
             }
-            Files.writeString(logPath, stackTrace.toString(), StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
-            return Path.of("gui-crash.log");
         }
-        return logPath;
     }
 
     private static void showFailureDialog(Throwable throwable, Path logPath) {

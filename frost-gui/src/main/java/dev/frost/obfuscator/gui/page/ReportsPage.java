@@ -6,6 +6,7 @@ import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.StatusChip;
 import dev.frost.obfuscator.gui.component.Ui;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
+import dev.frost.obfuscator.gui.theme.ThemeManager;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import javafx.animation.PauseTransition;
 import javafx.beans.property.ReadOnlyStringWrapper;
@@ -63,6 +64,7 @@ public final class ReportsPage implements PageView {
         heading.setMaxWidth(Double.MAX_VALUE);
 
         configureTables();
+        bindTableDensity();
         TabPane details = new TabPane(
                 tab("Classes", inventoryTab(classSearch, classTable)),
                 tab("Methods", inventoryTab(methodSearch, methodTable)),
@@ -442,6 +444,23 @@ public final class ReportsPage implements PageView {
         column.setHgrow(Priority.ALWAYS);
         column.setFillWidth(true);
         return column;
+    }
+
+    private void bindTableDensity() {
+        applyTableDensity(context.themeManager().densityProperty().get());
+        context.themeManager().densityProperty().addListener((obs, old, density) -> applyTableDensity(density));
+    }
+
+    private void applyTableDensity(ThemeManager.Density density) {
+        double rowHeight = switch (density) {
+            case COMPACT -> 32;
+            case SPACIOUS -> 46;
+            case COMFORTABLE -> 38;
+        };
+        classTable.setFixedCellSize(rowHeight);
+        methodTable.setFixedCellSize(rowHeight);
+        stringTable.setFixedCellSize(rowHeight);
+        resourceTable.setFixedCellSize(rowHeight);
     }
 
     private static void arrangeIntelligence(GridPane grid, Node recommendations,

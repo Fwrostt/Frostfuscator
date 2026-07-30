@@ -81,10 +81,10 @@ public final class CustomTitleBar extends HBox {
     private static final String STATE_KEY = CustomTitleBar.class.getName() + ".windowState";
 
     private static final class WindowState {
-        private double normalX;
-        private double normalY;
-        private double normalWidth;
-        private double normalHeight;
+        private double normalX = Double.NaN;
+        private double normalY = Double.NaN;
+        private double normalWidth = Double.NaN;
+        private double normalHeight = Double.NaN;
         private boolean maximized;
         private Rectangle windowClip;
     }
@@ -95,7 +95,10 @@ public final class CustomTitleBar extends HBox {
     }
 
     public static void toggleMaximize(AppContext context, StackPane host) {
-        Stage stage = context.stage();
+        toggleMaximize(context.stage(), host);
+    }
+
+    public static void toggleMaximize(Stage stage, StackPane host) {
         WindowState state = state(stage);
         if (!state.maximized) {
             captureNormalBounds(stage, host, state);
@@ -109,10 +112,12 @@ public final class CustomTitleBar extends HBox {
             state.maximized = true;
         } else {
             if (Double.isFinite(state.normalX) && Double.isFinite(state.normalY)) {
-                stage.setWidth(state.normalWidth);
-                stage.setHeight(state.normalHeight);
                 stage.setX(state.normalX);
                 stage.setY(state.normalY);
+                // Restore the position first. On Windows, resizing while the custom-maximized
+                // top-left is still active can clamp the requested normal size to stage minima.
+                stage.setWidth(state.normalWidth);
+                stage.setHeight(state.normalHeight);
             }
             state.maximized = false;
         }
@@ -123,7 +128,18 @@ public final class CustomTitleBar extends HBox {
     public static void restoreInitialMaximized(Stage stage, StackPane host) {
         WindowState state = state(stage);
         if (state.maximized) return;
-        captureNormalBounds(stage, host, state);
+        if (!hasNormalBounds(state)) {
+            captureNormalBounds(stage, host, state);
+            // A just-shown JavaFX stage can briefly report only its minimum size.
+            // The real app seeds restored bounds from PreferencesStore; an unseeded
+            // fresh window therefore uses the declared application scene defaults.
+            if (state.normalWidth <= stage.getMinWidth() + 0.5) {
+                state.normalWidth = dev.frost.obfuscator.gui.state.PreferencesStore.DEFAULT_WINDOW_WIDTH;
+            }
+            if (state.normalHeight <= stage.getMinHeight() + 0.5) {
+                state.normalHeight = dev.frost.obfuscator.gui.state.PreferencesStore.DEFAULT_WINDOW_HEIGHT;
+            }
+        }
         javafx.geometry.Rectangle2D vis = Screen.getScreensForRectangle(
                 state.normalX, state.normalY, state.normalWidth, state.normalHeight)
                 .getFirst().getVisualBounds();
@@ -137,11 +153,25 @@ public final class CustomTitleBar extends HBox {
 
     public static javafx.geometry.Rectangle2D normalBounds(Stage stage) {
         WindowState state = existingState(stage);
-        if (state == null || !Double.isFinite(state.normalX) || !Double.isFinite(state.normalY)) {
+        if (state == null || !hasNormalBounds(state)) {
             return null;
         }
         return new javafx.geometry.Rectangle2D(state.normalX, state.normalY,
                 state.normalWidth, state.normalHeight);
+    }
+
+    public static void rememberNormalBounds(Stage stage, double x, double y, double width, double height) {
+        WindowState state = state(stage);
+        state.normalX = x;
+        state.normalY = y;
+        state.normalWidth = width;
+        state.normalHeight = height;
+    }
+
+    private static boolean hasNormalBounds(WindowState state) {
+        return Double.isFinite(state.normalX) && Double.isFinite(state.normalY)
+                && Double.isFinite(state.normalWidth) && state.normalWidth > 0
+                && Double.isFinite(state.normalHeight) && state.normalHeight > 0;
     }
 
     private static void captureNormalBounds(Stage stage, StackPane host, WindowState state) {

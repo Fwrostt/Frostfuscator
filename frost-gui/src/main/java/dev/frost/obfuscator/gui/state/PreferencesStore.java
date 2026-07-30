@@ -38,7 +38,7 @@ public final class PreferencesStore implements AutoCloseable {
     private boolean closed;
 
     public PreferencesStore() {
-        this(AppDataPaths.systemDefault(), true);
+        this(AppDataPaths.configured(), true);
     }
 
     public PreferencesStore(Path root) {
@@ -117,6 +117,8 @@ public final class PreferencesStore implements AutoCloseable {
         } else {
             stage.centerOnScreen();
         }
+        dev.frost.obfuscator.gui.titlebar.CustomTitleBar.rememberNormalBounds(
+                stage, stage.getX(), stage.getY(), width, height);
     }
 
     public void saveWindow(Stage stage) {

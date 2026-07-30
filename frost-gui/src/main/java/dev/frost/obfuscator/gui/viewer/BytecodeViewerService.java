@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class BytecodeViewerService implements AutoCloseable {
     private final ExecutorService executor = Executors.newFixedThreadPool(
@@ -23,7 +24,8 @@ public final class BytecodeViewerService implements AutoCloseable {
             new ProcyonBackend(),
             new FernflowerBackend()
     );
-    private final Map<CacheKey, CompletableFuture<DecompileResult>> sourceCache = new ConcurrentHashMap<>();
+    private final Map<CacheKey, DecompileTask> sourceCache = new ConcurrentHashMap<>();
+    private final AtomicReference<DecompileTask> activeDecompile = new AtomicReference<>();
     private final Map<Fingerprint, CompletableFuture<ArchiveInspector.ArchiveScan>> scanCache =
             new ConcurrentHashMap<>();
 
@@ -71,14 +73,27 @@ public final class BytecodeViewerService implements AutoCloseable {
             ArchiveEditorWorkspace ws = workspace(archive);
             Path effectiveArchive = ws.getStagedJarPath();
             CacheKey key = new CacheKey(fingerprint(effectiveArchive), backend.id(), classEntry);
-            if (refresh) sourceCache.remove(key);
-            return sourceCache.computeIfAbsent(key,
-                    ignored -> supply(() -> backend.decompile(effectiveArchive, classEntry))
-                            .whenComplete((result, error) -> {
-                                if (error != null) sourceCache.remove(key);
-                            }));
+            DecompileTask task;
+            synchronized (sourceCache) {
+                if (refresh) cancelCachedTask(key);
+                task = sourceCache.get(key);
+                if (task == null || task.future.isCancelled()) {
+                    task = startDecompile(key, () -> backend.decompile(effectiveArchive, classEntry));
+                    sourceCache.put(key, task);
+                }
+            }
+            activate(task);
+            return task.future;
         } catch (IOException exception) {
             return CompletableFuture.failedFuture(exception);
+        }
+    }
+
+    public void cancelActiveDecompilation() {
+        DecompileTask task = activeDecompile.getAndSet(null);
+        if (task != null) {
+            task.cancel();
+            sourceCache.remove(task.key, task);
         }
     }
 
@@ -219,8 +234,50 @@ public final class BytecodeViewerService implements AutoCloseable {
 
     public void invalidate(Path archive) {
         Path normalized = archive.toAbsolutePath().normalize();
-        sourceCache.keySet().removeIf(key -> key.fingerprint.path.equals(normalized));
+        sourceCache.forEach((key, task) -> {
+            if (key.fingerprint.path.equals(normalized) && sourceCache.remove(key, task)) task.cancel();
+        });
         scanCache.keySet().removeIf(key -> key.path.equals(normalized));
+    }
+
+    private DecompileTask startDecompile(CacheKey key, ThrowingSupplier<DecompileResult> supplier) {
+        DecompileTask task = new DecompileTask(key);
+        task.worker = executor.submit(() -> {
+            try {
+                if (!task.future.isCancelled()) task.future.complete(supplier.get());
+            } catch (CancellationException exception) {
+                task.future.cancel(false);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                task.future.cancel(false);
+            } catch (Exception exception) {
+                task.future.completeExceptionally(exception);
+            }
+        });
+        if (task.future.isCancelled()) task.worker.cancel(true);
+        task.future.whenComplete((result, error) -> {
+            if (error != null) sourceCache.remove(key, task);
+            activeDecompile.compareAndSet(task, null);
+        });
+        return task;
+    }
+
+    private void activate(DecompileTask task) {
+        DecompileTask previous = task.future.isDone()
+                ? activeDecompile.getAndSet(null)
+                : activeDecompile.getAndSet(task);
+        if (previous != null && previous != task) {
+            previous.cancel();
+            sourceCache.remove(previous.key, previous);
+        }
+    }
+
+    private void cancelCachedTask(CacheKey key) {
+        DecompileTask cached = sourceCache.remove(key);
+        if (cached != null) {
+            activeDecompile.compareAndSet(cached, null);
+            cached.cancel();
+        }
     }
 
     private <T> CompletableFuture<T> supply(ThrowingSupplier<T> supplier) {
@@ -241,6 +298,8 @@ public final class BytecodeViewerService implements AutoCloseable {
 
     @Override
     public void close() {
+        cancelActiveDecompilation();
+        sourceCache.values().forEach(DecompileTask::cancel);
         executor.shutdownNow();
         sourceCache.clear();
         scanCache.clear();
@@ -252,6 +311,22 @@ public final class BytecodeViewerService implements AutoCloseable {
 
     private record Fingerprint(Path path, long size, long modified) {}
     private record CacheKey(Fingerprint fingerprint, String backend, String classEntry) {}
+
+    private static final class DecompileTask {
+        private final CacheKey key;
+        private final CompletableFuture<DecompileResult> future = new CompletableFuture<>();
+        private volatile Future<?> worker;
+
+        private DecompileTask(CacheKey key) {
+            this.key = key;
+        }
+
+        private void cancel() {
+            future.cancel(true);
+            Future<?> submitted = worker;
+            if (submitted != null) submitted.cancel(true);
+        }
+    }
 
     private static final class ViewerThreadFactory implements ThreadFactory {
         private final AtomicInteger index = new AtomicInteger();

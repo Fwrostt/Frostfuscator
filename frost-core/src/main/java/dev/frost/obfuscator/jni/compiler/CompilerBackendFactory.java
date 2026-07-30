@@ -31,6 +31,7 @@ public final class CompilerBackendFactory {
             case GCC -> new GccCompilerBackend(environment);
             case CLANG -> new ClangCompilerBackend(environment);
             case MSVC -> new MsvcCompilerBackend(environment);
+            case ZIG -> new ZigCompilerBackend(environment);
         };
     }
 

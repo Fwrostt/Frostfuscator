@@ -6,7 +6,8 @@ package dev.frost.obfuscator.jni.compiler;
 public enum CompilerKind {
     GCC,
     CLANG,
-    MSVC
+    MSVC,
+    ZIG
 }
 
 

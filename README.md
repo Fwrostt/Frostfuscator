@@ -12,6 +12,7 @@ The main focus is obfuscation, with support for class and member renaming, strin
 * [Configuration](docs/configuration.md)
 * [Transformers](docs/transformers.md)
 * [Plugins](docs/plugins.md)
+* [Graph Visualization](docs/graphs.md)
 
 ## Features
 
@@ -28,6 +29,11 @@ The main focus is obfuscation, with support for class and member renaming, strin
 * Standalone `frost-api` module with priority-aware `EventBus` (`PreObfuscationEvent`, `ClassTransformEvent`, `PostObfuscationEvent`).
 * Extension interfaces for custom obfuscation transformers (`PluginTransformer`), string encryptors (`StringEncryptorPlugin`), symbol name generators (`NameGeneratorPlugin`), decompiler backends (`CustomDecompilerProvider`), and GUI extensions (`UiExtensionPoint`).
 * In-decompiler IDE editing mode with in-memory Java compiler (`InJarJavaCompiler`), ASM bytecode assembler (`BytecodeAssembler`), and staged workspace.
+
+### Graph Analysis
+* Renderer-neutral class dependency, method-call, inheritance, package, and per-method control-flow graphs.
+* Transformer pipeline validation, mapping/diff/generated-member views, and actual completed-build execution statistics.
+* Scalable, class-scoped Cytoscape desktop analysis plus deterministic Mermaid, JSON, and DOT headless exports.
 
 ### Resources & Containers
 * Fabric Mod (`fabric.mod.json`) parsing and Mixin remapping.
@@ -50,6 +56,12 @@ List available transformers:
 
 ```bash
 java -jar Frostfuscator.jar --list-transforms
+```
+
+Generate a dependency graph without loading the GUI:
+
+```bash
+java -jar Frostfuscator.jar graph -i input.jar --type dependencies --format json -o dependencies.json
 ```
 
 ### GUI

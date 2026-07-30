@@ -28,6 +28,8 @@ public class ClassRenameTransformer extends Transformer {
         boolean safe = mode.equals("safe");
 
         Dictionary dictionary = Dictionary.create(config.getDictionary());
+        Set<String> reflectiveClassNames = collectReflectiveClassNames(pool);
+        reflectiveClassNames.forEach(mappings::preserveClass);
         Set<String> reservedNames = new HashSet<>();
         reservedNames.addAll(pool.getClassMap().keySet());
         reservedNames.addAll(pool.getLibraryClasses().keySet());
@@ -47,6 +49,10 @@ public class ClassRenameTransformer extends Transformer {
                 continue;
             }
             if (mappings.hasClassMapping(originalName)) {
+                continue;
+            }
+            if (mappings.isClassPreserved(originalName)) {
+                detail("Keeping reflectively referenced class {}", originalName);
                 continue;
             }
 
@@ -136,10 +142,6 @@ public class ClassRenameTransformer extends Transformer {
                         String className = null;
                         if (ldc.cst instanceof String value) {
                             className = value.replace('.', '/');
-                        } else if (ldc.cst instanceof org.objectweb.asm.Type type) {
-                            if (type.getSort() == org.objectweb.asm.Type.OBJECT) {
-                                className = type.getInternalName();
-                            }
                         }
                         if (className != null && pool.contains(className)) {
                             names.add(className);

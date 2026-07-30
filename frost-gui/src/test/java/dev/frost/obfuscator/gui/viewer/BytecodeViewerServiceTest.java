@@ -9,6 +9,11 @@ import org.objectweb.asm.tree.FrameNode;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
@@ -65,6 +70,43 @@ class BytecodeViewerServiceTest {
         assertTrue(result.source().contains("class Sample"), result.source());
         assertTrue(result.source().contains("visible-value"), result.source());
         assertTrue(result.source().contains("main"), result.source());
+    }
+
+    @Test
+    void switchingClassesCancelsThePreviousDecompilerTask() throws Exception {
+        Path archive = fixture();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        AtomicBoolean interrupted = new AtomicBoolean();
+        DecompilerBackend backend = new DecompilerBackend() {
+            @Override public String id() { return "cancellable-test"; }
+            @Override public String displayName() { return "Cancellable test"; }
+            @Override public String version() { return "1"; }
+
+            @Override
+            public DecompileResult decompile(Path ignored, String classEntry) throws Exception {
+                if (classEntry.equals("example/First.class")) {
+                    firstStarted.countDown();
+                    try {
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(30));
+                    } catch (InterruptedException exception) {
+                        interrupted.set(true);
+                        throw exception;
+                    }
+                }
+                return new DecompileResult(classEntry, Duration.ZERO, List.of());
+            }
+        };
+
+        try (BytecodeViewerService service = new BytecodeViewerService()) {
+            var first = service.decompile(backend, archive, "example/First.class", false);
+            assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+
+            var second = service.decompile(backend, archive, "example/Second.class", false);
+
+            assertEquals("example/Second.class", second.get(5, TimeUnit.SECONDS).source());
+            assertTrue(first.isCancelled());
+            assertTrue(interrupted.get());
+        }
     }
 
     @Test

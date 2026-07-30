@@ -12,6 +12,7 @@ public class FrostJNIConfig {
     private boolean useGcc = true;
     private boolean useClang = true;
     private boolean useMsvc = true;
+    private boolean useZig = true;
     private String mode = "SELECTIVE";
     private String compileMode = "FAST";
     private boolean unityBuild = true;
@@ -96,6 +97,14 @@ public class FrostJNIConfig {
 
     public void setUseMsvc(boolean useMsvc) {
         this.useMsvc = useMsvc;
+    }
+
+    public boolean isUseZig() {
+        return useZig;
+    }
+
+    public void setUseZig(boolean useZig) {
+        this.useZig = useZig;
     }
 
     public String getMode() {

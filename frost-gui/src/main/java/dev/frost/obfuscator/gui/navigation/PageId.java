@@ -7,6 +7,7 @@ public enum PageId {
     RESOURCES("Resources", "fth-package"),
     ENCRYPTOR("Encryptor", "fth-lock"),
     BYTECODE("Bytecode", "fth-code"),
+    GRAPHS("Graphs", "fth-share-2"),
     BUILD("Build", "fth-play-circle"),
     VALIDATION("Validation", "fth-check-circle"),
     REPORTS("Analytics", "fth-bar-chart-2"),

@@ -57,7 +57,7 @@ public class FlowSwitchTransformer extends Transformer {
             }
 
             if (changed > 0) {
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
                 detail("Hashed {} switch dispatches in {}", changed, classNode.name);
             }
         });

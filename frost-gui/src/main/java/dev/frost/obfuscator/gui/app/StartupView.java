@@ -1,5 +1,6 @@
 package dev.frost.obfuscator.gui.app;
 
+import dev.frost.obfuscator.gui.titlebar.StartupTitleBar;
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
@@ -26,15 +27,15 @@ import javafx.scene.paint.Stop;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeLineCap;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.DoubleConsumer;
 
 public final class StartupView extends StackPane implements AutoCloseable {
     private static final Interpolator EASE = Interpolator.SPLINE(0.22, 1, 0.36, 1);
-    private static final long MINIMUM_VISIBLE_NANOS = 1_650_000_000L;
+    private static final long MINIMUM_VISIBLE_NANOS = 250_000_000L;
     private final boolean reducedMotion;
     private final long createdAt = System.nanoTime();
     private final ProgressBar progress = new ProgressBar(0.04);
@@ -48,10 +49,12 @@ public final class StartupView extends StackPane implements AutoCloseable {
     private Runnable progressCompletion;
     private boolean revealStarted;
     private Node rotatingFrame;
-    private DoubleConsumer progressMirror = ignored -> {
-    };
 
     public StartupView(boolean reducedMotion) {
+        this(null, reducedMotion);
+    }
+
+    public StartupView(Stage stage, boolean reducedMotion) {
         this.reducedMotion = reducedMotion;
         getStyleClass().add("startup-view");
         setAlignment(Pos.CENTER);
@@ -71,6 +74,11 @@ public final class StartupView extends StackPane implements AutoCloseable {
         content.setAlignment(Pos.CENTER);
         content.setMaxWidth(540);
         getChildren().addAll(base, ambient, content);
+        if (stage != null) {
+            StartupTitleBar titleBar = new StartupTitleBar(stage);
+            StackPane.setAlignment(titleBar, Pos.TOP_CENTER);
+            getChildren().add(titleBar);
+        }
 
         progressDriver = new AnimationTimer() {
             @Override
@@ -215,17 +223,10 @@ public final class StartupView extends StackPane implements AutoCloseable {
 
     public void update(String ignoredMessage, double value) {
         targetProgress = clamp(value);
-        progressMirror.accept(targetProgress);
         if (reducedMotion) {
             displayedProgress = targetProgress;
             progress.setProgress(displayedProgress);
         }
-    }
-
-    public void setProgressMirror(DoubleConsumer progressMirror) {
-        this.progressMirror = progressMirror == null ? ignored -> {
-        } : progressMirror;
-        this.progressMirror.accept(targetProgress);
     }
 
     public void prepareApplication(StackPane host, Node application) {
