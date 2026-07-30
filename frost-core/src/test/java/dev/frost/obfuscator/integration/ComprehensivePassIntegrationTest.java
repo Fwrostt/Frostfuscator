@@ -266,6 +266,7 @@ class ComprehensivePassIntegrationTest {
         add(cases, "class-rename", options("mode", "aggressive"), result -> assertManifestMainPresent(result.jar()));
         add(cases, "field-rename", options("mode", "aggressive"), RunResult::assertBasicOutput);
         add(cases, "method-rename", options("mode", "aggressive"), RunResult::assertBasicOutput);
+        add(cases, "kotlin-metadata-remap", options(), RunResult::assertBasicOutput);
         add(cases, "local-variable-rename", options(), RunResult::assertBasicOutput);
         add(cases, "remove-debug", options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true), RunResult::assertBasicOutput);
         add(cases, "string-splitting", options("min-length", 2, "min-fragments", 2, "max-fragments", 12, "max-fragment-length", 4, "carrier-classes", 4, "indirection-depth", 1, "decoys-per-string", 1, "encode-fragments", true, "preserve-reflection-strings", true, "seed", 1), result -> assertClassEntryCountEqualsFixture(result.jar()));

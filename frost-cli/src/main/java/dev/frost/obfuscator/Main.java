@@ -11,6 +11,7 @@ import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
 import dev.frost.obfuscator.util.Logger;
 import dev.frost.obfuscator.graph.GraphService;
+import dev.frost.obfuscator.remapper.MappingFormat;
 import dev.frost.graph.*;
 import picocli.CommandLine;
 
@@ -103,6 +104,10 @@ public class Main implements Callable<Integer> {
 
     @CommandLine.Option(names = {"--mapping-output"}, description = "Mapping output path")
     private String mappingOutput;
+
+    @CommandLine.Option(names = {"--export-mapping-format", "--mapping-format"},
+            description = "Mapping export format: yaml, proguard, or tiny")
+    private String mappingFormat;
 
     @CommandLine.Option(names = {"--mapping-encrypted"}, arity = "0..1", fallbackValue = "true",
             description = "Encrypt mapping output with AES-256 (password is read from an environment variable)")
@@ -319,6 +324,14 @@ public class Main implements Callable<Integer> {
         if (mappingOutput != null && !mappingOutput.isBlank()) {
             config.getMapping().setOutput(mappingOutput);
         }
+        if (mappingFormat != null && !mappingFormat.isBlank()) {
+            MappingFormat format = MappingFormat.parse(mappingFormat);
+            config.getMapping().setEnabled(true);
+            config.getMapping().setFormat(format.id());
+            if (mappingOutput == null || mappingOutput.isBlank()) {
+                config.getMapping().setOutput(format.defaultFileName());
+            }
+        }
         if (mappingEncrypted != null) {
             config.getMapping().setEncrypted(mappingEncrypted);
         }
@@ -442,7 +455,8 @@ public class Main implements Callable<Integer> {
                 config.getLibraries().isRuntime(),
                 config.getLibraries().isStrict(),
                 config.getLibraries().isAutoDetect());
-        Logger.info("Mapping: {} -> {}{}", config.getMapping().isEnabled(), config.getMapping().getOutput(),
+        Logger.info("Mapping: {} {} -> {}{}", config.getMapping().isEnabled(), config.getMapping().getFormat(),
+                config.getMapping().getOutput(),
                 config.getMapping().isEncrypted() ? " (AES-256 encrypted)" : "");
         Logger.info("FrostJNI: {}", config.getFrostJNI().isEnabled());
         Logger.info("Active transformers:");

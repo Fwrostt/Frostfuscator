@@ -17,6 +17,7 @@ class ThemeContrastTest {
     void everyBuiltInThemeHasDistinctAccessibleTextRamps() {
         try (PreferencesStore preferences = new PreferencesStore(temporaryDirectory)) {
             ThemeManager manager = new ThemeManager(preferences);
+            assertEquals(14, manager.builtIns().size());
             HashSet<String> signatures = new HashSet<>();
             for (ThemeDefinition theme : manager.builtIns()) {
                 assertTrue(contrast(theme.token("text"), theme.token("bg")) >= 4.5,

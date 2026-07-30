@@ -38,6 +38,7 @@ java -jar Frostfuscator.jar graph -i app.jar --type calls --format mermaid -o ca
 | | `--set=<transform.key=value>` | Set a transformer option, for example `string-encryption.mode=heavy`. |
 | | `--mapping[=true|false]` | Enable or disable mapping export. |
 | | `--mapping-output=<path>` | Mapping output path. |
+| | `--export-mapping-format=<format>` | Export mappings as `yaml`, ProGuard `mapping.txt`, or Tiny v2. Alias: `--mapping-format`. |
 | | `--report=<format:path>` | Enable statistics report, for example `json:build/frost-report.json` or `html:report.html`. |
 | | `--seed=<number>` | Apply a deterministic seed to seed-aware transformer options. |
 | | `--dry-run` | Validate and print the run plan without writing output. |
@@ -83,6 +84,12 @@ Apply a GUI-style profile, tune a pass, and inspect the plan:
 
 ```bash
 java -jar Frostfuscator.jar -i app.jar -o out.jar --profile strong --set string-encryption.mode=condy --seed 12345 --dry-run
+```
+
+Export a ProGuard-compatible map for crash symbolication services:
+
+```bash
+java -jar Frostfuscator.jar -i app.jar -o out.jar --export-mapping-format proguard --mapping-output mapping.txt
 ```
 
 Enable reports and plugin discovery:

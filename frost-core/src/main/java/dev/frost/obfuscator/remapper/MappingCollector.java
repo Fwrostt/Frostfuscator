@@ -3,7 +3,10 @@ package dev.frost.obfuscator.remapper;
 import dev.frost.obfuscator.crypto.PasswordFileCipher;
 import dev.frost.obfuscator.transformer.rename.MethodNameAllocator;
 import dev.frost.obfuscator.util.Logger;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,8 +14,13 @@ import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MappingCollector {
@@ -192,41 +200,155 @@ public class MappingCollector {
     }
 
     public void exportMappings(Path outputPath) throws IOException {
+        exportMappings(outputPath, MappingFormat.YAML);
+    }
+
+    public void exportMappings(Path outputPath, MappingFormat format) throws IOException {
         Path destination = normalizedOutput(outputPath);
-        Files.writeString(destination, renderMappings(), StandardCharsets.UTF_8);
-        Logger.info("Mapping file exported to {}", destination);
+        Files.writeString(destination, renderMappings(format), StandardCharsets.UTF_8);
+        Logger.info("{} mapping file exported to {}", format.id(), destination);
     }
 
     public void exportEncryptedMappings(Path outputPath, char[] password) throws IOException {
+        exportEncryptedMappings(outputPath, password, MappingFormat.YAML);
+    }
+
+    public void exportEncryptedMappings(Path outputPath, char[] password, MappingFormat format) throws IOException {
         Path destination = normalizedOutput(outputPath);
-        PasswordFileCipher.encrypt(renderMappings().getBytes(StandardCharsets.UTF_8), destination, password);
-        Logger.info("AES-256 encrypted mapping file exported to {}", destination);
+        PasswordFileCipher.encrypt(renderMappings(format).getBytes(StandardCharsets.UTF_8), destination, password);
+        Logger.info("AES-256 encrypted {} mapping file exported to {}", format.id(), destination);
     }
 
     public String renderMappings() {
-        StringBuilder output = new StringBuilder(256 + totalMappings() * 48);
-        output.append("# Frostfuscator Mapping File\n");
-        output.append("# Generated at ").append(java.time.LocalDateTime.now()).append("\n\n");
+        return renderMappings(MappingFormat.YAML);
+    }
 
-        output.append("# Class Mappings\n");
-        new TreeMap<>(classMappings).forEach((oldName, newName) -> output
-                .append(oldName.replace('/', '.')).append(" -> ")
-                .append(newName.replace('/', '.')).append('\n'));
-        output.append('\n');
-
-        output.append("# Field Mappings\n");
-        new TreeMap<>(fieldMappings).forEach((key, value) -> output
-                .append("    ").append(key).append(" -> ").append(value).append('\n'));
-        output.append('\n');
-
-        output.append("# Method Mappings\n");
-        new TreeMap<>(methodMappings).forEach((key, value) -> output
-                .append("    ").append(key).append(" -> ").append(value).append('\n'));
-        return output.toString();
+    public String renderMappings(MappingFormat format) {
+        return switch (format == null ? MappingFormat.YAML : format) {
+            case YAML -> renderYamlMappings();
+            case PROGUARD -> renderProGuardMappings();
+            case TINY -> renderTinyMappings();
+        };
     }
 
     public int totalMappings() {
         return classMappings.size() + fieldMappings.size() + methodMappings.size();
+    }
+
+    private String renderYamlMappings() {
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("format", "frostfuscator-mappings");
+        document.put("version", 1);
+        Map<String, String> classes = new LinkedHashMap<>();
+        new TreeMap<>(classMappings).forEach((oldName, newName) ->
+                classes.put(oldName.replace('/', '.'), newName.replace('/', '.')));
+        document.put("classes", classes);
+        document.put("fields", fieldEntries().stream().map(entry -> mappingEntry(
+                entry.owner(), entry.name(), entry.descriptor(), entry.mappedName())).toList());
+        document.put("methods", methodEntries().stream().map(entry -> mappingEntry(
+                entry.owner(), entry.name(), entry.descriptor(), entry.mappedName())).toList());
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        return new Yaml(options).dump(document);
+    }
+
+    private String renderProGuardMappings() {
+        StringBuilder output = new StringBuilder(256 + totalMappings() * 56);
+        Set<String> owners = mappedOwners();
+        List<FieldEntry> fields = fieldEntries();
+        List<MethodEntry> methods = methodEntries();
+        for (String owner : owners) {
+            output.append(owner.replace('/', '.')).append(" -> ")
+                    .append(getMappedClass(owner).replace('/', '.')).append(":\n");
+            for (FieldEntry field : fields) {
+                if (!field.owner().equals(owner)) continue;
+                output.append("    ").append(Type.getType(field.descriptor()).getClassName())
+                        .append(' ').append(field.name()).append(" -> ").append(field.mappedName()).append('\n');
+            }
+            for (MethodEntry method : methods) {
+                if (!method.owner().equals(owner)) continue;
+                Type methodType = Type.getMethodType(method.descriptor());
+                output.append("    ").append(methodType.getReturnType().getClassName()).append(' ')
+                        .append(method.name()).append('(');
+                Type[] arguments = methodType.getArgumentTypes();
+                for (int index = 0; index < arguments.length; index++) {
+                    if (index > 0) output.append(',');
+                    output.append(arguments[index].getClassName());
+                }
+                output.append(") -> ").append(method.mappedName()).append('\n');
+            }
+        }
+        return output.toString();
+    }
+
+    private String renderTinyMappings() {
+        StringBuilder output = new StringBuilder(256 + totalMappings() * 48);
+        output.append("tiny\t2\t0\toriginal\tobfuscated\n");
+        List<FieldEntry> fields = fieldEntries();
+        List<MethodEntry> methods = methodEntries();
+        for (String owner : mappedOwners()) {
+            output.append("c\t").append(owner).append('\t').append(getMappedClass(owner)).append('\n');
+            for (FieldEntry field : fields) {
+                if (field.owner().equals(owner)) {
+                    output.append("\tf\t").append(field.descriptor()).append('\t')
+                            .append(field.name()).append('\t').append(field.mappedName()).append('\n');
+                }
+            }
+            for (MethodEntry method : methods) {
+                if (method.owner().equals(owner)) {
+                    output.append("\tm\t").append(method.descriptor()).append('\t')
+                            .append(method.name()).append('\t').append(method.mappedName()).append('\n');
+                }
+            }
+        }
+        return output.toString();
+    }
+
+    private Set<String> mappedOwners() {
+        Set<String> owners = new TreeSet<>(classMappings.keySet());
+        fieldEntries().forEach(entry -> owners.add(entry.owner()));
+        methodEntries().forEach(entry -> owners.add(entry.owner()));
+        return owners;
+    }
+
+    private List<FieldEntry> fieldEntries() {
+        List<FieldEntry> entries = new ArrayList<>();
+        new TreeMap<>(fieldMappings).forEach((key, mappedName) -> {
+            int descriptor = key.lastIndexOf(':');
+            int member = descriptor < 0 ? -1 : key.lastIndexOf('.', descriptor);
+            if (member > 0) {
+                entries.add(new FieldEntry(key.substring(0, member), key.substring(member + 1, descriptor),
+                        key.substring(descriptor + 1), mappedName));
+            }
+        });
+        return List.copyOf(entries);
+    }
+
+    private List<MethodEntry> methodEntries() {
+        List<MethodEntry> entries = new ArrayList<>();
+        new TreeMap<>(methodMappings).forEach((key, mappedName) -> {
+            int descriptor = key.indexOf('(');
+            int member = descriptor < 0 ? -1 : key.lastIndexOf('.', descriptor);
+            if (member > 0) {
+                entries.add(new MethodEntry(key.substring(0, member), key.substring(member + 1, descriptor),
+                        key.substring(descriptor), mappedName));
+            }
+        });
+        return List.copyOf(entries);
+    }
+
+    private record FieldEntry(String owner, String name, String descriptor, String mappedName) { }
+    private record MethodEntry(String owner, String name, String descriptor, String mappedName) { }
+
+    private static Map<String, String> mappingEntry(String owner, String name,
+                                                     String descriptor, String mappedName) {
+        Map<String, String> entry = new LinkedHashMap<>();
+        entry.put("owner", owner.replace('/', '.'));
+        entry.put("name", name);
+        entry.put("descriptor", descriptor);
+        entry.put("mappedName", mappedName);
+        return entry;
     }
 
     private static String fieldKey(String owner, String name, String desc) {

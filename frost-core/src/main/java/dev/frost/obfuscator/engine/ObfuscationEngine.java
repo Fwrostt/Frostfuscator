@@ -11,6 +11,7 @@ import dev.frost.obfuscator.jni.FrostJNIResult;
 import dev.frost.obfuscator.jni.NativeProtectionRequest;
 import dev.frost.obfuscator.remapper.FrostRemapper;
 import dev.frost.obfuscator.remapper.MappingCollector;
+import dev.frost.obfuscator.remapper.MappingFormat;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.TransformerConfig;
@@ -416,8 +417,9 @@ public class ObfuscationEngine {
     private void exportMappings(MappingCollector mappings, ObfuscationConfig.MappingConfig mappingConfig)
             throws IOException {
         Path output = Path.of(mappingConfig.getOutput());
+        MappingFormat format = MappingFormat.parse(mappingConfig.getFormat());
         if (!mappingConfig.isEncrypted()) {
-            mappings.exportMappings(output);
+            mappings.exportMappings(output, format);
             return;
         }
 
@@ -436,7 +438,7 @@ public class ObfuscationEngine {
                     + " environment variable.");
         }
         try {
-            mappings.exportEncryptedMappings(output, password);
+            mappings.exportEncryptedMappings(output, password, format);
         } finally {
             Arrays.fill(password, '\0');
         }

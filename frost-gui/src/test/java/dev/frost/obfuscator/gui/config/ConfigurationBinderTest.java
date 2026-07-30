@@ -25,6 +25,7 @@ class ConfigurationBinderTest {
         ProtectionProfiles.apply(state, "Strong");
         state.configuration().getMapping().setEnabled(true);
         state.configuration().getMapping().setOutput("maps/release.txt");
+        state.configuration().getMapping().setFormat("tiny");
         state.configuration().getMapping().setEncrypted(true);
         state.configuration().getMapping().setPasswordEnvironment("FROST_RELEASE_PASSWORD");
         state.configuration().getMapping().setPassword("memory-only-secret".toCharArray());
@@ -39,6 +40,7 @@ class ConfigurationBinderTest {
         assertEquals("input.jar", loaded.getInput());
         assertEquals("protected.jar", loaded.getOutput());
         assertEquals("maps/release.txt", loaded.getMapping().getOutput());
+        assertEquals("tiny", loaded.getMapping().getFormat());
         assertTrue(loaded.getMapping().isEncrypted());
         assertEquals("FROST_RELEASE_PASSWORD", loaded.getMapping().getPasswordEnvironment());
         assertNull(loaded.getMapping().getPassword());

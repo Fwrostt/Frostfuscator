@@ -62,6 +62,7 @@ public final class ConfigWriter {
         Map<String, Object> mapping = new LinkedHashMap<>();
         mapping.put("enabled", config.getMapping().isEnabled());
         mapping.put("output", config.getMapping().getOutput());
+        mapping.put("format", config.getMapping().getFormat());
         mapping.put("encrypted", config.getMapping().isEncrypted());
         mapping.put("passwordEnvironment", config.getMapping().getPasswordEnvironment());
         root.put("mapping", mapping);

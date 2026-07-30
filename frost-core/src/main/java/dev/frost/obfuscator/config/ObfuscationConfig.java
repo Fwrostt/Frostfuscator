@@ -160,7 +160,8 @@ public class ObfuscationConfig {
 
     public static class MappingConfig {
         private boolean enabled = true;
-        private String output = "mapping.txt";
+        private String output = "mapping.yml";
+        private String format = "yaml";
         private boolean encrypted;
         private String passwordEnvironment = "FROST_MAPPING_PASSWORD";
         private transient char[] password;
@@ -179,6 +180,15 @@ public class ObfuscationConfig {
 
         public void setOutput(String output) {
             this.output = output;
+        }
+
+        public String getFormat() {
+            return format;
+        }
+
+        public void setFormat(String format) {
+            this.format = format == null || format.isBlank()
+                    ? "yaml" : format.trim().toLowerCase(java.util.Locale.ROOT);
         }
 
         public boolean isEncrypted() {

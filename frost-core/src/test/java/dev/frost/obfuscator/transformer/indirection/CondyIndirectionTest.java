@@ -96,4 +96,93 @@ class CondyIndirectionTest {
             new ClassReader(writer.toByteArray());
         });
     }
+
+    @Test
+    void methodAndFieldReferencesUseJdkConstantBootstrapsAndRemainExecutable() throws Exception {
+        ClassNode classNode = new ClassNode();
+        classNode.name = "com/example/MemberCondy";
+        classNode.superName = "java/lang/Object";
+        classNode.access = Opcodes.ACC_PUBLIC;
+        classNode.version = Opcodes.V11;
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+                "VALUE", "I", null, 7));
+        classNode.fields.add(new FieldNode(Opcodes.ACC_PRIVATE, "wideValue", "J", null, null));
+
+        MethodNode constructor = new MethodNode(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL,
+                "java/lang/Object", "<init>", "()V", false));
+        constructor.instructions.add(new InsnNode(Opcodes.RETURN));
+        classNode.methods.add(constructor);
+
+        MethodNode increment = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "increment", "(I)I", null, null);
+        increment.instructions.add(new VarInsnNode(Opcodes.ILOAD, 0));
+        increment.instructions.add(new InsnNode(Opcodes.ICONST_1));
+        increment.instructions.add(new InsnNode(Opcodes.IADD));
+        increment.instructions.add(new InsnNode(Opcodes.IRETURN));
+        classNode.methods.add(increment);
+
+        MethodNode run = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "()I", null, null);
+        run.instructions.add(new FieldInsnNode(Opcodes.GETSTATIC, classNode.name, "VALUE", "I"));
+        run.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                classNode.name, "increment", "(I)I", false));
+        run.instructions.add(new InsnNode(Opcodes.IRETURN));
+        classNode.methods.add(run);
+
+        MethodNode roundTrip = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "roundTrip", "()J", null, null);
+        roundTrip.instructions.add(new TypeInsnNode(Opcodes.NEW, classNode.name));
+        roundTrip.instructions.add(new InsnNode(Opcodes.DUP));
+        roundTrip.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL,
+                classNode.name, "<init>", "()V", false));
+        roundTrip.instructions.add(new InsnNode(Opcodes.DUP));
+        roundTrip.instructions.add(new LdcInsnNode(9L));
+        roundTrip.instructions.add(new FieldInsnNode(Opcodes.PUTFIELD,
+                classNode.name, "wideValue", "J"));
+        roundTrip.instructions.add(new FieldInsnNode(Opcodes.GETFIELD,
+                classNode.name, "wideValue", "J"));
+        roundTrip.instructions.add(new InsnNode(Opcodes.LRETURN));
+        classNode.methods.add(roundTrip);
+
+        ClassPool pool = new ClassPool();
+        pool.addClass(classNode.name, classNode);
+        TransformerConfig config = new TransformerConfig();
+        config.setOptions(Map.of(
+                "probability", 100,
+                "constants", false,
+                "method-handles", true,
+                "var-handles", true));
+
+        new CondyIndirectionTransformer().transform(pool, new MappingCollector(), config);
+
+        List<String> bootstrapNames = new ArrayList<>();
+        boolean invokesMethodHandle = false;
+        boolean invokesVarHandle = false;
+        for (AbstractInsnNode instruction : run.instructions) {
+            if (instruction instanceof LdcInsnNode ldc && ldc.cst instanceof ConstantDynamic condy) {
+                bootstrapNames.add(condy.getBootstrapMethod().getName());
+            } else if (instruction instanceof MethodInsnNode invocation) {
+                invokesMethodHandle |= invocation.owner.equals("java/lang/invoke/MethodHandle")
+                        && invocation.name.equals("invokeExact");
+                invokesVarHandle |= invocation.owner.equals("java/lang/invoke/VarHandle")
+                        && invocation.name.equals("get");
+            }
+        }
+        assertTrue(bootstrapNames.contains("staticFieldVarHandle"));
+        assertTrue(bootstrapNames.contains("invoke"));
+        assertTrue(invokesMethodHandle);
+        assertTrue(invokesVarHandle);
+
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        classNode.accept(writer);
+        byte[] bytecode = writer.toByteArray();
+        Class<?> generated = new ClassLoader() {
+            Class<?> define() {
+                return defineClass("com.example.MemberCondy", bytecode, 0, bytecode.length);
+            }
+        }.define();
+        assertEquals(8, generated.getMethod("run").invoke(null));
+        assertEquals(9L, generated.getMethod("roundTrip").invoke(null));
+    }
 }

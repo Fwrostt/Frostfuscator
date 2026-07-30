@@ -96,6 +96,7 @@ public final class ConfigurationBinder {
         ObfuscationConfig.MappingConfig mapping = new ObfuscationConfig.MappingConfig();
         mapping.setEnabled(source.getMapping().isEnabled());
         mapping.setOutput(source.getMapping().getOutput());
+        mapping.setFormat(source.getMapping().getFormat());
         mapping.setEncrypted(source.getMapping().isEncrypted());
         mapping.setPasswordEnvironment(source.getMapping().getPasswordEnvironment());
         char[] mappingPassword = source.getMapping().getPassword();

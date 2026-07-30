@@ -2,6 +2,7 @@ package dev.frost.obfuscator.config;
 
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import dev.frost.obfuscator.transformer.TransformerRegistry;
+import dev.frost.obfuscator.remapper.MappingFormat;
 import dev.frost.obfuscator.util.Logger;
 import org.yaml.snakeyaml.Yaml;
 
@@ -115,7 +116,8 @@ public class ConfigLoader {
         if (mappingObj instanceof Map<?, ?> mappingMap) {
             ObfuscationConfig.MappingConfig mc = new ObfuscationConfig.MappingConfig();
             mc.setEnabled(getBoolean(mappingMap, "enabled", true));
-            mc.setOutput(getString(mappingMap, "output", "mapping.txt"));
+            mc.setOutput(getString(mappingMap, "output", "mapping.yml"));
+            mc.setFormat(getString(mappingMap, "format", "yaml"));
             mc.setEncrypted(getBoolean(mappingMap, "encrypted", false));
             mc.setPasswordEnvironment(getString(mappingMap, "passwordEnvironment", "FROST_MAPPING_PASSWORD"));
             config.setMapping(mc);
@@ -225,6 +227,7 @@ public class ConfigLoader {
                         + "'. Check spelling or install the plugin that provides it.");
             }
         }
+        MappingFormat.parse(config.getMapping().getFormat());
 
         TransformerConfig clConfig = config.getTransformerConfig("classloader-encryption");
         if (clConfig != null && clConfig.isEnabled()) {

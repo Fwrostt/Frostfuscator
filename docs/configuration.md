@@ -77,6 +77,16 @@ transformers:
     enabled: true
     mode: "safe"
 
+  kotlin-metadata-remap:
+    enabled: true
+
+  condy-indirection:
+    enabled: false
+    probability: 45
+    constants: true
+    method-handles: true
+    var-handles: true
+
   string-splitting:
     enabled: true
     min-length: 4
@@ -308,7 +318,8 @@ transformers:
 
 mapping:
   enabled: true
-  output: "mapping.txt"
+  output: "mapping.yml"
+  format: "yaml"
 ```
 
 ## Global Settings
@@ -329,6 +340,10 @@ mapping:
 | `plugins` | List<String> | Plugin directories scanned for Frostfuscator extension jars. |
 | `exclusions` | List<String> | Regex patterns for classes to skip. |
 | `inclusions` | List<String> | Regex patterns for classes to process. |
+
+## Mapping export
+
+`mapping.format` accepts `yaml`, `proguard`, or `tiny`. YAML preserves Frostfuscator's structured format, ProGuard produces a standard `mapping.txt` suitable for crash symbolication tools, and Tiny emits Tiny v2 mappings for JVM remapping toolchains. The GUI exposes the same selector and updates the suggested output filename automatically.
 
 ## Plugins
 
@@ -366,6 +381,8 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 ## Notes
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
+- Keep `kotlin-metadata-remap` enabled whenever class, field, or method renaming is enabled for Kotlin applications. It synchronizes writable `kotlin.Metadata` class, callable, property, and type references with the emitted mappings.
+- `condy-indirection` requires Java 11 bytecode. `constants`, `method-handles`, and `var-handles` can be enabled independently; final-field writes and constructor/special invocations remain direct to preserve JVM semantics.
 - `mixed-boolean-arithmetic.rounds` is capped at 3, but one or two rounds are recommended because each round deliberately increases local-variable and instruction pressure. The pass handles `int` and `long` arithmetic only; floating-point identities are excluded because reassociation can change IEEE-754 results.
 - `reflection-hiding.owner-prefixes` and `excluded-owners` use JVM internal names such as `java/nio/file`. The transformer validates public methods against the build JVM before converting a site, skips constructors, and leaves non-public APIs direct. Keep `java/io/PrintStream` excluded unless hiding console output is worth the startup and diagnostic overhead.
 - `reflection-hiding` uses encrypted MethodHandle bootstraps rather than `Method.invoke`, preserving primitive signatures and avoiding reflective argument arrays. It is ordered before general invokedynamic/reference hiding and remains compatible when those passes are enabled.

@@ -158,7 +158,23 @@ public final class ThemeManager {
                 theme("light", "Light", "#F5F5F6", "#FFFFFF", "#ECECEF", "#D1D1D6",
                         "#1C1C1F", "#5E5E66", "#347EA8"),
                 theme("high-contrast", "High Contrast", "#000000", "#000000", "#101010", "#F5F5F5",
-                        "#FFFFFF", "#EEEEEE", "#55D6FF")
+                        "#FFFFFF", "#EEEEEE", "#55D6FF"),
+                theme("arctic-dusk", "Arctic Dusk", "#10151C", "#171E27", "#202A36", "#354355",
+                        "#E7EDF4", "#AAB8C7", "#72B7E8"),
+                theme("deep-ocean", "Deep Ocean", "#061415", "#0B1D1E", "#122829", "#284344",
+                        "#E0F0EF", "#9DB8B6", "#4CC9B0"),
+                theme("mulberry", "Mulberry", "#170D16", "#21131F", "#2D1B2A", "#493247",
+                        "#F2E6EF", "#C1A3B8", "#D986B8"),
+                theme("ember", "Ember", "#17100D", "#211713", "#2D201A", "#4A362C",
+                        "#F2E9E4", "#C0AAA0", "#E68A5C"),
+                theme("pine", "Pine", "#0C1511", "#121E19", "#1A2A23", "#30473C",
+                        "#E4EFE9", "#A5B9AE", "#62C28D"),
+                theme("cobalt", "Cobalt", "#0B1020", "#11182B", "#19233A", "#304064",
+                        "#E6EBF7", "#A8B2CC", "#6E9BFF"),
+                theme("studio-light", "Studio Light", "#F1F2F4", "#FFFFFF", "#E6E8EC", "#C4C8D0",
+                        "#1C2028", "#596273", "#5A67D8"),
+                theme("sage-light", "Sage Light", "#EEF3F0", "#FAFCFB", "#E1EAE5", "#BFCFC6",
+                        "#17231D", "#50655A", "#2F7D5B")
         );
     }
 

@@ -6,7 +6,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
+import org.yaml.snakeyaml.Yaml;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,9 +32,10 @@ class MappingCollectorEncryptionTest {
         assertTrue(PasswordFileCipher.isEncrypted(encrypted));
         String cleartext = new String(PasswordFileCipher.decryptToBytes(
                 encrypted, "release-password".toCharArray()), StandardCharsets.UTF_8);
-        assertTrue(cleartext.contains("example.Original -> a.b"));
-        assertTrue(cleartext.contains("example/Original.secret:I -> x"));
-        assertTrue(cleartext.contains("example/Original.run()V -> y"));
+        Map<?, ?> document = new Yaml().load(cleartext);
+        assertEquals("a.b", ((Map<?, ?>) document.get("classes")).get("example.Original"));
+        assertEquals("x", ((Map<?, ?>) ((List<?>) document.get("fields")).getFirst()).get("mappedName"));
+        assertEquals("y", ((Map<?, ?>) ((List<?>) document.get("methods")).getFirst()).get("mappedName"));
         assertFalse(cleartext.contains("release-password"));
     }
 }

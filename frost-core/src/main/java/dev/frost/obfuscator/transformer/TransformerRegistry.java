@@ -61,6 +61,7 @@ import dev.frost.obfuscator.transformer.rename.ClassRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.FieldRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.LocalVariableRenameTransformer;
 import dev.frost.obfuscator.transformer.rename.MethodRenameTransformer;
+import dev.frost.obfuscator.transformer.rename.KotlinMetadataTransformer;
 import dev.frost.obfuscator.plugin.PluginDescriptor;
 import dev.frost.obfuscator.plugin.PluginLoader;
 import dev.frost.obfuscator.plugin.LoadedPlugin;
@@ -81,6 +82,7 @@ public class TransformerRegistry {
         register(new ClassRenameTransformer());
         register(new FieldRenameTransformer());
         register(new MethodRenameTransformer());
+        register(new KotlinMetadataTransformer());
         register(new LocalVariableRenameTransformer());
         register(new RemoveDebugTransformer());
         register(new StringEncryptionTransformer());

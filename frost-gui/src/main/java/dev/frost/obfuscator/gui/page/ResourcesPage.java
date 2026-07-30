@@ -5,6 +5,7 @@ import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.Ui;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
+import dev.frost.obfuscator.remapper.MappingFormat;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -32,7 +33,10 @@ public final class ResourcesPage implements PageView {
         flatten.disableProperty().bind(packageMode.valueProperty().isNotEqualTo("flatten"));
         CheckBox mapping = new CheckBox("Export a mapping file");
         mapping.setSelected(config.getMapping().isEnabled());
-        TextField mappingOutput = field(config.getMapping().getOutput(), "mapping.txt");
+        CustomComboBox<String> mappingFormat = new CustomComboBox<>(List.of("yaml", "proguard", "tiny"));
+        mappingFormat.setValue(config.getMapping().getFormat());
+        mappingFormat.disableProperty().bind(mapping.selectedProperty().not());
+        TextField mappingOutput = field(config.getMapping().getOutput(), "mapping.yml");
         mappingOutput.disableProperty().bind(mapping.selectedProperty().not());
         CheckBox encryptMapping = new CheckBox("Encrypt mapping with AES-256");
         encryptMapping.setSelected(config.getMapping().isEncrypted());
@@ -56,6 +60,7 @@ public final class ResourcesPage implements PageView {
                 Ui.fieldRow("Package mode", packageMode),
                 Ui.fieldRow("Flatten package", flatten),
                 mapping,
+                Ui.fieldRow("Mapping format", mappingFormat),
                 Ui.fieldRow("Mapping output", mappingOutput),
                 encryptMapping,
                 Ui.fieldRow("Mapping password", mappingPassword),
@@ -136,6 +141,16 @@ public final class ResourcesPage implements PageView {
         packageMode.valueProperty().addListener((obs, old, value) -> { config.setPackageMode(value); touch(); });
         flatten.textProperty().addListener((obs, old, value) -> { config.setFlattenPackage(value.trim()); touch(); });
         mapping.selectedProperty().addListener((obs, old, value) -> { config.getMapping().setEnabled(value); touch(); });
+        mappingFormat.valueProperty().addListener((obs, old, value) -> {
+            MappingFormat format = MappingFormat.parse(value);
+            String output = mappingOutput.getText().trim();
+            if (output.isBlank() || Arrays.stream(MappingFormat.values())
+                    .map(MappingFormat::defaultFileName).anyMatch(output::equalsIgnoreCase)) {
+                mappingOutput.setText(format.defaultFileName());
+            }
+            config.getMapping().setFormat(format.id());
+            touch();
+        });
         mappingOutput.textProperty().addListener((obs, old, value) -> { config.getMapping().setOutput(value.trim()); touch(); });
         encryptMapping.selectedProperty().addListener((obs, old, value) -> {
             config.getMapping().setEncrypted(value);

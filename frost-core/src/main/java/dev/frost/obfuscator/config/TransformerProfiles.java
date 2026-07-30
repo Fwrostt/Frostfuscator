@@ -66,6 +66,7 @@ public final class TransformerProfiles {
         set(config, "class-rename", true, options("mode", "safe"));
         set(config, "field-rename", true, options("mode", "safe"));
         set(config, "method-rename", true, options("mode", "safe"));
+        set(config, "kotlin-metadata-remap", true, options());
         set(config, "watermark", false, options("owner", "unknown", "id", "change-me", "class-annotations", true, "string-field", true, "field-name", "__frost$watermark"));
         set(config, "integrity", false, options());
         set(config, "statistics-report", false, options("format", "json", "output", "frost-report.json"));
@@ -78,6 +79,7 @@ public final class TransformerProfiles {
         set(config, "class-rename", true, options("mode", "aggressive"));
         set(config, "field-rename", true, options("mode", "aggressive"));
         set(config, "method-rename", true, options("mode", "aggressive"));
+        set(config, "kotlin-metadata-remap", true, options());
         set(config, "local-variable-rename", true, options());
         set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true, "remove-kotlin-metadata", false));
         set(config, "string-splitting", true, stringSplittingOptions(3, 20, 4, 4, 1, 1));
@@ -118,6 +120,8 @@ public final class TransformerProfiles {
         set(config, "stack-manipulation", true, options("probability", 11, "max-per-method", 22));
         set(config, "reflection-hiding", true, reflectionHidingOptions(65, 40, 160));
         set(config, "invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
+        set(config, "condy-indirection", true, options("probability", 45, "constants", true,
+                "method-handles", true, "var-handles", true));
         set(config, "reference-hiding", true, options("probability", 65, "max-per-class", 144, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 12, "deprecated", true, "signatures", true));
         set(config, "anti-debug", true, antiDebugOptions(false));
@@ -141,6 +145,8 @@ public final class TransformerProfiles {
         set(config, "stack-manipulation", true, options("probability", 14, "max-per-method", 28));
         set(config, "reflection-hiding", true, reflectionHidingOptions(85, 64, 256));
         set(config, "invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
+        set(config, "condy-indirection", true, options("probability", 70, "constants", true,
+                "method-handles", true, "var-handles", true));
         set(config, "reference-hiding", true, options("probability", 80, "max-per-class", 192, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 18, "deprecated", true, "signatures", true));
         set(config, "anti-debug", true, antiDebugOptions(true));

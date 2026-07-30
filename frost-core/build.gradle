@@ -19,6 +19,7 @@ dependencies {
     implementation 'org.slf4j:slf4j-simple:2.0.13'
     implementation 'org.yaml:snakeyaml:2.2'
     implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.10'
 
     testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
 }
@@ -50,4 +51,3 @@ tasks.register('generateTestInputResources') {
         dataFile.bytes = data
     }
 }
-

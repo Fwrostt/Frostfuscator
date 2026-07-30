@@ -322,6 +322,11 @@ transformers:
       - "main"
     inclusions: []
 
+  kotlin-metadata-remap:
+    enabled: true
+    exclusions: []
+    inclusions: []
+
   local-variable-rename:
     enabled: true
     exclusions: []
@@ -479,6 +484,15 @@ transformers:
     exclusions: []
     inclusions: []
 
+  condy-indirection:
+    enabled: false
+    probability: 45
+    constants: true
+    method-handles: true
+    var-handles: true
+    exclusions: []
+    inclusions: []
+
   reference-hiding:
     enabled: true
     probability: 45
@@ -541,7 +555,8 @@ transformers:
 
 mapping:
   enabled: true
-  output: "mapping.txt"
+  output: "mapping.yml"
+  format: "yaml"
   encrypted: false
   # The password value is read at runtime and is never stored in this file.
   passwordEnvironment: "FROST_MAPPING_PASSWORD"
