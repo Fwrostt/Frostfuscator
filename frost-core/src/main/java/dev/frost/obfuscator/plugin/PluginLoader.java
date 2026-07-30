@@ -7,8 +7,6 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -66,7 +64,7 @@ public final class PluginLoader implements AutoCloseable {
         PluginHandle existing = loadedPlugins.get(normalized);
         if (existing != null) return Optional.of(existing.info);
 
-        URLClassLoader loader = null;
+        PluginClassLoader loader = null;
         dev.frost.api.FrostPlugin apiPlugin = null;
         dev.frost.api.PluginContext apiContext = null;
         FrostPlugin legacyPlugin = null;
@@ -74,7 +72,7 @@ public final class PluginLoader implements AutoCloseable {
         List<Transformer> registered = new ArrayList<>();
         List<Transformer> applied = new ArrayList<>();
         try {
-            loader = new URLClassLoader(new URL[]{normalized.toUri().toURL()}, PluginLoader.class.getClassLoader());
+            loader = new PluginClassLoader(normalized.toUri().toURL(), PluginLoader.class.getClassLoader());
             PluginDescriptor descriptor = readDescriptor(normalized);
 
             ServiceLoader.load(Transformer.class, loader).forEach(registered::add);
@@ -127,7 +125,7 @@ public final class PluginLoader implements AutoCloseable {
             PluginContext failedLegacyContext = legacyContext;
             if (failedLegacy != null) safely(() -> failedLegacy.onUnload(failedLegacyContext));
             if (loader != null) {
-                URLClassLoader failedLoader = loader;
+                PluginClassLoader failedLoader = loader;
                 GLOBAL_EVENT_BUS.unregisterClassLoader(failedLoader);
                 safely(failedLoader::close);
             }
@@ -227,7 +225,7 @@ public final class PluginLoader implements AutoCloseable {
     @FunctionalInterface
     private interface ThrowingAction { void run() throws Exception; }
 
-    private record PluginHandle(LoadedPlugin info, URLClassLoader loader, List<Transformer> transformers,
+    private record PluginHandle(LoadedPlugin info, PluginClassLoader loader, List<Transformer> transformers,
                                 Consumer<Transformer> transformerUnregistrar,
                                 dev.frost.api.FrostPlugin apiPlugin, dev.frost.api.PluginContext apiContext,
                                 FrostPlugin legacyPlugin, PluginContext legacyContext) { }

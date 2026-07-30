@@ -5,14 +5,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class BytecodeViewerService implements AutoCloseable {
-    private final ExecutorService executor = Executors.newFixedThreadPool(
-            Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 2)),
-            new ViewerThreadFactory());
+    private static final AtomicInteger SHUTDOWN_HOOK_INDEX = new AtomicInteger();
+
+    private final ExecutorService executor;
+    private final ShutdownHookRegistry shutdownHooks;
+    private final Thread shutdownHook;
+    private final AtomicBoolean closed = new AtomicBoolean();
     private final ArchiveInspector inspector = new ArchiveInspector();
     private final ArchiveRewriteService rewriter = new ArchiveRewriteService();
     private final InJarJavaCompiler compiler = new InJarJavaCompiler();
@@ -28,6 +33,21 @@ public final class BytecodeViewerService implements AutoCloseable {
     private final AtomicReference<DecompileTask> activeDecompile = new AtomicReference<>();
     private final Map<Fingerprint, CompletableFuture<ArchiveInspector.ArchiveScan>> scanCache =
             new ConcurrentHashMap<>();
+
+    public BytecodeViewerService() {
+        this(Executors.newFixedThreadPool(
+                        Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 2)),
+                        new ViewerThreadFactory()),
+                RuntimeShutdownHookRegistry.INSTANCE);
+    }
+
+    BytecodeViewerService(ExecutorService executor, ShutdownHookRegistry shutdownHooks) {
+        this.executor = Objects.requireNonNull(executor, "executor");
+        this.shutdownHooks = Objects.requireNonNull(shutdownHooks, "shutdownHooks");
+        this.shutdownHook = new Thread(this::shutdownFromJvm,
+                "frost-bytecode-shutdown-" + SHUTDOWN_HOOK_INDEX.incrementAndGet());
+        this.shutdownHooks.add(shutdownHook);
+    }
 
     public List<DecompilerBackend> backends() {
         return backends;
@@ -298,15 +318,49 @@ public final class BytecodeViewerService implements AutoCloseable {
 
     @Override
     public void close() {
+        if (!closed.compareAndSet(false, true)) return;
+        try {
+            shutdownHooks.remove(shutdownHook);
+        } catch (IllegalStateException ignored) {
+            // Hooks cannot be removed after JVM shutdown begins; cleanup still proceeds below.
+        }
+        shutdownResources();
+    }
+
+    private void shutdownFromJvm() {
+        if (closed.compareAndSet(false, true)) shutdownResources();
+    }
+
+    private void shutdownResources() {
         cancelActiveDecompilation();
         sourceCache.values().forEach(DecompileTask::cancel);
         executor.shutdownNow();
         sourceCache.clear();
         scanCache.clear();
+        workspaces.clear();
     }
 
     private interface ThrowingSupplier<T> {
         T get() throws Exception;
+    }
+
+    interface ShutdownHookRegistry {
+        void add(Thread hook);
+        boolean remove(Thread hook);
+    }
+
+    private enum RuntimeShutdownHookRegistry implements ShutdownHookRegistry {
+        INSTANCE;
+
+        @Override
+        public void add(Thread hook) {
+            Runtime.getRuntime().addShutdownHook(hook);
+        }
+
+        @Override
+        public boolean remove(Thread hook) {
+            return Runtime.getRuntime().removeShutdownHook(hook);
+        }
     }
 
     private record Fingerprint(Path path, long size, long modified) {}
