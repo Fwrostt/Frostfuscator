@@ -86,6 +86,9 @@ public record TransformerSchema(String transformer, List<SettingSchema> settings
     }
 
     private static String description(String key) {
+        if (key.equals("remove-kotlin-metadata")) {
+            return "Removes Kotlin reflection metadata. Leave disabled for Kotlin runtime compatibility.";
+        }
         if (key.contains("probability")) return "Percentage of eligible locations where this behavior is applied.";
         if (key.contains("seed")) return "Optional deterministic seed. Zero uses the project seed or a generated value.";
         if (key.startsWith("max-")) return "Upper safety bound that limits output growth and processing cost.";

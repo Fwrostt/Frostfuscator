@@ -58,7 +58,7 @@ public final class TransformerProfiles {
 
     private static void basic(ObfuscationConfig config) {
         noPasses(config);
-        set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+        set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true, "remove-kotlin-metadata", false));
         set(config, "string-splitting", false, stringSplittingOptions(2, 12, 4, 3, 0, 0));
         set(config, "string-encryption", true, options("mode", "lite", "min-length", 2, "max-method-instructions", 6000));
         set(config, "mixed-boolean-arithmetic", false, mixedBooleanArithmeticOptions(70, 1, 64, 256));
@@ -79,7 +79,7 @@ public final class TransformerProfiles {
         set(config, "field-rename", true, options("mode", "aggressive"));
         set(config, "method-rename", true, options("mode", "aggressive"));
         set(config, "local-variable-rename", true, options());
-        set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true));
+        set(config, "remove-debug", true, options("remove-source-file", true, "remove-line-numbers", true, "remove-local-variables", true, "remove-parameters", true, "remove-kotlin-metadata", false));
         set(config, "string-splitting", true, stringSplittingOptions(3, 20, 4, 4, 1, 1));
         set(config, "string-encryption", true, options("mode", "heavy", "min-length", 1, "max-method-instructions", 6000));
         set(config, "number-obfuscation", true, options("probability", 80, "max-per-method", 96, "max-per-class", 256, "max-method-instructions", 6000));

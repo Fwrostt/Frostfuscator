@@ -63,8 +63,10 @@ public class LocalVariableRenameTransformer extends Transformer {
                     if (isExcludedMember(lv.name, config)) continue;
 
                     String newName = nameMap.get(lv.name);
-                    lv.name = newName;
-                    changed = true;
+                    if (newName != null) {
+                        lv.name = newName;
+                        changed = true;
+                    }
                 }
             }
             if (changed) {

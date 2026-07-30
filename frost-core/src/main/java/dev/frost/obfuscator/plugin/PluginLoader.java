@@ -17,7 +17,9 @@ import java.util.jar.JarFile;
 
 /** Owns dynamically loaded plugin class loaders and their complete unload lifecycle. */
 public final class PluginLoader implements AutoCloseable {
-    private static final EventBus GLOBAL_EVENT_BUS = new EventBus();
+    private static final EventBus GLOBAL_EVENT_BUS = new EventBus((listener, event, failure) ->
+            Logger.error("Plugin event listener " + listener + " failed while handling "
+                    + event.getClass().getName(), failure));
 
     private final Map<Path, PluginHandle> loadedPlugins = new LinkedHashMap<>();
 

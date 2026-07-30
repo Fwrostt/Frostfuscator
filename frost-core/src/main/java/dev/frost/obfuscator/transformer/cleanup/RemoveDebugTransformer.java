@@ -27,6 +27,7 @@ public class RemoveDebugTransformer extends Transformer {
         boolean removeLineNumbers = getBooleanOption(config, "remove-line-numbers", true);
         boolean removeLocalVariables = getBooleanOption(config, "remove-local-variables", true);
         boolean removeParameters = getBooleanOption(config, "remove-parameters", true);
+        boolean removeKotlinMetadata = getBooleanOption(config, "remove-kotlin-metadata", false);
 
         pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
@@ -75,11 +76,13 @@ public class RemoveDebugTransformer extends Transformer {
                 }
             }
 
-            if (classNode.visibleAnnotations != null) {
-                changed |= classNode.visibleAnnotations.removeIf(a -> a.desc.equals("Lkotlin/Metadata;"));
-            }
-            if (classNode.invisibleAnnotations != null) {
-                changed |= classNode.invisibleAnnotations.removeIf(a -> a.desc.equals("Lkotlin/Metadata;"));
+            if (removeKotlinMetadata) {
+                if (classNode.visibleAnnotations != null) {
+                    changed |= classNode.visibleAnnotations.removeIf(a -> a.desc.equals("Lkotlin/Metadata;"));
+                }
+                if (classNode.invisibleAnnotations != null) {
+                    changed |= classNode.invisibleAnnotations.removeIf(a -> a.desc.equals("Lkotlin/Metadata;"));
+                }
             }
             if (changed) {
                 pool.markDirty(classNode.name);

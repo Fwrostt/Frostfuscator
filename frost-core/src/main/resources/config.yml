@@ -333,6 +333,7 @@ transformers:
     remove-line-numbers: true
     remove-local-variables: true
     remove-parameters: true
+    remove-kotlin-metadata: false
     exclusions: []
     inclusions: []
 

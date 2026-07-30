@@ -7,6 +7,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -128,5 +134,62 @@ class EventBusTest {
         bus.post(new TestEvent("test"));
 
         assertTrue(listener.received.isEmpty(), "Unregistered listener should not receive events");
+    }
+
+    @Test
+    void listenerFailuresUseConfiguredHandlerAndDoNotStopDispatch() {
+        AtomicReference<Object> failedListener = new AtomicReference<>();
+        AtomicReference<Object> failedEvent = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        EventBus bus = new EventBus((listener, event, throwable) -> {
+            failedListener.set(listener);
+            failedEvent.set(event);
+            failure.set(throwable);
+        });
+        RuntimeException expected = new RuntimeException("plugin failure");
+        java.util.function.Consumer<TestEvent> broken = event -> { throw expected; };
+        List<String> delivered = new ArrayList<>();
+
+        bus.registerHandler(TestEvent.class, EventPriority.HIGH, false, broken);
+        bus.registerHandler(TestEvent.class, EventPriority.NORMAL, false,
+                event -> delivered.add(event.message()));
+        TestEvent event = bus.post(new TestEvent("still-delivered"));
+
+        assertSame(broken, failedListener.get());
+        assertSame(event, failedEvent.get());
+        assertSame(expected, failure.get());
+        assertEquals(List.of("still-delivered"), delivered);
+    }
+
+    @Test
+    void concurrentRegistrationPublishesCompletePriorityOrderedSnapshots() throws Exception {
+        EventBus bus = new EventBus();
+        int handlerCount = 240;
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> registrations = new ArrayList<>();
+        List<Integer> observedPriorities = new ArrayList<>();
+        EventPriority[] priorities = EventPriority.values();
+        try {
+            for (int index = 0; index < handlerCount; index++) {
+                EventPriority priority = priorities[index % priorities.length];
+                registrations.add(executor.submit(() -> {
+                    assertTrue(start.await(5, TimeUnit.SECONDS));
+                    bus.registerHandler(TestEvent.class, priority, false,
+                            event -> observedPriorities.add(priority.slot()));
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> registration : registrations) registration.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        bus.post(new TestEvent("concurrent"));
+
+        assertEquals(handlerCount, observedPriorities.size());
+        List<Integer> sorted = observedPriorities.stream().sorted().toList();
+        assertEquals(sorted, observedPriorities);
     }
 }
