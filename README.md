@@ -1,89 +1,271 @@
-# Frostfuscator
+<div align="center">
 
-Frostfuscator is a Java bytecode obfuscator built with ASM. Originally made for protecting Minecraft plugins and mods, it works with any Java application.
+![Frostfuscator](docs/assets/header.png)
 
-The main focus is obfuscation, with support for class and member renaming, string encryption, control-flow transformations, `invokedynamic`, JNI native protection, and a standalone Plugin API (`frost-api`).
+**A fun & capable Java bytecode obfuscator built with ASM**
 
-## Documentation
+*Originally built for protecting Minecraft plugins and mods, Frostfuscator works with any Java application — featuring bytecode transformations, native FrostJNI stubs, a Raycast-inspired desktop GUI, and interactive graph analytics.*
 
-* [Getting Started](docs/index.md)
-* [CLI Usage](docs/cli.md)
-* [GUI Usage](docs/gui.md)
-* [Configuration](docs/configuration.md)
-* [Transformers](docs/transformers.md)
-* [Plugins](docs/plugins.md)
-* [Graph Visualization](docs/graphs.md)
+[![Java 21+](https://img.shields.io/badge/Java-21%2B-0073EC?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![ASM Engine](https://img.shields.io/badge/Bytecode-ASM%209.7-00B4D8?style=for-the-badge&logo=java&logoColor=white)](https://asm.ow2.io/)
+[![FrostJNI](https://img.shields.io/badge/Native-FrostJNI-0077B6?style=for-the-badge&logo=cplusplus&logoColor=white)](docs/transformers.md)
+[![Gradle Build](https://img.shields.io/badge/Build-Gradle-025E8D?style=for-the-badge&logo=gradle&logoColor=white)](build.gradle)
+[![License](https://img.shields.io/badge/License-Proprietary-90E0EF?style=for-the-badge)](LICENSE)
 
-## Features
+---
 
-### Obfuscation & Protection
-* Rename classes, methods, fields, local variables, and parameters.
-* Encrypt strings (with inline anti-tamper stack checks) and mutate numeric constants.
-* Control-flow transformations, opaque predicates, switch rewriting, basic-block shuffling, exception-based flow, outlining, and polymorphic instruction substitution.
-* ConstantDynamic (Condy) indirection & invokedynamic proxies for method and field reference hiding.
-* Anti-debug, anti-agent (javaagent/ByteBuddy detector), and decompiler parser crashers (Jadx, CFR, Procyon, Fernflower).
-* Convert selected Java methods into native JNI stubs through FrostJNI.
-* Junk members, class/method salting, line number spoofing, and metadata noise.
+[Quick Start](docs/index.md) • [CLI Guide](docs/cli.md) • [GUI Guide](docs/gui.md) • [Transformers](docs/transformers.md) • [Plugin API](docs/plugins.md) • [Documentation](docs/)
 
-### Plugin API & Extensions (`frost-api`)
-* Standalone `frost-api` module with priority-aware `EventBus` (`PreObfuscationEvent`, `ClassTransformEvent`, `PostObfuscationEvent`).
-* Extension interfaces for custom obfuscation transformers (`PluginTransformer`), string encryptors (`StringEncryptorPlugin`), symbol name generators (`NameGeneratorPlugin`), decompiler backends (`CustomDecompilerProvider`), and GUI extensions (`UiExtensionPoint`).
-* In-decompiler IDE editing mode with in-memory Java compiler (`InJarJavaCompiler`), ASM bytecode assembler (`BytecodeAssembler`), and staged workspace.
+---
 
-### Graph Analysis
-* Renderer-neutral class dependency, method-call, inheritance, package, and per-method control-flow graphs.
-* Transformer pipeline validation, mapping/diff/generated-member views, and actual completed-build execution statistics.
-* Scalable, class-scoped Cytoscape desktop analysis plus deterministic Mermaid, JSON, and DOT headless exports.
+</div>
 
-### Resources & Containers
-* Fabric Mod (`fabric.mod.json`) parsing and Mixin remapping.
-* Built-in framework exclusion presets (`spigot`, `fabric`, `forge`, `gson`, `jackson`, `spring`, `jpa`, `sponge`).
-* Nested Fat JAR support (`BOOT-INF/lib/*.jar`, `WEB-INF/lib/*.jar`, `META-INF/jars/*.jar`).
+## 📌 Overview
 
-## Quick Start
+**Frostfuscator** is a feature-packed Java bytecode obfuscator and analysis tool built on OW2 ASM. What started as a fun project for protecting Minecraft mods and plugins has grown into a solid, versatile protection suite for any JVM application (Java, Kotlin, Scala).
 
-### Requirements
-* Java 21 or newer
-* Optional for FrostJNI: Clang or GCC/MinGW native C++ toolchain
+It combines class & member renaming, string encryption, control-flow mutation, **FrostJNI native stub compilation**, an **OLED dark desktop GUI**, and an **interactive graph visualizer** to make reverse-engineering much harder while staying easy to use.
 
-### CLI
+> [!NOTE]
+> **Requirements**: Java **21 or newer**. If you want to compile native stubs using **FrostJNI**, you'll also need a standard C/C++ compiler (`clang` or `gcc`/`mingw`) installed.
+
+---
+
+## ✨ Key Features
+
+### 🛡️ Obfuscation & Protection
+* **Symbol Renaming**: Rename classes, methods, fields, local variables, and method parameters with customizable dictionaries.
+* **String & Constant Protection**: String encryption with inline anti-tamper stack checks, plus numeric constant mutation.
+* **Control-Flow Transformations**: Opaque predicates, switch rewriting, basic-block shuffling, exception-based flow, method outlining, and instruction substitution.
+* **Dynamic Proxies & References**: `ConstantDynamic` (Condy) indirection & `invokedynamic` proxies to hide reflection, field access, and method invocations.
+* **Anti-Reverse Engineering**: Anti-debug checks, JavaAgent/ByteBuddy detectors, and decompiler parser crashers (targeting Jadx, CFR, Procyon, Fernflower).
+* **FrostJNI Native Stubbing**: Convert selected Java methods into compiled native C++ shared libraries (`.dll`, `.so`, `.dylib`).
+* **Noise & Watermarking**: Class/method salting, line-number spoofing, member stuffing, and synthetic metadata.
+
+### 🔌 Modular Plugin API (`frost-api`)
+* **Clean & Standalone**: Standalone `frost-api` module with a priority-aware `EventBus` (`PreObfuscationEvent`, `ClassTransformEvent`, `PostObfuscationEvent`).
+* **Custom Extensions**: Easily create your own `PluginTransformer`, `StringEncryptorPlugin`, `NameGeneratorPlugin`, or `CustomDecompilerProvider`.
+* **In-Memory Java Compiler**: IDE editing mode with `InJarJavaCompiler` and `BytecodeAssembler` for direct live patching.
+
+### 📊 Graph Analytics & Visualizer
+* **Multiple Graph Views**: Visual mapping of class dependencies, method call graphs, class inheritance, package structure, and control flow.
+* **Cytoscape Desktop UI**: Interactive visual graph workspace for inspecting code relationships and build stats.
+* **Headless Exports**: Export graphs directly to **Mermaid**, **JSON**, or **DOT** from the command line.
+
+### 📦 Containers & Framework Support
+* **Fat JAR Support**: Handles nested archives seamlessly (`BOOT-INF/lib/*.jar`, `WEB-INF/lib/*.jar`, `META-INF/jars/*.jar`).
+* **Modding & Plugin Presets**: Native support for **Fabric Mod** (`fabric.mod.json`) parsing & Mixin remapping, plus **Spigot**, **Forge**, and **Sponge**.
+* **Framework Presets**: Built-in exclusion rules for `Gson`, `Jackson`, `Spring`, `JPA`, and more.
+
+---
+
+## 🏗️ Architecture & Pipeline
+
+```mermaid
+flowchart TD
+    A["📥 Target Application JAR"] --> B["🔍 Class Scanner & Exclusion Manager"]
+    B --> C["⚙️ Symbol Renamer & Member Salting"]
+    C --> D["🔐 String Encryptor & Condy Proxies"]
+    D --> E["🔀 Control Flow Mutator & Outliner"]
+    E --> F{"FrostJNI Enabled?"}
+    F -- Yes --> G["⚡ C++ Native Code Generator & Compiler"]
+    G --> H["🛡️ Anti-Debug & Decompiler Crashers"]
+    F -- No --> H
+    H --> I["📊 Graph Analytics Engine"]
+    I --> J["📦 Protected Executable JAR & Native Libs"]
+
+    classDef input fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
+    classDef core fill:#1e293b,stroke:#818cf8,stroke-width:2px,color:#fff;
+    classDef native fill:#312e81,stroke:#c084fc,stroke-width:2px,color:#fff;
+    classDef output fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff;
+
+    class A input;
+    class B,C,D,E,H,I core;
+    class G native;
+    class J output;
+```
+
+---
+
+## 📸 Desktop GUI & Analytics Workspace
+
+<div align="center">
+
+| Raycast-Inspired OLED Workspace | Cytoscape Control-Flow Graph Visualizer |
+| :---: | :---: |
+| ![GUI Workspace](docs/assets/gui-preview.png) | ![Graph Analytics](docs/assets/graph-preview.png) |
+
+</div>
+
+---
+
+## 🚀 Quick Start
+
+### 1️⃣ Command Line Interface (CLI)
+
+Obfuscate a Java application using a configuration file:
 
 ```bash
 java -jar Frostfuscator.jar -i input.jar -o output-protected.jar -c config.yml
 ```
 
-List available transformers:
+List all available obfuscation transformers:
 
 ```bash
 java -jar Frostfuscator.jar --list-transforms
 ```
 
-Generate a dependency graph without loading the GUI:
+Generate a dependency graph headlessly:
 
 ```bash
 java -jar Frostfuscator.jar graph -i input.jar --type dependencies --format json -o dependencies.json
 ```
 
-### GUI
+### 2️⃣ Desktop Graphical User Interface (GUI)
+
+Launch the desktop UI via Gradle:
 
 ```bash
 ./gradlew runGui
 ```
 
-Or run the packaged application directly:
+Or run the packaged GUI executable:
 
 ```bash
 java -jar frost-gui/build/libs/Frostfuscator-gui.jar
 ```
 
-## Building
+---
+
+## ⚙️ Configuration Example (`config.yml`)
+
+Frostfuscator uses a straightforward YAML configuration format:
+
+```yaml
+input: "target-application.jar"
+output: "target-application-protected.jar"
+
+exclusions:
+  presets:
+    - spigot
+    - jackson
+  classes:
+    - "com/example/api/**"
+
+transformers:
+  rename:
+    enabled: true
+    dictionary: "invisible" # options: alphabet, invisible, custom
+    rename-classes: true
+    rename-methods: true
+    rename-fields: true
+
+  string-encryption:
+    enabled: true
+    mode: "stack-verified"
+
+  control-flow:
+    enabled: true
+    opaque-predicates: true
+    switch-rewriting: true
+    block-shuffling: true
+
+  frost-jni:
+    enabled: true
+    target-methods:
+      - "com/example/LicenseChecker.validateKey(Ljava/lang/String;)Z"
+    compiler: "clang"
+```
+
+---
+
+## 🔌 Plugin API (`frost-api`)
+
+Extend Frostfuscator with custom bytecode transformers using the `frost-api` library:
+
+```java
+import net.frost.api.plugin.PluginTransformer;
+import net.frost.api.event.ClassTransformEvent;
+import net.frost.api.event.Subscribe;
+import org.objectweb.asm.tree.ClassNode;
+
+public class CustomProtectionPlugin implements PluginTransformer {
+
+    @Override
+    public String getName() {
+        return "Custom Entropy Injector";
+    }
+
+    @Subscribe
+    public void onClassTransform(ClassTransformEvent event) {
+        ClassNode classNode = event.getClassNode();
+        // Custom ASM bytecode transformations...
+    }
+}
+```
+
+Add `frost-api` to your project via **Gradle**:
+
+```groovy
+dependencies {
+    implementation 'com.github.Frostfuscator:frost-api:v2.0'
+}
+```
+
+---
+
+## 🧩 Project Modules
+
+| Module | Description |
+| :--- | :--- |
+| [**`frost-core`**](frost-core) | Core ASM obfuscation engine and transformers. |
+| [**`frost-api`**](frost-api) | Standalone API for plugin developers and custom event hooks. |
+| [**`frost-gui`**](frost-gui) | Raycast-inspired JavaFX desktop GUI with dark OLED themes. |
+| [**`frost-graph`**](frost-graph) | Interactive graph visualization engine (Cytoscape, Mermaid, DOT). |
+| [**`frost-cli`**](frost-cli) | Command-line tool for build scripts and CI/CD pipelines. |
+| [**`frost-runtime`**](frost-runtime) | Lightweight runtime dependency for decryption helpers. |
+
+---
+
+## 📚 Documentation Directory
+
+Detailed docs are available in the [`docs/`](docs/) directory:
+
+| Document | Topic |
+| :--- | :--- |
+| 📖 [**Getting Started**](docs/index.md) | Setup, requirements, and basic tutorial |
+| 🖥️ [**CLI Usage Guide**](docs/cli.md) | Complete command line reference |
+| 🎨 [**GUI User Guide**](docs/gui.md) | Desktop interface overview |
+| ⚙️ [**Configuration Reference**](docs/configuration.md) | Complete schema guide for `config.yml` |
+| 🛡️ [**Transformer Catalog**](docs/transformers.md) | Overview of available transformers |
+| 🔌 [**Plugin API Manual**](docs/plugins.md) | Writing custom plugins and transformers |
+| 📊 [**Graph Analysis**](docs/graphs.md) | Using Cytoscape, Mermaid, and DOT graph exports |
+| 🚀 [**JitPack Integration**](docs/jitpack.md) | Adding `frost-api` via Maven / Gradle |
+
+---
+
+## 🛠️ Building from Source
+
+To compile Frostfuscator:
 
 ```bash
+git clone https://github.com/Frostfuscator/Frostfuscator.git
+cd Frostfuscator
 ./gradlew clean build
 ```
 
-The runnable CLI JAR is written to `frost-cli/build/libs/Frostfuscator.jar`. The runnable GUI JAR and launchers are written to `frost-gui/build/libs/`.
+Build outputs:
+* CLI runnable JAR: `frost-cli/build/libs/Frostfuscator.jar`
+* GUI runnable JAR: `frost-gui/build/libs/Frostfuscator-gui.jar`
 
-## License
+---
+
+<div align="center">
+
+### 📄 License
 
 This project is proprietary software. All rights reserved.
+
+Made with ❄️ by Frost
+
+</div>
