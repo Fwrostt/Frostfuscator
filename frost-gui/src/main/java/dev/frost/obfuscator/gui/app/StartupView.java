@@ -16,6 +16,7 @@ import javafx.scene.CacheHint;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -175,13 +176,8 @@ public final class StartupView extends StackPane implements AutoCloseable {
         plate.setStroke(Color.web("#63747B", 0.30));
         plate.setStrokeWidth(1);
 
-        StackPane mark = new StackPane();
-        mark.getStyleClass().addAll("brand-mark", "startup-core-mark");
-        Region strokeA = new Region();
-        Region strokeB = new Region();
-        strokeA.getStyleClass().addAll("brand-stroke", "brand-stroke-a");
-        strokeB.getStyleClass().addAll("brand-stroke", "brand-stroke-b");
-        mark.getChildren().addAll(strokeA, strokeB);
+        ImageView mark = AppIcons.transparentView(64,
+                "brand-mark", "startup-core-mark", "startup-brand-icon");
 
         StackPane core = new StackPane(plate, mark);
         core.setMouseTransparent(true);

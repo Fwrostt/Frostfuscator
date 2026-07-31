@@ -77,36 +77,6 @@
     -fx-max-height: 300;
 }
 
-.startup-core-mark {
-    -fx-min-width: 64;
-    -fx-pref-width: 64;
-    -fx-max-width: 64;
-    -fx-min-height: 64;
-    -fx-pref-height: 64;
-    -fx-max-height: 64;
-}
-
-.startup-core-mark .brand-stroke {
-    -fx-background-color: #6F98A9;
-    -fx-min-width: 9;
-    -fx-pref-width: 9;
-    -fx-max-width: 9;
-    -fx-min-height: 35;
-    -fx-pref-height: 35;
-    -fx-max-height: 35;
-    -fx-background-radius: 4;
-}
-
-.startup-core-mark .brand-stroke-a {
-    -fx-translate-x: -10;
-    -fx-translate-y: -5;
-}
-
-.startup-core-mark .brand-stroke-b {
-    -fx-translate-x: 10;
-    -fx-translate-y: 7;
-}
-
 .startup-minimal-name {
     -fx-text-fill: #C9D0D3;
     -fx-font-size: 1.38em;
@@ -175,37 +145,6 @@
     -fx-background-color: -fx-surface;
     -fx-background-radius: 12 12 0 0;
     -fx-border-width: 0;
-}
-
-.brand-mark {
-    -fx-min-width: 24;
-    -fx-pref-width: 24;
-    -fx-max-width: 24;
-    -fx-min-height: 24;
-    -fx-pref-height: 24;
-    -fx-max-height: 24;
-}
-
-.brand-stroke {
-    -fx-background-color: -fx-accent-token;
-    -fx-min-width: 4;
-    -fx-pref-width: 4;
-    -fx-max-width: 4;
-    -fx-min-height: 15;
-    -fx-pref-height: 15;
-    -fx-max-height: 15;
-    -fx-background-radius: 2;
-    -fx-rotate: 28;
-}
-
-.brand-stroke-a {
-    -fx-translate-x: -4;
-    -fx-translate-y: -2;
-}
-
-.brand-stroke-b {
-    -fx-translate-x: 4;
-    -fx-translate-y: 3;
 }
 
 .titlebar-name {

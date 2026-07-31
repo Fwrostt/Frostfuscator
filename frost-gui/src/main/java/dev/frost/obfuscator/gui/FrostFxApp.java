@@ -2,6 +2,7 @@ package dev.frost.obfuscator.gui;
 
 import atlantafx.base.theme.PrimerDark;
 import dev.frost.obfuscator.gui.app.AppContext;
+import dev.frost.obfuscator.gui.app.AppIcons;
 import dev.frost.obfuscator.gui.app.AppShell;
 import dev.frost.obfuscator.gui.app.StartupView;
 import dev.frost.obfuscator.gui.analysis.ProjectAnalysis;
@@ -43,6 +44,7 @@ public final class FrostFxApp extends Application {
 
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle("Frostfuscator");
+        AppIcons.install(stage);
         stage.setMinWidth(900);
         stage.setMinHeight(600);
 

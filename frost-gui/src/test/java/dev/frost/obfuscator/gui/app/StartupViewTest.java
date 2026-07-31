@@ -2,6 +2,7 @@ package dev.frost.obfuscator.gui.app;
 
 import dev.frost.obfuscator.gui.FrostFxApp;
 import javafx.scene.Scene;
+import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
@@ -52,6 +53,10 @@ class StartupViewTest extends ApplicationTest {
         assertEquals(1, lookup(".startup-title-bar").queryAll().size());
         assertEquals(1, lookup(".startup-close-button").queryAll().size());
         assertEquals(3, lookup(".startup-title-bar .window-button").queryAll().size());
+        ImageView brandIcon = lookup(".startup-brand-icon").query();
+        assertEquals(128, brandIcon.getImage().getWidth());
+        assertEquals(128, brandIcon.getImage().getHeight());
+        assertEquals(64, brandIcon.getFitWidth());
         assertEquals(1, Window.getWindows().stream().filter(Window::isShowing).count(),
                 "startup must remain inside the primary application window");
         assertEquals(300, lookup(".startup-emblem").query().getBoundsInParent().getWidth(), 1);

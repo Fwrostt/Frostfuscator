@@ -97,6 +97,7 @@ tasks.register('runGui', JavaExec) {
 }
 
 tasks.register('generateVersionResource') {
+    inputs.property('version', project.provider { project.version.toString() })
     outputs.file(generatedVersionResources.map { it.file('frost-version.properties') })
     doLast {
         def output = generatedVersionResources.get().file('frost-version.properties').asFile

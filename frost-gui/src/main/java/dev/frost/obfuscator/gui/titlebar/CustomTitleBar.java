@@ -1,10 +1,12 @@
 package dev.frost.obfuscator.gui.titlebar;
 
 import dev.frost.obfuscator.gui.app.AppContext;
+import dev.frost.obfuscator.gui.app.AppIcons;
 import dev.frost.obfuscator.gui.component.Ui;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -24,13 +26,7 @@ public final class CustomTitleBar extends HBox {
         getStyleClass().add("title-bar");
         setAlignment(Pos.CENTER_LEFT);
 
-        StackPane mark = new StackPane();
-        mark.getStyleClass().add("brand-mark");
-        Region strokeA = new Region();
-        Region strokeB = new Region();
-        strokeA.getStyleClass().addAll("brand-stroke", "brand-stroke-a");
-        strokeB.getStyleClass().addAll("brand-stroke", "brand-stroke-b");
-        mark.getChildren().addAll(strokeA, strokeB);
+        ImageView mark = AppIcons.transparentView(24, "brand-mark", "titlebar-brand-icon");
 
         Label title = Ui.label("Frostfuscator", "titlebar-name");
         Label project = Ui.label("No project selected", "titlebar-project");

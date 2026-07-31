@@ -13,6 +13,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Button;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
@@ -80,6 +81,10 @@ class AppShellTest extends ApplicationTest {
     void overviewKeepsChromeAndOwnsVerticalScrolling() {
         WaitForAsyncUtils.waitForFxEvents();
         assertNotNull(lookup(".title-bar").query());
+        ImageView brandIcon = lookup(".titlebar-brand-icon").query();
+        assertEquals(128, brandIcon.getImage().getWidth());
+        assertEquals(128, brandIcon.getImage().getHeight());
+        assertEquals(24, brandIcon.getFitWidth());
         assertTrue(lookup(".page-scroll").query() instanceof ScrollPane);
         assertNotNull(lookup(".overview-page").query());
         Node frame = lookup(".window-frame").query();
