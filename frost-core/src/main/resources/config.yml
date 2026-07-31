@@ -405,7 +405,12 @@ transformers:
     enabled: true
     probability: 45
     rounds: 1
-    operations: "add,sub,and,or,xor,neg"
+    polynomial-degree: 3
+    zero-terms: 2
+    operations: "add,sub,mul,and,or,xor,neg"
+    conditionals: true
+    switch-keys: true
+    long-comparisons: true
     max-per-method: 48
     max-per-class: 192
     max-method-instructions: 6000

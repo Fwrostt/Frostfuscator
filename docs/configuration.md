@@ -116,7 +116,12 @@ transformers:
     enabled: true
     probability: 45
     rounds: 1
-    operations: "add,sub,and,or,xor,neg"
+    polynomial-degree: 3
+    zero-terms: 2
+    operations: "add,sub,mul,and,or,xor,neg"
+    conditionals: true
+    switch-keys: true
+    long-comparisons: true
     max-per-method: 48
     max-per-class: 192
     max-method-instructions: 6000
@@ -389,7 +394,7 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
 - Keep `kotlin-metadata-remap` enabled whenever class, field, or method renaming is enabled for Kotlin applications. It synchronizes writable `kotlin.Metadata` class, callable, property, and type references with the emitted mappings.
 - `condy-indirection` requires Java 11 bytecode. It encrypts strings, numeric constants, class literals, method types, method handles, field metadata, and eligible `invokedynamic`/nested-Condy bootstrap arguments behind authenticated nested `ConstantDynamic` key/value chains. `immediate-numbers` also covers `ICONST`, `BIPUSH`, and related compact numeric opcodes. Constants resolve once on first use and are then cached by the JVM; constructor calls and final-field writes remain direct to preserve verifier semantics.
-- `mixed-boolean-arithmetic.rounds` is capped at 3, but one or two rounds are recommended because each round deliberately increases local-variable and instruction pressure. The pass handles `int` and `long` arithmetic only; floating-point identities are excluded because reassociation can change IEEE-754 results.
+- `mixed-boolean-arithmetic` generates randomized affine bijections and operand-dependent polynomial zero terms over Java's modular `int` and `long` rings. It covers add, subtract, multiply, bitwise operations, negation, integer branches, switch keys, and long comparisons. `rounds` is capped at 3, `polynomial-degree` at 5, and output is guarded by a 20,000-instruction ceiling plus a conservative 56 KB bytecode estimate to leave room below the JVM's 64 KB method limit. Floating-point expressions and reference comparisons are deliberately excluded because equivalent-looking rewrites can change IEEE-754 or identity semantics.
 - `reflection-hiding.owner-prefixes` and `excluded-owners` use JVM internal names such as `java/nio/file`. The transformer validates public methods against the build JVM before converting a site, skips constructors, and leaves non-public APIs direct. Keep `java/io/PrintStream` excluded unless hiding console output is worth the startup and diagnostic overhead.
 - `reflection-hiding` uses encrypted MethodHandle bootstraps rather than `Method.invoke`, preserving primitive signatures and avoiding reflective argument arrays. It is ordered before general invokedynamic/reference hiding and remains compatible when those passes are enabled.
 - `flow-obfuscation.predicate-families` accepts `arithmetic`, `bitwise`, `reversible`, `modular`, `lookup-table`, `stateful`, `argument-derived`, and `interprocedural`. Lightweight families receive higher selection weight, while the per-method cost budget limits table and helper-based variants.

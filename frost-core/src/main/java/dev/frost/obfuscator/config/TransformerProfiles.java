@@ -222,7 +222,12 @@ public final class TransformerProfiles {
         return options(
                 "probability", probability,
                 "rounds", rounds,
-                "operations", "add,sub,and,or,xor,neg",
+                "polynomial-degree", rounds > 1 ? 3 : 2,
+                "zero-terms", rounds > 1 ? 2 : 1,
+                "operations", "add,sub,mul,and,or,xor,neg",
+                "conditionals", true,
+                "switch-keys", true,
+                "long-comparisons", true,
                 "max-per-method", maximumPerMethod,
                 "max-per-class", maximumPerClass,
                 "max-method-instructions", 6000,
