@@ -29,6 +29,8 @@ class ConfigurationBinderTest {
         state.configuration().getMapping().setEncrypted(true);
         state.configuration().getMapping().setPasswordEnvironment("FROST_RELEASE_PASSWORD");
         state.configuration().getMapping().setPassword("memory-only-secret".toCharArray());
+        state.configuration().getFrostJNI().setExcludedMethods(
+                java.util.List.of("example.Service#run(I)V"));
         state.configuration().getPerformance().setParallel(true);
         state.configuration().getPerformance().setParallelism(6);
         state.configuration().getPerformance().setMinimumClasses(48);
@@ -44,6 +46,8 @@ class ConfigurationBinderTest {
         assertTrue(loaded.getMapping().isEncrypted());
         assertEquals("FROST_RELEASE_PASSWORD", loaded.getMapping().getPasswordEnvironment());
         assertNull(loaded.getMapping().getPassword());
+        assertEquals(java.util.List.of("example.Service#run(I)V"),
+                loaded.getFrostJNI().getExcludedMethods());
         assertTrue(loaded.getPerformance().isParallel());
         assertEquals(6, loaded.getPerformance().getParallelism());
         assertEquals(48, loaded.getPerformance().getMinimumClasses());

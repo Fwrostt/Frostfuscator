@@ -5,6 +5,7 @@ import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.StatusChip;
 import dev.frost.obfuscator.gui.component.Ui;
+import dev.frost.obfuscator.gui.dialog.TargetPickerActions;
 import dev.frost.obfuscator.gui.motion.Motion;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
 import dev.frost.obfuscator.gui.protection.*;
@@ -290,7 +291,7 @@ public final class ProtectionPage implements PageView {
         settingsHeading.setMinWidth(0);
 
         Node settings = descriptor.name().equals("frostjni") ? nativeSettings()
-                : renderer.render(context.projectState(), descriptor.name());
+                : renderer.render(context, context.projectState(), descriptor.name());
         if (settings instanceof VBox box) box.getStyleClass().add("settings-renderer");
         VBox settingsRegion = new VBox(Ui.SPACE_6, settingsHeading, settings);
         settingsRegion.getStyleClass().add("transformer-settings-region");
@@ -402,6 +403,7 @@ public final class ProtectionPage implements PageView {
         target.setIncludeAnnotations(defaults.getIncludeAnnotations());
         target.setExcludedClasses(defaults.getExcludedClasses());
         target.setExcludedPackages(defaults.getExcludedPackages());
+        target.setExcludedMethods(defaults.getExcludedMethods());
         target.setExcludedAnnotations(defaults.getExcludedAnnotations());
         target.setTemporaryDirectory(defaults.getTemporaryDirectory());
         target.setKeepGeneratedSources(defaults.isKeepGeneratedSources());
@@ -435,8 +437,12 @@ public final class ProtectionPage implements PageView {
 
         TextArea includePackages = area(String.join("\n", nativeConfig.getIncludePackages()), "com.example.security");
         TextArea includeClasses = area(String.join("\n", nativeConfig.getIncludeClasses()), "com.example.LicenseManager");
-        TextArea includeMethods = area(String.join("\n", nativeConfig.getIncludeMethods()), "com.example.Class#method");
-        TextArea exclusions = area(String.join("\n", nativeConfig.getExcludedClasses()), "com.example.generated.*");
+        TextArea includeMethods = area(String.join("\n", nativeConfig.getIncludeMethods()),
+                "com.example.Class#method(I)Z");
+        TextArea excludedPackages = area(String.join("\n", nativeConfig.getExcludedPackages()), "com.example.generated");
+        TextArea excludedClasses = area(String.join("\n", nativeConfig.getExcludedClasses()), "com.example.GeneratedClass");
+        TextArea excludedMethods = area(String.join("\n", nativeConfig.getExcludedMethods()),
+                "com.example.Class#method(I)Z");
 
         Runnable sync = () -> {
             nativeConfig.setOutputLibraryName(library.getText().trim());
@@ -457,10 +463,13 @@ public final class ProtectionPage implements PageView {
             nativeConfig.setIncludePackages(lines(includePackages));
             nativeConfig.setIncludeClasses(lines(includeClasses));
             nativeConfig.setIncludeMethods(lines(includeMethods));
-            nativeConfig.setExcludedClasses(lines(exclusions));
+            nativeConfig.setExcludedPackages(lines(excludedPackages));
+            nativeConfig.setExcludedClasses(lines(excludedClasses));
+            nativeConfig.setExcludedMethods(lines(excludedMethods));
             context.projectState().touch();
         };
-        for (TextInputControl control : List.of(library, temp, includePackages, includeClasses, includeMethods, exclusions)) {
+        for (TextInputControl control : List.of(library, temp, includePackages, includeClasses, includeMethods,
+                excludedPackages, excludedClasses, excludedMethods)) {
             control.textProperty().addListener((obs, old, value) -> sync.run());
         }
         for (CheckBox box : List.of(clang, gcc, msvc, zig, strip, unity, keepSources, embed, failFast, continueOnFailure)) {
@@ -479,10 +488,25 @@ public final class ProtectionPage implements PageView {
         VBox compilers = Ui.section("Compiler", "Choose the native compiler families FrostJNI may use.",
                 compilerChoices, detectedToolchains, rescanToolchains, Ui.fieldRow("Compile mode", compile),
                 Ui.fieldRow("Optimization", optimization), strip, unity);
-        VBox selection = Ui.section("Native selection", "Selective mode converts only the listed targets.",
-                Ui.fieldRow("Mode", mode), Ui.fieldRow("Packages", includePackages),
-                Ui.fieldRow("Classes", includeClasses), Ui.fieldRow("Methods", includeMethods),
-                Ui.fieldRow("Excluded classes", exclusions));
+        HBox includeActions = new HBox(Ui.SPACE_2,
+                TargetPickerActions.jniTargets(context, includePackages, includeClasses, "Add FrostJNI inclusions"),
+                TargetPickerActions.jniMethods(context, includeMethods, "Add FrostJNI methods"));
+        HBox excludeActions = new HBox(Ui.SPACE_2,
+                TargetPickerActions.jniTargets(context, excludedPackages, excludedClasses, "Add FrostJNI exclusions"),
+                TargetPickerActions.jniMethods(context, excludedMethods, "Exclude FrostJNI methods"));
+        includeActions.setAlignment(Pos.CENTER_LEFT);
+        excludeActions.setAlignment(Pos.CENTER_LEFT);
+        VBox includedTargets = new VBox(Ui.SPACE_3,
+                Ui.label("Included targets", "setting-title"), includeActions,
+                Ui.fieldRow("Packages", includePackages), Ui.fieldRow("Classes", includeClasses),
+                Ui.fieldRow("Methods", includeMethods));
+        VBox excludedTargets = new VBox(Ui.SPACE_3,
+                Ui.label("Excluded targets", "setting-title"), excludeActions,
+                Ui.fieldRow("Packages", excludedPackages), Ui.fieldRow("Classes", excludedClasses),
+                Ui.fieldRow("Methods", excludedMethods));
+        VBox selection = Ui.section("Native selection",
+                "Selective mode converts included targets except for exact package, class, or method exclusions.",
+                Ui.fieldRow("Mode", mode), includedTargets, new Separator(), excludedTargets);
         VBox output = Ui.section("Output & failure behavior", "Generated libraries are platform-specific.",
                 Ui.fieldRow("Library name", library), Ui.fieldRow("Work directory", temp),
                 keepSources, embed, failFast, continueOnFailure);

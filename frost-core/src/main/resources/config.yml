@@ -65,6 +65,7 @@ frostjni:
   includeAnnotations: []
   excludedClasses: []
   excludedPackages: []
+  excludedMethods: []
   excludedAnnotations: []
   temporaryDirectory: ""
   keepGeneratedSources: false

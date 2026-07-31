@@ -1,0 +1,53 @@
+.target-picker {
+    -fx-background-color: -fx-bg;
+    -fx-padding: 8;
+}
+
+.target-picker > .content,
+.target-picker > .button-bar > .container {
+    -fx-background-color: -fx-bg;
+}
+
+.target-picker .target-picker-tree {
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 12;
+    -fx-padding: 6;
+}
+
+.target-picker .target-picker-tree .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text;
+    -fx-padding: 7 9;
+}
+
+.target-picker .target-picker-tree .tree-cell:filled:hover {
+    -fx-background-color: -fx-surface-raised;
+    -fx-background-radius: 8;
+}
+
+.target-picker .target-picker-tree .tree-cell:filled:selected {
+    -fx-background-color: -fx-accent-soft;
+    -fx-background-radius: 8;
+}
+
+.target-picker .check-box .box {
+    -fx-background-color: -fx-surface-raised;
+    -fx-border-color: -fx-border;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.target-picker .check-box:selected .box {
+    -fx-background-color: -fx-accent-token;
+    -fx-border-color: -fx-accent-token;
+}
+
+.density-compact.target-picker .target-picker-tree .tree-cell {
+    -fx-padding: 5 7;
+}
+
+.density-spacious.target-picker .target-picker-tree .tree-cell {
+    -fx-padding: 10 12;
+}

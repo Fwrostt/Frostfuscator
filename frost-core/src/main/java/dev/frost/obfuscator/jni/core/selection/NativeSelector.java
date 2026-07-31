@@ -32,9 +32,11 @@ public final class NativeSelector {
             return true;
         }
         String methodKey = classModel.internalName() + "#" + methodModel.name();
+        String exactMethodKey = methodKey + methodModel.descriptor();
         return includeClass(classModel)
                 || config.includeMethods().contains(methodModel.name())
                 || config.includeMethods().contains(methodKey)
+                || config.includeMethods().contains(exactMethodKey)
                 || hasSelectedAnnotation(methodModel.annotationDescriptors());
     }
 

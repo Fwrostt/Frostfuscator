@@ -46,6 +46,8 @@ frostjni:
   excludedClasses:
     - "com.example.Main"
   excludedPackages: []
+  excludedMethods:
+    - "com.example.security.LicenseManager#debugOverride()Z"
   excludedAnnotations: []
   resourceEmbedding: true
   keepGeneratedSources: false
@@ -366,10 +368,11 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 | `generateHeaders` | Boolean | Legacy compatibility switch. Defaults to `false`; FrostJNI registers native methods internally and does not need public method headers. |
 | `includePackages` | List<String> | Packages eligible for native conversion. In `SELECTIVE` mode, choose at least one class, package, method, or annotation. |
 | `includeClasses` | List<String> | Exact classes eligible for native conversion. |
-| `includeMethods` | List<String> | Method names or `owner#method` entries eligible for conversion. |
+| `includeMethods` | List<String> | Method names, `owner#method` entries, or exact `owner#name(descriptor)` overloads eligible for conversion. |
 | `includeAnnotations` | List<String> | Annotation descriptors/classes that opt classes or methods into native conversion. |
 | `excludedClasses` | List<String> | Exact classes that must stay Java. |
 | `excludedPackages` | List<String> | Packages that must stay Java. |
+| `excludedMethods` | List<String> | Methods that must stay Java. Use `owner#name(descriptor)` for an exact overload, or `owner#name` for every overload. |
 | `excludedAnnotations` | List<String> | Annotation descriptors/classes that force Java output. |
 | `temporaryDirectory` | String | Optional native work directory. Defaults beside the output jar. |
 | `keepGeneratedSources` | Boolean | Keeps generated C++ sources for inspection. |
@@ -421,6 +424,7 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 - FrostJNI skips Frostfuscator runtime/loader classes and generated fake/helper classes by default. Exclusions always take priority over includes.
 - FrostJNI requires a local C++ compiler such as Clang, MinGW GCC, or MSVC Build Tools. On Windows, MSYS2 UCRT64 MinGW works well when `g++` is available.
 - Keep FrostJNI in `SELECTIVE` mode for real applications. Commercial protectors usually native-protect only high-value code such as licensing, authentication, HWID checks, or decryptors.
+- After analyzing an input JAR, the GUI can search and multi-select packages, classes, and exact method overloads from a hierarchy. The same package/class picker is available for project-wide and per-transformer inclusion/exclusion rules.
 - FrostJNI registers converted methods internally through `JNI_OnLoad`; protected jars do not expose a `native/native-methods.txt` method map.
 - `FAST` mode defaults to `O0`, no symbol stripping, and unity builds. The compiler log shows how many translation units were merged and prints periodic heartbeat messages during long native compiles.
 

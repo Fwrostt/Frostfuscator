@@ -157,6 +157,7 @@ public class ConfigLoader {
             nativeConfig.setIncludeAnnotations(getStringList(frostJniMap, "includeAnnotations"));
             nativeConfig.setExcludedClasses(getStringList(frostJniMap, "excludedClasses"));
             nativeConfig.setExcludedPackages(getStringList(frostJniMap, "excludedPackages"));
+            nativeConfig.setExcludedMethods(getStringList(frostJniMap, "excludedMethods"));
             nativeConfig.setExcludedAnnotations(getStringList(frostJniMap, "excludedAnnotations"));
             nativeConfig.setTemporaryDirectory(getString(frostJniMap, "temporaryDirectory", ""));
             nativeConfig.setKeepGeneratedSources(getBoolean(frostJniMap, "keepGeneratedSources", false));

@@ -4,6 +4,7 @@ import dev.frost.obfuscator.config.ObfuscationConfig;
 import dev.frost.obfuscator.gui.app.AppContext;
 import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.Ui;
+import dev.frost.obfuscator.gui.dialog.TargetPickerActions;
 import dev.frost.obfuscator.gui.motion.SmoothScroll;
 import dev.frost.obfuscator.remapper.MappingFormat;
 import javafx.geometry.Pos;
@@ -71,6 +72,10 @@ public final class ResourcesPage implements PageView {
                 "Optional regex rules that limit processing to matching classes");
         TextArea exclusions = area(String.join("\n", config.getExclusions()),
                 "Regex rules for classes that must remain unchanged");
+        VBox inclusionEditor = new VBox(Ui.SPACE_2, inclusions,
+                TargetPickerActions.regexTargets(context, inclusions, "Add project inclusions"));
+        VBox exclusionEditor = new VBox(Ui.SPACE_2, exclusions,
+                TargetPickerActions.regexTargets(context, exclusions, "Add project exclusions"));
 
         FlowPane presetPane = new FlowPane(Ui.SPACE_2, Ui.SPACE_2);
         for (dev.frost.obfuscator.config.preset.ExclusionPreset preset : dev.frost.obfuscator.config.preset.ExclusionPreset.values()) {
@@ -101,8 +106,8 @@ public final class ResourcesPage implements PageView {
         VBox rules = Ui.section("Class rules & framework presets",
                 "Keep reflection, serialization, plugins, service providers, and framework entrypoints safe.",
                 Ui.fieldRow("Framework Presets", presetPane),
-                Ui.fieldRow("Inclusions", inclusions),
-                Ui.fieldRow("Exclusions", exclusions),
+                Ui.fieldRow("Inclusions", inclusionEditor),
+                Ui.fieldRow("Exclusions", exclusionEditor),
                 Ui.label("Suggested by analysis", "field-label"),
                 suggested.getChildren().isEmpty()
                         ? Ui.label("Analyze an input JAR to receive project-specific rules.", "empty-state-copy")

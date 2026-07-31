@@ -49,10 +49,11 @@ java -jar Frostfuscator.jar graph -i app.jar --type calls --format mermaid -o ca
 | | `--jni-mode=<mode>` | FrostJNI mode: `SELECTIVE` or `FULL`. |
 | | `--jni-include-package=<list>` | Add FrostJNI package includes. |
 | | `--jni-include-class=<list>` | Add FrostJNI class includes. |
-| | `--jni-include-method=<list>` | Add FrostJNI method includes. |
+| | `--jni-include-method=<list>` | Add FrostJNI method includes; exact `owner#name(descriptor)` overloads are supported. |
 | | `--jni-include-annotation=<list>` | Add FrostJNI annotation includes. |
 | | `--jni-exclude-package=<list>` | Add FrostJNI package exclusions. |
 | | `--jni-exclude-class=<list>` | Add FrostJNI class exclusions. |
+| | `--jni-exclude-method=<list>` | Add exact FrostJNI method exclusions using `owner#name(descriptor)` entries. |
 | | `--jni-exclude-annotation=<list>` | Add FrostJNI annotation exclusions. |
 | | `--jni-compiler=<list>` | Limit FrostJNI compilers to `clang`, `gcc`, and/or `msvc`. |
 | | `--list-transforms` | Prints pass names and exits. |

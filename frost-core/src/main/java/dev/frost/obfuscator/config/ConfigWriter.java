@@ -101,6 +101,7 @@ public final class ConfigWriter {
         nativeConfig.put("includeAnnotations", config.getIncludeAnnotations());
         nativeConfig.put("excludedClasses", config.getExcludedClasses());
         nativeConfig.put("excludedPackages", config.getExcludedPackages());
+        nativeConfig.put("excludedMethods", config.getExcludedMethods());
         nativeConfig.put("excludedAnnotations", config.getExcludedAnnotations());
         nativeConfig.put("temporaryDirectory", config.getTemporaryDirectory());
         nativeConfig.put("keepGeneratedSources", config.isKeepGeneratedSources());

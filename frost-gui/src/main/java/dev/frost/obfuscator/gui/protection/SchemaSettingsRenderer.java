@@ -3,6 +3,8 @@ package dev.frost.obfuscator.gui.protection;
 import dev.frost.obfuscator.gui.component.CustomComboBox;
 import dev.frost.obfuscator.gui.component.LinkedSlider;
 import dev.frost.obfuscator.gui.component.Ui;
+import dev.frost.obfuscator.gui.app.AppContext;
+import dev.frost.obfuscator.gui.dialog.TargetPickerActions;
 import dev.frost.obfuscator.gui.state.ProjectState;
 import dev.frost.obfuscator.transformer.TransformerConfig;
 import javafx.geometry.Pos;
@@ -18,7 +20,7 @@ import java.util.List;
 
 public final class SchemaSettingsRenderer {
 
-    public Node render(ProjectState state, String transformerName) {
+    public Node render(AppContext context, ProjectState state, String transformerName) {
         TransformerConfig config = state.configuration().getTransformers()
                 .computeIfAbsent(transformerName, key -> new TransformerConfig());
         TransformerConfig recommended = ProtectionProfiles.recommended(state.profileProperty().get(), transformerName);
@@ -40,7 +42,44 @@ public final class SchemaSettingsRenderer {
             disclosure.setExpanded(false);
             root.getChildren().add(disclosure);
         }
+        root.getChildren().add(targetScope(context, state, config));
         return root;
+    }
+
+    private Node targetScope(AppContext context, ProjectState state, TransformerConfig config) {
+        TextArea inclusions = targetArea(config.getInclusions(),
+                "Optional regex rules limiting this transformer to matching classes");
+        TextArea exclusions = targetArea(config.getExclusions(),
+                "Regex rules this transformer must skip");
+        VBox inclusionEditor = new VBox(Ui.SPACE_2, inclusions,
+                TargetPickerActions.regexTargets(context, inclusions, "Add transformer inclusions"));
+        VBox exclusionEditor = new VBox(Ui.SPACE_2, exclusions,
+                TargetPickerActions.regexTargets(context, exclusions, "Add transformer exclusions"));
+        inclusions.textProperty().addListener((obs, old, value) -> {
+            config.setInclusions(TargetPickerActions.lines(inclusions));
+            state.touch();
+        });
+        exclusions.textProperty().addListener((obs, old, value) -> {
+            config.setExclusions(TargetPickerActions.lines(exclusions));
+            state.touch();
+        });
+        VBox content = new VBox(Ui.SPACE_4,
+                Ui.label("Apply package or class rules only to this transformer. Project-wide rules still take precedence.",
+                        "setting-description"),
+                Ui.fieldRow("Inclusions", inclusionEditor),
+                Ui.fieldRow("Exclusions", exclusionEditor));
+        TitledPane disclosure = new TitledPane("Target scope", content);
+        disclosure.getStyleClass().add("advanced-disclosure");
+        disclosure.setExpanded(false);
+        return disclosure;
+    }
+
+    private static TextArea targetArea(List<String> values, String prompt) {
+        TextArea area = new TextArea(String.join(System.lineSeparator(), values));
+        area.getStyleClass().add("text-area");
+        area.setPromptText(prompt);
+        area.setPrefRowCount(4);
+        return area;
     }
 
     private Node row(ProjectState state, TransformerConfig config, TransformerConfig recommended, SettingSchema schema) {

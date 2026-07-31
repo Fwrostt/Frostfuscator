@@ -26,6 +26,7 @@ public class FrostJNIConfig {
     private List<String> includeAnnotations = new ArrayList<>();
     private List<String> excludedClasses = new ArrayList<>();
     private List<String> excludedPackages = new ArrayList<>();
+    private List<String> excludedMethods = new ArrayList<>();
     private List<String> excludedAnnotations = new ArrayList<>();
     private String temporaryDirectory = "";
     private boolean keepGeneratedSources;
@@ -209,6 +210,14 @@ public class FrostJNIConfig {
 
     public void setExcludedPackages(List<String> excludedPackages) {
         this.excludedPackages = safeList(excludedPackages);
+    }
+
+    public List<String> getExcludedMethods() {
+        return excludedMethods;
+    }
+
+    public void setExcludedMethods(List<String> excludedMethods) {
+        this.excludedMethods = safeList(excludedMethods);
     }
 
     public List<String> getExcludedAnnotations() {

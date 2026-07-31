@@ -309,6 +309,11 @@ public final class FrostJNIProtectionService {
     }
 
     private boolean isExcludedMethod(ClassModel classModel, MethodModel methodModel, FrostJNIConfig config) {
+        String owner = classModel.internalName();
+        if (matchesMethodTarget(config.getExcludedMethods(), owner,
+                methodModel.name(), methodModel.descriptor())) {
+            return true;
+        }
         for (String annotation : methodModel.annotationDescriptors()) {
             if (containsAnnotation(config.getExcludedAnnotations(), annotation)) {
                 return true;
@@ -319,7 +324,8 @@ public final class FrostJNIProtectionService {
 
     private boolean explicitlyIncluded(String internalName, FrostJNIConfig config) {
         return containsNormalized(config.getIncludeClasses(), internalName)
-                || config.getIncludePackages().stream().map(this::normalize).anyMatch(pkg -> internalName.startsWith(pkg + "/"));
+                || config.getIncludePackages().stream().map(FrostJNIProtectionService::normalize)
+                        .anyMatch(pkg -> internalName.startsWith(pkg + "/"));
     }
 
     private List<NativeMethodPlan> patchClasses(ClassPool pool, MethodMappingRegistry registry, String libraryBaseName) {
@@ -434,7 +440,14 @@ public final class FrostJNIProtectionService {
         return false;
     }
 
-    private String normalize(String value) {
+    static boolean matchesMethodTarget(List<String> targets, String owner, String name, String descriptor) {
+        String methodKey = normalize(owner) + "#" + name;
+        String exactMethodKey = methodKey + descriptor;
+        return targets.stream().map(FrostJNIProtectionService::normalize)
+                .anyMatch(value -> value.equals(name) || value.equals(methodKey) || value.equals(exactMethodKey));
+    }
+
+    private static String normalize(String value) {
         return value == null ? "" : value.trim().replace('.', '/');
     }
 

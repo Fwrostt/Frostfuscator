@@ -160,6 +160,9 @@ public class Main implements Callable<Integer> {
     @CommandLine.Option(names = {"--jni-exclude-class"}, split = ",", description = "FrostJNI class exclusion. Can be repeated or comma-separated.")
     private List<String> jniExcludeClasses = new ArrayList<>();
 
+    @CommandLine.Option(names = {"--jni-exclude-method"}, split = ",", description = "FrostJNI method exclusion. Can be repeated or comma-separated.")
+    private List<String> jniExcludeMethods = new ArrayList<>();
+
     @CommandLine.Option(names = {"--jni-exclude-annotation"}, split = ",", description = "FrostJNI annotation exclusion. Can be repeated or comma-separated.")
     private List<String> jniExcludeAnnotations = new ArrayList<>();
 
@@ -387,6 +390,7 @@ public class Main implements Callable<Integer> {
         addAll(config.getIncludeAnnotations(), jniIncludeAnnotations);
         addAll(config.getExcludedPackages(), jniExcludePackages);
         addAll(config.getExcludedClasses(), jniExcludeClasses);
+        addAll(config.getExcludedMethods(), jniExcludeMethods);
         addAll(config.getExcludedAnnotations(), jniExcludeAnnotations);
         if (!jniCompilers.isEmpty()) {
             Set<String> selected = new LinkedHashSet<>(clean(jniCompilers).stream()
