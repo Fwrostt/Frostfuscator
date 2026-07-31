@@ -30,7 +30,8 @@ public final class SettingsPage implements PageView {
     private final AppContext context;
     private final VBox content = new VBox(Ui.SPACE_8);
     private final ScrollPane root = Ui.pageScroll(content);
-    private final FlowPane themeChoices = new FlowPane(Ui.SPACE_3, Ui.SPACE_3);
+    private final FlowPane darkThemeChoices = new FlowPane(Ui.SPACE_3, Ui.SPACE_3);
+    private final FlowPane lightThemeChoices = new FlowPane(Ui.SPACE_3, Ui.SPACE_3);
     private final Map<String, TextField> tokenFields = new LinkedHashMap<>();
     private final VBox preview = new VBox(Ui.SPACE_3);
     private Label storagePath;
@@ -140,8 +141,16 @@ public final class SettingsPage implements PageView {
             refreshThemes();
             loadThemeIntoEditor(value);
         });
+        VBox groups = new VBox(Ui.SPACE_6,
+                themeGroup("Dark palettes", darkThemeChoices),
+                themeGroup("Light palettes", lightThemeChoices));
         return Ui.section("Themes",
-                "Choose a low-glare built-in theme. Your selection persists across sessions.", themeChoices);
+                "Choose a palette with a clear color identity. Your selection persists across sessions.", groups);
+    }
+
+    private Node themeGroup(String title, FlowPane choices) {
+        Label label = Ui.label(title, "theme-group-title");
+        return new VBox(Ui.SPACE_3, label, choices);
     }
 
     private Node customThemeSection() {
@@ -271,7 +280,8 @@ public final class SettingsPage implements PageView {
     }
 
     private void refreshThemes() {
-        themeChoices.getChildren().clear();
+        darkThemeChoices.getChildren().clear();
+        lightThemeChoices.getChildren().clear();
         for (ThemeDefinition theme : context.themeManager().availableThemes()) {
             boolean selected = theme.id().equals(context.themeManager().activeTheme().id());
             Region background = swatch(theme.token("bg"));
@@ -285,7 +295,7 @@ public final class SettingsPage implements PageView {
             button.getStyleClass().add("theme-choice");
             button.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("selected"), selected);
             button.setOnAction(event -> context.themeManager().select(theme.id()));
-            themeChoices.getChildren().add(button);
+            (theme.isLight() ? lightThemeChoices : darkThemeChoices).getChildren().add(button);
         }
     }
 
