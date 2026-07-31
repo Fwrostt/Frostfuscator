@@ -1224,11 +1224,11 @@
 }
 
 .density-compact .analytics-table .column-header {
-    -fx-padding: 5 10;
+    -fx-padding: 4 8;
 }
 
 .density-compact .analytics-table .table-cell {
-    -fx-padding: 5 10;
+    -fx-padding: 4 8;
 }
 
 .density-spacious .analytics-table .column-header {
@@ -1237,6 +1237,38 @@
 
 .density-spacious .analytics-table .table-cell {
     -fx-padding: 12 12;
+}
+
+.density-compact .protection-page .transformer-list .list-cell {
+    -fx-padding: 8 12;
+    -fx-background-insets: 2 12 2 4;
+    -fx-border-insets: 2 12 2 4;
+}
+
+.density-compact .protection-page .setting-row {
+    -fx-padding: 12 14;
+}
+
+.density-compact .protection-page .transformer-detail-header {
+    -fx-padding: 16 20;
+}
+
+.density-compact .protection-page .profile-section,
+.density-compact .protection-page .enabled-pass-card {
+    -fx-padding: 14 16;
+}
+
+.density-compact .protection-category-combo,
+.density-compact .transformer-browser .text-input {
+    -fx-min-height: 36;
+}
+
+.density-spacious .protection-page .transformer-list .list-cell {
+    -fx-padding: 18 20;
+}
+
+.density-spacious .protection-page .setting-row {
+    -fx-padding: 26;
 }
 
 .profile-presets {

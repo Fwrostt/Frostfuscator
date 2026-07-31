@@ -115,7 +115,14 @@ public final class ProtectionPage implements PageView {
         });
         category.setValue(savedCategory());
         refreshList();
+        bindDensity();
         initializing = false;
+    }
+
+    private void bindDensity() {
+        context.themeManager().densityProperty().addListener((obs, old, density) -> {
+            transformerList.refresh();
+        });
     }
 
     private VBox buildTransformerBrowser() {

@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -97,6 +98,7 @@ public final class BytecodeViewerPage implements PageView {
     private ArchiveInspector.ArchiveSnapshot snapshot;
     private ArchiveInspector.ClassInspection selectedInspection;
     private ArchiveNode selectedNode;
+    private CompletableFuture<?> pendingInspect;
     private VBox archivePanel;
     private VBox editorPanel;
     private VBox inspectorPanel;
@@ -820,6 +822,11 @@ public final class BytecodeViewerPage implements PageView {
         Path archive = node != null && node.archivePath != null ? node.archivePath : activeArchive();
         if (archive == null || node == null || node.kind != NodeKind.CLASS || backend == null) return;
         long token = operation.incrementAndGet();
+        service.cancelActiveDecompilation();
+        if (pendingInspect != null) {
+            pendingInspect.cancel(true);
+            pendingInspect = null;
+        }
         setLoading(true);
         documentTitle.setText(node.path.replace('/', '.').replaceFirst("\\.class$", ""));
         documentMeta.setText(backend.displayName() + " " + backend.version() + "  •  class major " + node.major);
@@ -830,6 +837,10 @@ public final class BytecodeViewerPage implements PageView {
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     if (token != operation.get()) return;
                     if (error != null) {
+                        if (error instanceof CancellationException
+                                || (error.getCause() != null && error.getCause() instanceof CancellationException)) {
+                            return;
+                        }
                         setLoading(false);
                         source.replaceText("Decompilation failed.\n\n" + message(error));
                         source.clearStyle(0, source.getLength());
@@ -845,11 +856,12 @@ public final class BytecodeViewerPage implements PageView {
                             : "  •  " + result.result.diagnostics().size() + " diagnostic(s)"));
                 }));
 
-        service.inspect(archive, node.path).whenComplete((inspection, error) ->
+        pendingInspect = service.inspect(archive, node.path);
+        pendingInspect.whenComplete((inspection, error) ->
                 Platform.runLater(() -> {
                     if (token != operation.get() || error != null) return;
-                    selectedInspection = inspection;
-                    showInspection(inspection);
+                    selectedInspection = (ArchiveInspector.ClassInspection) inspection;
+                    showInspection(selectedInspection);
                 }));
     }
 
@@ -2044,6 +2056,10 @@ public final class BytecodeViewerPage implements PageView {
         active = false;
         operation.incrementAndGet();
         service.cancelActiveDecompilation();
+        if (pendingInspect != null) {
+            pendingInspect.cancel(true);
+            pendingInspect = null;
+        }
     }
 
     private void openPendingGraphTarget() {

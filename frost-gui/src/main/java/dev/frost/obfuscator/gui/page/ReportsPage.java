@@ -453,7 +453,7 @@ public final class ReportsPage implements PageView {
 
     private void applyTableDensity(ThemeManager.Density density) {
         double rowHeight = switch (density) {
-            case COMPACT -> 32;
+            case COMPACT -> 28;
             case SPACIOUS -> 46;
             case COMFORTABLE -> 38;
         };
