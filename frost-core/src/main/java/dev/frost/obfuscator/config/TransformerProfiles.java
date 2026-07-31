@@ -121,6 +121,7 @@ public final class TransformerProfiles {
         set(config, "reflection-hiding", true, reflectionHidingOptions(65, 40, 160));
         set(config, "invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
         set(config, "condy-indirection", true, options("probability", 45, "constants", true,
+                "immediate-numbers", true, "class-literals", true, "bootstrap-arguments", true,
                 "method-handles", true, "var-handles", true));
         set(config, "reference-hiding", true, options("probability", 65, "max-per-class", 144, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 12, "deprecated", true, "signatures", true));
@@ -146,6 +147,7 @@ public final class TransformerProfiles {
         set(config, "reflection-hiding", true, reflectionHidingOptions(85, 64, 256));
         set(config, "invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
         set(config, "condy-indirection", true, options("probability", 70, "constants", true,
+                "immediate-numbers", true, "class-literals", true, "bootstrap-arguments", true,
                 "method-handles", true, "var-handles", true));
         set(config, "reference-hiding", true, options("probability", 80, "max-per-class", 192, "max-method-instructions", 6000));
         set(config, "metadata-noise", true, options("strings-per-class", 18, "deprecated", true, "signatures", true));

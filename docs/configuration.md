@@ -86,6 +86,9 @@ transformers:
     enabled: false
     probability: 45
     constants: true
+    immediate-numbers: true
+    class-literals: true
+    bootstrap-arguments: true
     method-handles: true
     var-handles: true
 
@@ -385,7 +388,7 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 
 - Keep exclusions for reflection, JNI, serialization, plugin entry points, and public APIs.
 - Keep `kotlin-metadata-remap` enabled whenever class, field, or method renaming is enabled for Kotlin applications. It synchronizes writable `kotlin.Metadata` class, callable, property, and type references with the emitted mappings.
-- `condy-indirection` requires Java 11 bytecode. `constants`, `method-handles`, and `var-handles` can be enabled independently; final-field writes and constructor/special invocations remain direct to preserve JVM semantics.
+- `condy-indirection` requires Java 11 bytecode. It encrypts strings, numeric constants, class literals, method types, method handles, field metadata, and eligible `invokedynamic`/nested-Condy bootstrap arguments behind authenticated nested `ConstantDynamic` key/value chains. `immediate-numbers` also covers `ICONST`, `BIPUSH`, and related compact numeric opcodes. Constants resolve once on first use and are then cached by the JVM; constructor calls and final-field writes remain direct to preserve verifier semantics.
 - `mixed-boolean-arithmetic.rounds` is capped at 3, but one or two rounds are recommended because each round deliberately increases local-variable and instruction pressure. The pass handles `int` and `long` arithmetic only; floating-point identities are excluded because reassociation can change IEEE-754 results.
 - `reflection-hiding.owner-prefixes` and `excluded-owners` use JVM internal names such as `java/nio/file`. The transformer validates public methods against the build JVM before converting a site, skips constructors, and leaves non-public APIs direct. Keep `java/io/PrintStream` excluded unless hiding console output is worth the startup and diagnostic overhead.
 - `reflection-hiding` uses encrypted MethodHandle bootstraps rather than `Method.invoke`, preserving primitive signatures and avoiding reflective argument arrays. It is ordered before general invokedynamic/reference hiding and remains compatible when those passes are enabled.

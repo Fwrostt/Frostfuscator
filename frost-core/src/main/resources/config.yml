@@ -489,6 +489,9 @@ transformers:
     enabled: false
     probability: 45
     constants: true
+    immediate-numbers: true
+    class-literals: true
+    bootstrap-arguments: true
     method-handles: true
     var-handles: true
     exclusions: []
