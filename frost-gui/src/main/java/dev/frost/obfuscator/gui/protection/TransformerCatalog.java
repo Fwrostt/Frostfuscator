@@ -57,11 +57,13 @@ public final class TransformerCatalog {
         boolean experimental = category == Category.FUNSIES;
         String compatibility = switch (name) {
             case "virtualization", "classloader-encryption", "fake-application", "chinese-mode" -> "Project-specific";
-            case "flow-obfuscation", "invoke-dynamic", "reflection-hiding", "resource-steganography" -> "Review recommended";
+            case "flow-obfuscation", "thread-interleaved-flow", "invoke-dynamic", "reflection-hiding",
+                    "resource-steganography" -> "Review recommended";
             default -> "Generally compatible";
         };
         String impact = switch (name) {
-            case "virtualization", "flow-obfuscation", "fake-classes", "junk-code" -> "High";
+            case "virtualization", "flow-obfuscation", "thread-interleaved-flow", "fake-classes",
+                    "junk-code" -> "High";
             case "string-encryption", "invoke-dynamic", "reference-hiding", "resource-encryption" -> "Medium";
             default -> "Low";
         };
@@ -127,6 +129,7 @@ public final class TransformerCatalog {
             case "method-rename" -> "Renames methods with hierarchy-aware safety checks.";
             case "string-encryption" -> "Encrypts string constants and reconstructs them at runtime.";
             case "flow-obfuscation" -> "Restructures method control flow using bounded opaque dispatch.";
+            case "thread-interleaved-flow" -> "Splits proven-pure primitive expressions across joined concurrent workers.";
             case "invoke-dynamic" -> "Moves eligible calls behind invokedynamic call sites.";
             case "reflection-hiding" -> "Hides selected API calls behind encrypted method handles.";
             case "virtualization" -> "Translates eligible methods to an embedded virtual instruction set.";

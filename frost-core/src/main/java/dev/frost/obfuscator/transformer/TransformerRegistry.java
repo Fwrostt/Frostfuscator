@@ -19,6 +19,7 @@ import dev.frost.obfuscator.transformer.flow.FlowSwitchTransformer;
 import dev.frost.obfuscator.transformer.flow.MixedBooleanArithmeticTransformer;
 import dev.frost.obfuscator.transformer.flow.PolymorphTransformer;
 import dev.frost.obfuscator.transformer.flow.StackManipulationTransformer;
+import dev.frost.obfuscator.transformer.flow.ThreadInterleavedFlowTransformer;
 import dev.frost.obfuscator.transformer.funsies.BannerInjectionTransformer;
 import dev.frost.obfuscator.transformer.funsies.ChineseModeTransformer;
 import dev.frost.obfuscator.transformer.funsies.CopypastaInjectorTransformer;
@@ -96,6 +97,7 @@ public class TransformerRegistry {
         register(new FlowExceptionTransformer());
         register(new FlowSwitchTransformer());
         register(new ControlFlowShufflingTransformer());
+        register(new ThreadInterleavedFlowTransformer());
         register(new LineNumberMutationTransformer());
         register(new MethodSaltingTransformer());
         register(new ClassSaltingTransformer());

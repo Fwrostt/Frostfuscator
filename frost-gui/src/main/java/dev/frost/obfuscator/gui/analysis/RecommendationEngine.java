@@ -201,6 +201,7 @@ public final class RecommendationEngine {
         double growth = 4 + enabled * 0.9 + (enabled(config, "fake-classes") ? 12 : 0)
                 + (enabled(config, "virtualization") ? 18 : 0);
         double overhead = enabled * 0.12 + (enabled(config, "flow-obfuscation") ? 2.2 : 0)
+                + (enabled(config, "thread-interleaved-flow") ? 3.0 : 0)
                 + (enabled(config, "virtualization") ? 8 : 0);
         long seconds = Math.max(2, analysis.classCount() / 70L + enabled * 2);
         return new Impact(Math.round(growth), Math.round(overhead * 10) / 10d, seconds);

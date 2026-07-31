@@ -463,6 +463,21 @@ transformers:
     exclusions: []
     inclusions: []
 
+  thread-interleaved-flow:
+    enabled: false
+    probability: 20
+    max-per-method: 1
+    max-per-class: 8
+    min-branch-instructions: 3
+    min-expression-instructions: 7
+    max-expression-instructions: 96
+    max-capture-slots: 16
+    max-method-instructions: 2000
+    max-output-method-instructions: 8000
+    seed: 0
+    exclusions: []
+    inclusions: []
+
   stack-manipulation:
     enabled: true
     probability: 8

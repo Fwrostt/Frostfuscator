@@ -313,6 +313,11 @@ class ComprehensivePassIntegrationTest {
         add(cases, "flow-exception", options("strength", "GOOD"), RunResult::assertBasicOutput);
         add(cases, "flow-switch", options("probability", 100), RunResult::assertBasicOutput);
         add(cases, "control-flow-shuffling", options("probability", 100, "seed", 1), RunResult::assertBasicOutput);
+        add(cases, "thread-interleaved-flow", options("probability", 100, "max-per-method", 2,
+                "max-per-class", 8, "min-branch-instructions", 1, "min-expression-instructions", 3,
+                "max-expression-instructions", 96, "max-capture-slots", 16, "max-method-instructions", 2000,
+                "max-output-method-instructions", 8000, "seed", 1),
+                result -> assertClassEntryCountGreaterThanFixture(result.jar()));
         add(cases, "line-number-mutation", options("min-line", 1000, "max-line", 9999, "seed", 1), RunResult::assertBasicOutput);
         add(cases, "method-salting", options("max-salts", 3, "probability", 100, "seed", 1), RunResult::assertBasicOutput);
         add(cases, "class-salting", options("fields-per-class", 2, "seed", 1), RunResult::assertBasicOutput);

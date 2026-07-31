@@ -58,6 +58,10 @@ public record BuildAnalytics(
         addMetric(metrics, counters, "outlinedMethods", "Methods outlined", "safe bodies moved behind delegates");
         addMetric(metrics, counters, "flattenedMethods", "Methods flattened", "full control-flow flattening");
         addMetric(metrics, counters, "partiallyFlattenedMethods", "Methods partially flattened", "partial control-flow coverage");
+        addMetric(metrics, counters, "threadInterleavedExpressions", "Expressions thread-split",
+                "pure primitive expressions executed across joined workers");
+        addMetric(metrics, counters, "threadInterleavedWorkers", "Thread workers generated",
+                "volatile-register workers added to the output");
         addMetric(metrics, counters, "virtualizedMethods", "Methods virtualized", "translated to FrostVM bytecode");
         addMetric(metrics, counters, "encryptedResources", "Resources encrypted", "non-class assets protected");
         addMetric(metrics, counters, "compressedResources", "Resources compressed", "assets compressed");

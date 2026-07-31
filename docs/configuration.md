@@ -129,6 +129,19 @@ transformers:
     include-synthetic: false
     seed: 0
 
+  thread-interleaved-flow:
+    enabled: false
+    probability: 20
+    max-per-method: 1
+    max-per-class: 8
+    min-branch-instructions: 3
+    min-expression-instructions: 7
+    max-expression-instructions: 96
+    max-capture-slots: 16
+    max-method-instructions: 2000
+    max-output-method-instructions: 8000
+    seed: 0
+
   reflection-hiding:
     enabled: true
     probability: 35
@@ -395,6 +408,7 @@ Frostfuscator scans `plugins/` by default and also scans directories listed in `
 - Keep `kotlin-metadata-remap` enabled whenever class, field, or method renaming is enabled for Kotlin applications. It synchronizes writable `kotlin.Metadata` class, callable, property, and type references with the emitted mappings.
 - `condy-indirection` requires Java 11 bytecode. It encrypts strings, numeric constants, class literals, method types, method handles, field metadata, and eligible `invokedynamic`/nested-Condy bootstrap arguments behind authenticated nested `ConstantDynamic` key/value chains. `immediate-numbers` also covers `ICONST`, `BIPUSH`, and related compact numeric opcodes. Constants resolve once on first use and are then cached by the JVM; constructor calls and final-field writes remain direct to preserve verifier semantics.
 - `mixed-boolean-arithmetic` generates randomized affine bijections and operand-dependent polynomial zero terms over Java's modular `int` and `long` rings. It covers add, subtract, multiply, bitwise operations, negation, integer branches, switch keys, and long comparisons. `rounds` is capped at 3, `polynomial-degree` at 5, and output is guarded by a 20,000-instruction ceiling plus a conservative 56 KB bytecode estimate to leave room below the JVM's 64 KB method limit. Floating-point expressions and reference comparisons are deliberately excluded because equivalent-looking rewrites can change IEEE-754 or identity semantics.
+- `thread-interleaved-flow` is disabled in the default and balanced configurations and enabled by strong/maximum profiles. It parallelizes only independent, side-effect-free primitive expression branches and rejoins before the original operation, with volatile capture/result registers providing explicit cross-thread visibility. `max-capture-slots` bounds generated constructor signatures as well as state-copying overhead. Keep its per-method limit low: each split schedules two common-pool tasks. Methods containing synchronization, monitors, exception handlers, impure operations, division/remainder, floating point, or reference expressions are deliberately retained unchanged. Because task scheduling can alter latency and resource usage even when values are identical, exclude latency-sensitive event loops and real-time paths.
 - `reflection-hiding.owner-prefixes` and `excluded-owners` use JVM internal names such as `java/nio/file`. The transformer validates public methods against the build JVM before converting a site, skips constructors, and leaves non-public APIs direct. Keep `java/io/PrintStream` excluded unless hiding console output is worth the startup and diagnostic overhead.
 - `reflection-hiding` uses encrypted MethodHandle bootstraps rather than `Method.invoke`, preserving primitive signatures and avoiding reflective argument arrays. It is ordered before general invokedynamic/reference hiding and remains compatible when those passes are enabled.
 - `flow-obfuscation.predicate-families` accepts `arithmetic`, `bitwise`, `reversible`, `modular`, `lookup-table`, `stateful`, `argument-derived`, and `interprocedural`. Lightweight families receive higher selection weight, while the per-method cost budget limits table and helper-based variants.

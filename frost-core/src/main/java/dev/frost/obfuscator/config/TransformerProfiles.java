@@ -94,6 +94,7 @@ public final class TransformerProfiles {
         set(config, "flow-exception", true, options("strength", "GOOD"));
         set(config, "flow-switch", true, options("probability", 75));
         set(config, "control-flow-shuffling", true, options("probability", 50));
+        set(config, "thread-interleaved-flow", false, threadInterleavedOptions(15, 1, 6));
         set(config, "line-number-mutation", true, options("min-line", 1000, "max-line", 9999));
         set(config, "method-salting", true, options("max-salts", 3, "probability", 60));
         set(config, "class-salting", true, options("fields-per-class", 2));
@@ -117,6 +118,7 @@ public final class TransformerProfiles {
         set(config, "flow-range", true, options("probability", 48));
         set(config, "flow-condition", true, options("probability", 38, "max-per-method", 24));
         set(config, "flow-exception", true, options("strength", "AGGRESSIVE"));
+        set(config, "thread-interleaved-flow", true, threadInterleavedOptions(15, 1, 8));
         set(config, "stack-manipulation", true, options("probability", 11, "max-per-method", 22));
         set(config, "reflection-hiding", true, reflectionHidingOptions(65, 40, 160));
         set(config, "invoke-dynamic", true, options("probability", 55, "mutable-callsites", true));
@@ -143,6 +145,7 @@ public final class TransformerProfiles {
         set(config, "flow-range", true, options("probability", 60));
         set(config, "flow-condition", true, options("probability", 50, "max-per-method", 32));
         set(config, "flow-switch", true, options("probability", 90));
+        set(config, "thread-interleaved-flow", true, threadInterleavedOptions(30, 2, 16));
         set(config, "stack-manipulation", true, options("probability", 14, "max-per-method", 28));
         set(config, "reflection-hiding", true, reflectionHidingOptions(85, 64, 256));
         set(config, "invoke-dynamic", true, options("probability", 75, "mutable-callsites", true));
@@ -248,6 +251,23 @@ public final class TransformerProfiles {
                 "max-per-class", maximumPerClass,
                 "max-method-instructions", 6000,
                 "include-synthetic", false,
+                "seed", 0
+        );
+    }
+
+    private static Map<String, Object> threadInterleavedOptions(int probability,
+                                                                 int maximumPerMethod,
+                                                                 int maximumPerClass) {
+        return options(
+                "probability", probability,
+                "max-per-method", maximumPerMethod,
+                "max-per-class", maximumPerClass,
+                "min-branch-instructions", 3,
+                "min-expression-instructions", 7,
+                "max-expression-instructions", 96,
+                "max-capture-slots", 16,
+                "max-method-instructions", 2000,
+                "max-output-method-instructions", 8000,
                 "seed", 0
         );
     }
