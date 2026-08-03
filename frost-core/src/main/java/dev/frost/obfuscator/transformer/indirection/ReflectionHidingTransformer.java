@@ -5,7 +5,12 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.util.AccessHelper;
+import dev.frost.ir.bytecode.JvmBootstrapAttributes;
+import dev.frost.ir.model.CoreOps;
+import dev.frost.ir.model.Operation;
+import dev.frost.ir.pass.TypedInvocationRewritePass;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -99,35 +104,6 @@ public final class ReflectionHidingTransformer extends Transformer {
             }
             Random random = new Random(runSeed ^ owner.name.hashCode());
 
-            List<CallSite> sites = new ArrayList<>();
-            for (MethodNode method : owner.methods) {
-                if (method.instructions == null
-                        || method.instructions.size() > maximumMethodInstructions
-                        || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
-                        || (!includeSynthetic && (method.access & Opcodes.ACC_SYNTHETIC) != 0)) {
-                    continue;
-                }
-                int changedInMethod = 0;
-                for (AbstractInsnNode instruction = method.instructions.getFirst();
-                     instruction != null
-                             && changedInMethod < maximumPerMethod
-                             && sites.size() < maximumPerClass;
-                     instruction = instruction.getNext()) {
-                    if (instruction instanceof MethodInsnNode call
-                            && random.nextInt(100) < probability
-                            && eligible(call, prefixes, excludedOwners)) {
-                        sites.add(new CallSite(method, call));
-                        changedInMethod++;
-                    }
-                }
-                if (sites.size() >= maximumPerClass) {
-                    break;
-                }
-            }
-            if (sites.isEmpty()) {
-                return;
-            }
-
             String decoderName = uniqueMethodName(owner, random);
             String bootstrapName = uniqueMethodName(owner, random);
             Handle bootstrap = new Handle(
@@ -140,31 +116,61 @@ public final class ReflectionHidingTransformer extends Transformer {
                     false
             );
 
-            for (CallSite site : sites) {
-                MethodInsnNode call = site.call();
-                int key = nonZeroKey(random);
-                int kind = call.getOpcode() == Opcodes.INVOKESTATIC ? 0 : 1;
-                InvokeDynamicInsnNode dynamic = new InvokeDynamicInsnNode(
-                        randomIdentifier(random),
-                        invocationDescriptor(call),
-                        bootstrap,
-                        encode(call.owner, key ^ OWNER_SALT),
-                        encode(call.name, key ^ NAME_SALT),
-                        encode(call.desc, key ^ DESC_SALT),
-                        key,
-                        kind
-                );
-                site.method().instructions.set(call, dynamic);
+            int[] changedInClass = {0};
+            IrMethodPassAdapter adapter = new IrMethodPassAdapter();
+            for (MethodNode method : List.copyOf(owner.methods)) {
+                if (method.instructions == null || method.instructions.size() > maximumMethodInstructions
+                        || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
+                        || (!includeSynthetic && (method.access & Opcodes.ACC_SYNTHETIC) != 0)
+                        || changedInClass[0] >= maximumPerClass) continue;
+                int[] changedInMethod = {0};
+                var pass = new TypedInvocationRewritePass((candidate, ignored) -> {
+                    if (!candidate.instruction().operation().code().equals(CoreOps.INVOKE)
+                            || changedInMethod[0] >= maximumPerMethod
+                            || changedInClass[0] + changedInMethod[0] >= maximumPerClass
+                            || random.nextInt(100) >= probability) return java.util.Optional.empty();
+                    int opcode = invokeOpcode(candidate.invokeKind());
+                    if (opcode < 0) return java.util.Optional.empty();
+                    MethodInsnNode call = new MethodInsnNode(opcode, candidate.owner(), candidate.name(),
+                            candidate.descriptor(), candidate.interfaceOwner());
+                    if (!eligible(call, prefixes, excludedOwners)) return java.util.Optional.empty();
+                    int key = nonZeroKey(random);
+                    int kind = opcode == Opcodes.INVOKESTATIC ? 0 : 1;
+                    changedInMethod[0]++;
+                    return java.util.Optional.of(new Operation(CoreOps.INVOKE_DYNAMIC,
+                            JvmBootstrapAttributes.dynamicCallSite(randomIdentifier(random),
+                                    invocationDescriptor(call), bootstrap,
+                                    encode(call.owner, key ^ OWNER_SALT),
+                                    encode(call.name, key ^ NAME_SALT),
+                                    encode(call.desc, key ^ DESC_SALT), key, kind)));
+                });
+                var result = adapter.run(owner.name, method, pass,
+                        runSeed ^ method.name.hashCode() ^ method.desc.hashCode());
+                if (result.changed()) {
+                    IrMethodPassAdapter.publishBody(method, result.output().orElseThrow());
+                    changedInClass[0] += Math.toIntExact(result.metric("rewritten"));
+                }
             }
+
+            if (changedInClass[0] == 0) return;
 
             owner.version = Math.max(owner.version, Opcodes.V1_7);
             owner.methods.add(buildDecoder(decoderName));
             owner.methods.add(buildBootstrap(owner.name, bootstrapName, decoderName));
-            pool.markDirty(owner.name);
-            totalChanged.add(sites.size());
-            detail("Replaced {} API calls with encrypted MethodHandle sites in {}", sites.size(), owner.name);
+            pool.markFramesDirty(owner.name);
+            totalChanged.add(changedInClass[0]);
+            detail("Replaced {} API calls with encrypted MethodHandle sites in {}", changedInClass[0], owner.name);
         });
         return totalChanged.intValue();
+    }
+
+    private int invokeOpcode(String kind) {
+        return switch (kind) {
+            case "INVOKESTATIC" -> Opcodes.INVOKESTATIC;
+            case "INVOKEVIRTUAL" -> Opcodes.INVOKEVIRTUAL;
+            case "INVOKEINTERFACE" -> Opcodes.INVOKEINTERFACE;
+            default -> -1;
+        };
     }
 
     private boolean eligible(MethodInsnNode call, Set<String> prefixes, Set<String> excludedOwners) {
@@ -552,6 +558,4 @@ public final class ReflectionHidingTransformer extends Transformer {
         return value == null ? fallback : Boolean.parseBoolean(value.toString());
     }
 
-    private record CallSite(MethodNode method, MethodInsnNode call) {
-    }
 }

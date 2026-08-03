@@ -2,139 +2,213 @@ package dev.frost.obfuscator.transformer.optimization;
 
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
+import dev.frost.ir.bytecode.BytecodeImportResult;
+import dev.frost.ir.bytecode.BytecodeMethodLowerer;
+import dev.frost.ir.bytecode.BytecodeSsaImporter;
+import dev.frost.ir.bytecode.ImportCapability;
+import dev.frost.ir.core.IrContext;
+import dev.frost.ir.model.CoreOps;
+import dev.frost.ir.model.IrAttribute;
+import dev.frost.ir.model.IrInstruction;
+import dev.frost.ir.transform.IrGraphInliner;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 
-import java.util.*;
-
-/**
- * Conservatively inlines tiny, private, static, no-argument, straight-line methods.
- * This deliberately refuses control flow, local variables, handlers, and recursion.
- */
+/** Inter-method Frost-IR graph inlining for bounded private static methods. */
 public final class AggressiveInliningTransformer extends Transformer {
-    @Override
-    public String getName() {
-        return "aggressive-inlining";
-    }
+    private record Member(String owner, String name, String descriptor) {}
+    private record Candidate(MethodNode bytecode, BytecodeImportResult imported, int operations) {}
 
-    @Override
-    public String getCategory() {
-        return "Optimization";
-    }
-
-    @Override
-    public boolean runsPostRemap() {
-        return true;
-    }
+    @Override public String getName() { return "aggressive-inlining"; }
+    @Override public String getCategory() { return "Optimization"; }
+    @Override public boolean runsPostRemap() { return true; }
 
     @Override
     public void transform(Context context) {
         int maxInstructions = intOption(context, "max-instructions", 12, 1, 64);
         boolean removeInlined = booleanOption(context, "remove-inlined-methods", true);
-        int calls = 0;
-        int removed = 0;
+        IrContext irContext = IrContext.standard();
+        IrGraphInliner inliner = new IrGraphInliner();
+        long calls = 0, removed = 0, skipped = 0;
 
         for (ClassNode node : context.pool().getClasses()) {
             if (!shouldProcess(node.name, context.config(), context.pool().getGlobalExclusions(),
                     context.pool().getGlobalInclusions())) continue;
-            Map<String, MethodNode> candidates = new HashMap<>();
-            for (MethodNode method : node.methods) {
-                if (eligible(method, maxInstructions)) {
-                    candidates.put(method.name + method.desc, method);
-                }
-            }
+            Map<Member, Candidate> candidates = discoverCandidates(node, irContext, maxInstructions);
+            if (candidates.isEmpty()) continue;
+            Set<MethodNode> candidateNodes = new HashSet<>();
+            candidates.values().forEach(candidate -> candidateNodes.add(candidate.bytecode()));
             Set<MethodNode> used = new HashSet<>();
-            for (MethodNode caller : node.methods) {
-                if (caller.instructions == null || candidates.containsValue(caller)) continue;
-                for (AbstractInsnNode insn = caller.instructions.getFirst(); insn != null; ) {
-                    AbstractInsnNode next = insn.getNext();
-                    if (insn instanceof MethodInsnNode call
-                            && call.getOpcode() == Opcodes.INVOKESTATIC
-                            && call.owner.equals(node.name)) {
-                        MethodNode callee = candidates.get(call.name + call.desc);
-                        if (callee != null && !containsCall(callee, node.name, callee.name, callee.desc)) {
-                            caller.instructions.insertBefore(call, cloneBody(callee));
-                            caller.instructions.remove(call);
-                            used.add(callee);
-                            calls++;
-                        }
+            boolean classChanged = false;
+            boolean classRemoved = false;
+
+            for (int methodIndex = 0; methodIndex < node.methods.size(); methodIndex++) {
+                MethodNode bytecode = node.methods.get(methodIndex);
+                if (candidateNodes.contains(bytecode) || bytecode.instructions == null
+                        || bytecode.instructions.size() == 0) continue;
+                BytecodeImportResult callerImport;
+                try {
+                    callerImport = new BytecodeSsaImporter(irContext).importMethod(node.name, bytecode);
+                } catch (RuntimeException failure) {
+                    skipped++;
+                    continue;
+                }
+                if (!callerImport.has(ImportCapability.TYPED_STACK_SSA)) {
+                    skipped++;
+                    continue;
+                }
+
+                List<IrInstruction> originalCalls = callerImport.method().blocks().stream()
+                        .flatMap(block -> block.instructions().stream())
+                        .filter(instruction -> instruction.operation().code().equals(CoreOps.INVOKE)).toList();
+                Set<MethodNode> locallyUsed = new HashSet<>();
+                int localCalls = 0;
+                try {
+                    for (IrInstruction call : originalCalls) {
+                        Candidate candidate = candidates.get(invokedMember(call));
+                        if (candidate == null || !inliner.check(callerImport.method(), call,
+                                candidate.imported().method()).eligible()) continue;
+                        inliner.inline(callerImport.method(), call, candidate.imported().method(),
+                                "inline$" + methodIndex + "$" + localCalls + "$" + candidate.bytecode().name);
+                        locallyUsed.add(candidate.bytecode());
+                        localCalls++;
                     }
-                    insn = next;
+                    if (localCalls == 0) continue;
+                    var lowered = new BytecodeMethodLowerer().lower(callerImport.method(), callerImport);
+                    if (!lowered.succeeded()) {
+                        skipped += localCalls;
+                        continue;
+                    }
+                    node.methods.set(methodIndex, lowered.output().orElseThrow());
+                    calls += localCalls;
+                    used.addAll(locallyUsed);
+                    classChanged = true;
+                } catch (RuntimeException failure) {
+                    skipped += Math.max(1, localCalls);
                 }
             }
-            if (!used.isEmpty()) {
-                if (removeInlined) {
-                    for (MethodNode method : used) {
-                        if (!hasCallSite(node, method)) {
-                            node.methods.remove(method);
-                            removed++;
-                        }
+
+            if (removeInlined && !used.isEmpty()) {
+                for (MethodNode candidate : new ArrayList<>(used)) {
+                    if (!hasReference(node, candidate)) {
+                        node.methods.remove(candidate);
+                        removed++;
+                        classRemoved = true;
                     }
                 }
-                context.pool().markDirty(node.name);
             }
+            if (classChanged || classRemoved) context.pool().markFramesDirty(node.name);
         }
         context.stats().add("inlinedCalls", calls);
         context.stats().add("inlinedMethodsRemoved", removed);
-        log("Inlined {} call sites and removed {} fully inlined methods", calls, removed);
+        context.stats().add("irInliningSkippedCallsites", skipped);
+        log("Frost-IR inlined {} call sites, removed {} fully inlined methods, skipped {} unsupported sites",
+                calls, removed, skipped);
     }
 
-    private boolean eligible(MethodNode method, int maximum) {
-        if ((method.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC))
-                != (Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC)
-                || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNCHRONIZED)) != 0
-                || method.name.startsWith("<")
-                || !method.desc.startsWith("()")
-                || method.tryCatchBlocks != null && !method.tryCatchBlocks.isEmpty()
-                || method.instructions == null) return false;
-        int meaningful = 0;
-        for (AbstractInsnNode insn : method.instructions) {
-            if (insn instanceof LabelNode || insn instanceof LineNumberNode || insn instanceof FrameNode) continue;
-            meaningful++;
-            if (insn instanceof JumpInsnNode || insn instanceof TableSwitchInsnNode
-                    || insn instanceof LookupSwitchInsnNode || insn instanceof VarInsnNode
-                    || insn instanceof IincInsnNode || insn.getOpcode() == Opcodes.ATHROW) return false;
+    private Map<Member, Candidate> discoverCandidates(ClassNode owner, IrContext context, int maximum) {
+        Map<Member, Candidate> candidates = new HashMap<>();
+        for (MethodNode method : owner.methods) {
+            if (!accessEligible(method) || hasInstructionTypeAnnotations(method)) continue;
+            try {
+                BytecodeImportResult imported = new BytecodeSsaImporter(context).importMethod(owner.name, method);
+                if (!imported.has(ImportCapability.TYPED_STACK_SSA)) continue;
+                int operations = (int) imported.method().blocks().stream()
+                        .flatMap(block -> block.instructions().stream())
+                        .filter(instruction -> !isProvenanceOnly(instruction)).count();
+                if (operations <= 1 || operations > maximum || directlyRecursive(imported, owner.name, method)) continue;
+                candidates.put(new Member(owner.name, method.name, method.desc),
+                        new Candidate(method, imported, operations));
+            } catch (RuntimeException ignored) {
+                // Unsupported candidates remain ordinary methods.
+            }
         }
-        AbstractInsnNode last = lastMeaningful(method.instructions);
-        return meaningful > 1 && meaningful <= maximum && last != null
-                && last.getOpcode() >= Opcodes.IRETURN && last.getOpcode() <= Opcodes.RETURN;
+        return candidates;
     }
 
-    private InsnList cloneBody(MethodNode method) {
-        Map<LabelNode, LabelNode> labels = new HashMap<>();
-        for (AbstractInsnNode insn : method.instructions) {
-            if (insn instanceof LabelNode label) labels.put(label, new LabelNode());
-        }
-        InsnList result = new InsnList();
-        AbstractInsnNode last = lastMeaningful(method.instructions);
-        for (AbstractInsnNode insn : method.instructions) {
-            if (insn == last || insn instanceof LineNumberNode || insn instanceof FrameNode) continue;
-            result.add(insn.clone(labels));
-        }
-        return result;
+    private boolean accessEligible(MethodNode method) {
+        return (method.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC))
+                == (Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC)
+                && (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNCHRONIZED)) == 0
+                && !method.name.startsWith("<") && method.instructions != null
+                && (method.tryCatchBlocks == null || method.tryCatchBlocks.isEmpty());
     }
 
-    private AbstractInsnNode lastMeaningful(InsnList instructions) {
-        for (AbstractInsnNode insn = instructions.getLast(); insn != null; insn = insn.getPrevious()) {
-            if (!(insn instanceof LabelNode || insn instanceof LineNumberNode || insn instanceof FrameNode)) return insn;
-        }
-        return null;
+    private boolean isProvenanceOnly(IrInstruction instruction) {
+        return instruction.operation().code().equals(CoreOps.NOP)
+                || instruction.operation().code().equals(CoreOps.LOCAL_WRITE)
+                || instruction.operation().code().equals(CoreOps.STACK_PERMUTE);
     }
 
-    private boolean containsCall(MethodNode method, String owner, String name, String desc) {
-        for (AbstractInsnNode insn : method.instructions) {
-            if (insn instanceof MethodInsnNode call && call.owner.equals(owner)
-                    && call.name.equals(name) && call.desc.equals(desc)) return true;
+    private boolean directlyRecursive(BytecodeImportResult imported, String owner, MethodNode method) {
+        Member self = new Member(owner, method.name, method.desc);
+        return imported.method().blocks().stream().flatMap(block -> block.instructions().stream())
+                .filter(instruction -> instruction.operation().code().equals(CoreOps.INVOKE))
+                .anyMatch(instruction -> self.equals(invokedMember(instruction)));
+    }
+
+    private Member invokedMember(IrInstruction instruction) {
+        return new Member(stringAttribute(instruction, "owner"), stringAttribute(instruction, "name"),
+                stringAttribute(instruction, "descriptor"));
+    }
+
+    private String stringAttribute(IrInstruction instruction, String name) {
+        IrAttribute value = instruction.operation().attributes().get(name);
+        return value instanceof IrAttribute.StringValue string ? string.value() : "";
+    }
+
+    private boolean hasInstructionTypeAnnotations(MethodNode method) {
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction.visibleTypeAnnotations != null && !instruction.visibleTypeAnnotations.isEmpty()
+                    || instruction.invisibleTypeAnnotations != null && !instruction.invisibleTypeAnnotations.isEmpty()) return true;
         }
         return false;
     }
 
-    private boolean hasCallSite(ClassNode node, MethodNode target) {
+    private boolean hasReference(ClassNode node, MethodNode target) {
         for (MethodNode method : node.methods) {
             if (method == target || method.instructions == null) continue;
-            if (containsCall(method, node.name, target.name, target.desc)) return true;
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call && call.owner.equals(node.name)
+                        && call.name.equals(target.name) && call.desc.equals(target.desc)) return true;
+                if (instruction instanceof InvokeDynamicInsnNode dynamic) {
+                    if (matches(dynamic.bsm, node.name, target)
+                            || java.util.Arrays.stream(dynamic.bsmArgs)
+                            .anyMatch(value -> references(value, node.name, target))) return true;
+                }
+                if (instruction instanceof LdcInsnNode ldc && references(ldc.cst, node.name, target)) return true;
+            }
         }
         return false;
+    }
+
+    private boolean references(Object value, String owner, MethodNode target) {
+        if (value instanceof Handle handle) return matches(handle, owner, target);
+        if (value instanceof ConstantDynamic dynamic) {
+            if (matches(dynamic.getBootstrapMethod(), owner, target)) return true;
+            for (int index = 0; index < dynamic.getBootstrapMethodArgumentCount(); index++) {
+                if (references(dynamic.getBootstrapMethodArgument(index), owner, target)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matches(Handle handle, String owner, MethodNode target) {
+        return handle.getOwner().equals(owner) && handle.getName().equals(target.name)
+                && handle.getDesc().equals(target.desc) && handle.getTag() > Opcodes.H_PUTSTATIC;
     }
 
     private int intOption(Context context, String key, int fallback, int min, int max) {

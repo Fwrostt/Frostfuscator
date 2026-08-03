@@ -5,7 +5,9 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.transformer.rename.MethodNameAllocator;
+import dev.frost.ir.pass.StringReconstructionPass;
 import dev.frost.obfuscator.util.AccessHelper;
 import dev.frost.obfuscator.util.ASMHelper;
 import org.objectweb.asm.Label;
@@ -34,6 +36,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -41,9 +44,10 @@ import java.util.Set;
 /**
  * Splits executable string constants into independently encoded fragments.
  *
- * <p>Fragments, assembly methods, and optional relay methods are injected into
- * safe pre-existing application classes. The original use site retains only
- * one relocated call. This pass runs before mapping collection, so all injected
+ * <p>Compact assembly methods and optional relay methods are injected into safe
+ * pre-existing application classes. Each assembly method contains independently
+ * encoded fragments, while the original use site retains only one typed IR call.
+ * This pass runs before mapping collection, so all injected
  * owners, members, and call sites participate in later renaming, flow,
  * indirection, and {@link StringEncryptionTransformer} passes.</p>
  */
@@ -152,7 +156,6 @@ public final class StringSplittingTransformer extends Transformer {
 
         List<SplitPlan> plans = new ArrayList<>(sites.size());
         Map<MethodNode, Integer> projectedMethodSizes = new IdentityHashMap<>();
-        int fragmentCount = 0;
         int skippedForGrowth = 0;
         for (StringSite site : sites) {
             List<String> fragments = split(site.value(), minimumFragments, maximumFragments,
@@ -171,7 +174,6 @@ public final class StringSplittingTransformer extends Transformer {
             }
             projectedMethodSizes.put(site.method(), projectedSize);
             plans.add(new SplitPlan(site, fragments));
-            fragmentCount += fragments.size();
         }
         if (plans.isEmpty()) {
             return new Result(0, 0, 0);
@@ -182,6 +184,9 @@ public final class StringSplittingTransformer extends Transformer {
                 .toList();
         Map<ClassNode, Carrier> carrierStates = new IdentityHashMap<>();
         Set<ClassNode> touchedCarriers = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<MethodNode, Map<Long, List<StringReconstructionPass.Accessor>>> irReconstructions =
+                new IdentityHashMap<>();
+        Map<MethodNode, Integer> irFragmentCounts = new IdentityHashMap<>();
 
         for (SplitPlan plan : plans) {
             List<ClassNode> available = availableCarriers(
@@ -190,53 +195,28 @@ public final class StringSplittingTransformer extends Transformer {
                     requestedCarriers,
                     random
             );
-            ClassNode assemblyHost = chooseRemoteFirst(plan.site().owner(), available, random);
-            List<ClassNode> relayHosts = chooseRelayHosts(
-                    plan.site().owner(),
-                    assemblyHost,
-                    available,
-                    indirectionDepth,
-                    random
-            );
-
-            List<FragmentReference> references = new ArrayList<>(plan.fragments().size());
-            int step = coprimeStep(available.size(), random);
-            int cursor = random.nextInt(available.size());
-            for (String fragment : plan.fragments()) {
-                ClassNode carrierNode = available.get(cursor);
-                Carrier carrier = carrierStates.computeIfAbsent(carrierNode, Carrier::new);
-                references.add(addFragmentAccessor(
-                        carrier,
-                        assemblyHost.name,
-                        fragment,
-                        encodeFragments,
-                        random,
-                        methodNames
-                ));
-                touchedCarriers.add(carrierNode);
-                cursor = Math.floorMod(cursor + step, available.size());
-            }
-
-            String immediateCaller = relayHosts.isEmpty()
-                    ? plan.site().owner().name
-                    : relayHosts.get(relayHosts.size() - 1).name;
+            ClassNode entryHost = chooseRemoteFirst(plan.site().owner(), available, random);
+            Carrier entryCarrier = carrierStates.computeIfAbsent(entryHost, Carrier::new);
             FragmentReference entry = addAssemblyMethod(
-                    assemblyHost,
-                    immediateCaller,
-                    references,
+                    entryCarrier,
+                    plan.site().owner().name,
+                    plan.fragments(),
+                    encodeFragments,
+                    random,
                     methodNames
             );
-            touchedCarriers.add(assemblyHost);
-
-            for (int i = relayHosts.size() - 1; i >= 0; i--) {
-                ClassNode relayHost = relayHosts.get(i);
-                String relayCaller = i == 0
-                        ? plan.site().owner().name
-                        : relayHosts.get(i - 1).name;
-                entry = addRelayMethod(relayHost, relayCaller, entry, methodNames);
+            touchedCarriers.add(entryHost);
+            for (int depth = 0; depth < indirectionDepth; depth++) {
+                ClassNode relayHost = available.get(random.nextInt(available.size()));
+                entry = addRelayMethod(relayHost, plan.site().owner().name, entry, methodNames);
                 touchedCarriers.add(relayHost);
             }
-            replaceWithCall(plan.site(), entry);
+
+            long sourceIndex = plan.site().method().instructions.indexOf(plan.site().literal());
+            irReconstructions.computeIfAbsent(plan.site().method(), ignored -> new LinkedHashMap<>())
+                    .put(sourceIndex, List.of(new StringReconstructionPass.Accessor(
+                            entry.owner(), entry.method(), FRAGMENT_METHOD_DESC)));
+            irFragmentCounts.merge(plan.site().method(), plan.fragments().size(), Integer::sum);
 
             for (int i = 0; i < decoysPerString; i++) {
                 ClassNode decoyNode = available.get(random.nextInt(available.size()));
@@ -245,7 +225,23 @@ public final class StringSplittingTransformer extends Transformer {
                         random, methodNames);
                 touchedCarriers.add(decoyNode);
             }
-            pool.markDirty(plan.site().owner().name);
+        }
+
+        int reconstructedStrings = 0;
+        int reconstructedFragments = 0;
+        IrMethodPassAdapter adapter = new IrMethodPassAdapter();
+        for (Map.Entry<MethodNode, Map<Long, List<StringReconstructionPass.Accessor>>> entry
+                : irReconstructions.entrySet()) {
+            MethodNode method = entry.getKey();
+            String owner = plans.stream().filter(plan -> plan.site().method() == method)
+                    .map(plan -> plan.site().owner().name).findFirst().orElseThrow();
+            var result = adapter.run(owner, method, new StringReconstructionPass(entry.getValue()),
+                    random.nextLong());
+            if (!result.changed()) continue;
+            IrMethodPassAdapter.publishBody(method, result.output().orElseThrow());
+            reconstructedStrings += Math.toIntExact(result.metric("strings"));
+            reconstructedFragments += irFragmentCounts.getOrDefault(method, 0);
+            pool.markFramesDirty(owner);
         }
 
         for (ClassNode carrier : touchedCarriers) {
@@ -253,9 +249,9 @@ public final class StringSplittingTransformer extends Transformer {
         }
 
         log("Split {} strings into {} live fragments inside {} existing classes ({} decoys, {} materialized fields, {} normalized concats, {} growth-limited)",
-                plans.size(), fragmentCount, touchedCarriers.size(), plans.size() * decoysPerString,
+                reconstructedStrings, reconstructedFragments, touchedCarriers.size(), plans.size() * decoysPerString,
                 materializedFields, normalizedConcats, skippedForGrowth);
-        return new Result(plans.size(), fragmentCount, touchedCarriers.size());
+        return new Result(reconstructedStrings, reconstructedFragments, touchedCarriers.size());
     }
 
     private boolean usesNameBasedReflection(ClassNode owner) {
@@ -593,10 +589,13 @@ public final class StringSplittingTransformer extends Transformer {
         return new FragmentReference(carrier.node().name, methodName);
     }
 
-    private FragmentReference addAssemblyMethod(ClassNode owner,
+    private FragmentReference addAssemblyMethod(Carrier carrier,
                                                 String callerOwner,
-                                                List<FragmentReference> references,
+                                                List<String> fragments,
+                                                boolean encode,
+                                                Random random,
                                                 GeneratedMethodNamer methodNames) {
+        ClassNode owner = carrier.node();
         String methodName = methodNames.next(owner, FRAGMENT_METHOD_DESC);
         MethodNode method = new MethodNode(
                 injectedMethodAccess(callerOwner, owner),
@@ -615,14 +614,31 @@ public final class StringSplittingTransformer extends Transformer {
                 "()V",
                 false
         ));
-        for (FragmentReference reference : references) {
-            instructions.add(new MethodInsnNode(
-                    Opcodes.INVOKESTATIC,
-                    reference.owner(),
-                    reference.method(),
-                    "()" + STRING_DESC,
-                    false
-            ));
+        for (String fragment : fragments) {
+            if (encode) {
+                if (carrier.decoder() == null) {
+                    String decoder = methodNames.next(owner, DECODER_METHOD_DESC);
+                    addDecoder(owner, decoder);
+                    carrier.decoder(decoder);
+                }
+                int key;
+                String encoded;
+                do {
+                    key = random.nextInt();
+                    encoded = encode(fragment, key);
+                } while (key == 0 || encoded.equals(fragment));
+                instructions.add(new LdcInsnNode(encoded));
+                instructions.add(new LdcInsnNode(key));
+                instructions.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        owner.name,
+                        carrier.decoder(),
+                        DECODER_METHOD_DESC,
+                        false
+                ));
+            } else {
+                instructions.add(new LdcInsnNode(fragment));
+            }
             instructions.add(new MethodInsnNode(
                     Opcodes.INVOKEVIRTUAL,
                     "java/lang/StringBuilder",
@@ -858,26 +874,6 @@ public final class StringSplittingTransformer extends Transformer {
             bytes[i] = (byte) (bytes[i] ^ (key + i * MIX_STEP));
         }
         return Base64.getEncoder().encodeToString(bytes);
-    }
-
-    private int coprimeStep(int modulus, Random random) {
-        if (modulus <= 1) {
-            return 1;
-        }
-        int step;
-        do {
-            step = 1 + random.nextInt(modulus - 1);
-        } while (greatestCommonDivisor(step, modulus) != 1);
-        return step;
-    }
-
-    private int greatestCommonDivisor(int left, int right) {
-        while (right != 0) {
-            int remainder = left % right;
-            left = right;
-            right = remainder;
-        }
-        return Math.abs(left);
     }
 
     private String randomDecoy(Random random) {

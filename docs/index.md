@@ -10,6 +10,7 @@ Frostfuscator is centered on Java bytecode obfuscation, with extra protection, r
 - [GUI](gui.md)
 - [Plugins](plugins.md)
 - [Graph visualization](graphs.md)
+- [Frost-IR architecture](frost-ir.md)
 
 ## How A Run Works
 

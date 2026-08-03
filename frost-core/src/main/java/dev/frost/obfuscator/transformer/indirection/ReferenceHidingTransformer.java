@@ -4,7 +4,12 @@ import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.util.AccessHelper;
+import dev.frost.ir.model.CoreOps;
+import dev.frost.ir.model.IrAttribute;
+import dev.frost.ir.model.Operation;
+import dev.frost.ir.pass.TypedInvocationRewritePass;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
@@ -47,31 +52,51 @@ public class ReferenceHidingTransformer extends Transformer {
             List<ProxyRequest> requests = new ArrayList<>();
             List<FieldProxyRequest> fieldRequests = new ArrayList<>();
             Set<String> usedNames = usedMethodNames(classNode);
-            for (MethodNode method : classNode.methods) {
+            IrMethodPassAdapter adapter = new IrMethodPassAdapter();
+            for (MethodNode method : List.copyOf(classNode.methods)) {
                 if (method.instructions == null || AccessHelper.isInitializer(method)) continue;
                 if (method.instructions.size() > maxMethodInstructions) continue;
-                AbstractInsnNode insn = method.instructions.getFirst();
-                while (insn != null) {
-                    AbstractInsnNode next = insn.getNext();
-                    if (requests.size() + fieldRequests.size() >= maxPerClass) break;
-                    if (insn instanceof MethodInsnNode call && canProxy(pool, applicationMethodAccess, classNode.name, call)
-                            && RANDOM.nextInt(100) < probability) {
+                if (requests.size() + fieldRequests.size() >= maxPerClass) break;
+                List<ProxyRequest> methodRequests = new ArrayList<>();
+                List<FieldProxyRequest> methodFieldRequests = new ArrayList<>();
+                var pass = new TypedInvocationRewritePass((candidate, ignored) -> {
+                    if (requests.size() + fieldRequests.size() + methodRequests.size()
+                            + methodFieldRequests.size() >= maxPerClass || RANDOM.nextInt(100) >= probability) {
+                        return java.util.Optional.empty();
+                    }
+                    if (candidate.instruction().operation().code().equals(CoreOps.INVOKE)) {
+                        int opcode = invokeOpcode(candidate.invokeKind());
+                        if (opcode < 0) return java.util.Optional.empty();
+                        MethodInsnNode call = new MethodInsnNode(opcode, candidate.owner(), candidate.name(),
+                                candidate.descriptor(), candidate.interfaceOwner());
+                        if (!canProxy(pool, applicationMethodAccess, classNode.name, call)) {
+                            return java.util.Optional.empty();
+                        }
                         String proxyName = uniqueMethodName(usedNames);
                         String proxyDesc = proxyDescriptor(call);
-                        requests.add(new ProxyRequest(proxyName, proxyDesc, call));
-                        method.instructions.set(call, new MethodInsnNode(Opcodes.INVOKESTATIC,
-                                classNode.name, proxyName, proxyDesc, false));
-                    } else if (insn instanceof FieldInsnNode fieldInsn && canProxyField(pool, classNode.name, fieldInsn)
-                            && RANDOM.nextInt(100) < probability) {
+                        methodRequests.add(new ProxyRequest(proxyName, proxyDesc, call));
+                        return java.util.Optional.of(staticInvoke(classNode.name, proxyName, proxyDesc));
+                    }
+                    int fieldOpcode = fieldOpcode(candidate.instruction().operation().code());
+                    if (fieldOpcode >= 0) {
+                        FieldInsnNode fieldInsn = new FieldInsnNode(fieldOpcode, candidate.owner(), candidate.name(),
+                                candidate.descriptor());
+                        if (!canProxyField(pool, classNode.name, fieldInsn)) return java.util.Optional.empty();
                         String proxyName = uniqueMethodName(usedNames);
                         String proxyDesc = fieldProxyDescriptor(fieldInsn);
-                        fieldRequests.add(new FieldProxyRequest(proxyName, proxyDesc, fieldInsn));
-                        method.instructions.set(fieldInsn, new MethodInsnNode(Opcodes.INVOKESTATIC,
-                                classNode.name, proxyName, proxyDesc, false));
+                        methodFieldRequests.add(new FieldProxyRequest(proxyName, proxyDesc, fieldInsn));
+                        return java.util.Optional.of(staticInvoke(classNode.name, proxyName, proxyDesc));
                     }
-                    insn = next;
+                    return java.util.Optional.empty();
+                });
+                var result = adapter.run(classNode.name, method, pass, RANDOM.nextLong());
+                if (result.changed()) {
+                    MethodNode output = result.output().orElseThrow();
+                    IrMethodPassAdapter.removeUnreferencedEntryLabel(output);
+                    IrMethodPassAdapter.publishBody(method, output);
+                    requests.addAll(methodRequests);
+                    fieldRequests.addAll(methodFieldRequests);
                 }
-                if (requests.size() + fieldRequests.size() >= maxPerClass) break;
             }
 
             for (ProxyRequest request : requests) {
@@ -81,10 +106,37 @@ public class ReferenceHidingTransformer extends Transformer {
                 classNode.methods.add(buildFieldProxy(request));
             }
             if (!requests.isEmpty() || !fieldRequests.isEmpty()) {
-                pool.markDirty(classNode.name);
+                pool.markFramesDirty(classNode.name);
                 detail("Inserted {} method and {} field reference proxies in {}", requests.size(), fieldRequests.size(), classNode.name);
             }
         });
+    }
+
+    private Operation staticInvoke(String owner, String name, String descriptor) {
+        return new Operation(CoreOps.INVOKE, Map.of(
+                "owner", IrAttribute.of(owner),
+                "name", IrAttribute.of(name),
+                "descriptor", IrAttribute.of(descriptor),
+                "invoke_kind", IrAttribute.of("INVOKESTATIC"),
+                "interface", IrAttribute.of(false)));
+    }
+
+    private int invokeOpcode(String kind) {
+        return switch (kind) {
+            case "INVOKESTATIC" -> Opcodes.INVOKESTATIC;
+            case "INVOKEVIRTUAL" -> Opcodes.INVOKEVIRTUAL;
+            case "INVOKEINTERFACE" -> Opcodes.INVOKEINTERFACE;
+            case "INVOKESPECIAL" -> Opcodes.INVOKESPECIAL;
+            default -> -1;
+        };
+    }
+
+    private int fieldOpcode(dev.frost.ir.model.OperationCode code) {
+        if (code.equals(CoreOps.STATIC_LOAD)) return Opcodes.GETSTATIC;
+        if (code.equals(CoreOps.STATIC_STORE)) return Opcodes.PUTSTATIC;
+        if (code.equals(CoreOps.FIELD_LOAD)) return Opcodes.GETFIELD;
+        if (code.equals(CoreOps.FIELD_STORE)) return Opcodes.PUTFIELD;
+        return -1;
     }
 
     private boolean canProxyField(ClassPool pool, String caller, FieldInsnNode field) {

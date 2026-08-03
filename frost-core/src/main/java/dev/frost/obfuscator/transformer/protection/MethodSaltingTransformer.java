@@ -4,7 +4,9 @@ import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.util.Logger;
+import dev.frost.ir.pass.MethodSaltingPass;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
@@ -44,8 +46,11 @@ public class MethodSaltingTransformer extends Transformer {
                 Random random = new Random(seed ^ classNode.name.hashCode() ^ method.name.hashCode());
                 if (random.nextInt(100) >= probability) continue;
 
-                int saltsAdded = injectMethodSalts(method, maxSaltsPerMethod, random);
+                var result = new IrMethodPassAdapter().run(classNode.name, method,
+                        new MethodSaltingPass(maxSaltsPerMethod), random.nextLong());
+                int saltsAdded = result.changed() ? Math.toIntExact(result.metric("salts")) : 0;
                 if (saltsAdded > 0) {
+                    IrMethodPassAdapter.publishBody(method, result.output().orElseThrow());
                     saltedMethods.increment();
                     classChanged = true;
                 }
@@ -56,45 +61,4 @@ public class MethodSaltingTransformer extends Transformer {
         Logger.info("Salted {} method(s) with unique opcode sequences", saltedMethods.sum());
     }
 
-    private int injectMethodSalts(MethodNode method, int maxSalts, Random random) {
-        InsnList insns = method.instructions;
-        AbstractInsnNode[] nodes = insns.toArray();
-        int count = 0;
-
-        for (AbstractInsnNode node : nodes) {
-            if (count >= maxSalts) break;
-            if (node instanceof LineNumberNode || node instanceof LabelNode || node instanceof FrameNode) continue;
-
-            InsnList saltSequence = generateSalt(random);
-            insns.insertBefore(node, saltSequence);
-            count++;
-        }
-        return count;
-    }
-
-    private InsnList generateSalt(Random random) {
-        InsnList salt = new InsnList();
-        int type = random.nextInt(4);
-
-        switch (type) {
-            case 0 -> {
-                salt.add(new InsnNode(Opcodes.ICONST_0));
-                salt.add(new InsnNode(Opcodes.POP));
-            }
-            case 1 -> {
-                salt.add(new InsnNode(Opcodes.LCONST_0));
-                salt.add(new InsnNode(Opcodes.POP2));
-            }
-            case 2 -> {
-                salt.add(new InsnNode(Opcodes.ACONST_NULL));
-                salt.add(new InsnNode(Opcodes.POP));
-            }
-            case 3 -> {
-                salt.add(new InsnNode(Opcodes.ICONST_1));
-                salt.add(new InsnNode(Opcodes.INEG));
-                salt.add(new InsnNode(Opcodes.POP));
-            }
-        }
-        return salt;
-    }
 }

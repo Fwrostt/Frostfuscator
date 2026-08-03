@@ -4,126 +4,48 @@ import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.*;
-
+import dev.frost.obfuscator.transformer.flow.ssa.SsaFlowSwitchPass;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.MethodNode;
 
 public class FlowSwitchTransformer extends Transformer {
-
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    @Override
-    public String getName() {
-        return "flow-switch";
-    }
-
-    @Override
-    public boolean runsPostRemap() {
-        return true;
-    }
+    @Override public String getName() { return "flow-switch"; }
+    @Override public boolean runsPostRemap() { return true; }
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
-        int probability = clamp(getIntOption(config, "probability", 75), 0, 100);
+        int probability = clamp(config.getOptionInt("probability", 75), 0, 100);
+        long configuredSeed = config.getOptionLong("seed", 0L);
+        long runSeed = configuredSeed == 0L ? RANDOM.nextLong() : configuredSeed;
+        IrMethodPassAdapter adapter = new IrMethodPassAdapter();
 
         pool.forEachClass(classNode -> {
-            if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
-                return;
-            }
-
-            int changed = 0;
-            for (MethodNode method : classNode.methods) {
-                if (method.instructions == null || method.instructions.size() == 0) continue;
-
-                AbstractInsnNode insn = method.instructions.getFirst();
-                while (insn != null) {
-                    AbstractInsnNode next = insn.getNext();
-                    if (RANDOM.nextInt(100) >= probability) {
-                        insn = next;
-                        continue;
-                    }
-
-                    if (insn instanceof TableSwitchInsnNode tableSwitch) {
-                        if (rewriteTableSwitch(method, tableSwitch)) changed++;
-                    } else if (insn instanceof LookupSwitchInsnNode lookupSwitch) {
-                        if (rewriteLookupSwitch(method, lookupSwitch)) changed++;
-                    }
-                    insn = next;
+            if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) return;
+            long changed = 0, skipped = 0;
+            for (int index = 0; index < classNode.methods.size(); index++) {
+                MethodNode method = classNode.methods.get(index);
+                if (method.instructions == null || method.instructions.size() == 0
+                        || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+                long seed = runSeed ^ classNode.name.hashCode() ^ method.name.hashCode() ^ method.desc.hashCode();
+                var result = adapter.run(classNode.name, method, new SsaFlowSwitchPass(probability), seed);
+                if (result.changed()) {
+                    classNode.methods.set(index, result.output().orElseThrow());
+                    changed += result.metric("convertedConditions") + result.metric("hashedSwitches");
+                } else if (result.status() != IrMethodPassAdapter.Status.UNCHANGED) {
+                    skipped++;
                 }
             }
-
             if (changed > 0) {
                 pool.markFramesDirty(classNode.name);
-                detail("Hashed {} switch dispatches in {}", changed, classNode.name);
+                detail("Rewrote {} SSA switch dispatches in {}", changed, classNode.name);
             }
+            if (skipped > 0) detail("Safely skipped {} non-lowerable switch method(s) in {}", skipped, classNode.name);
         });
     }
 
-    private boolean rewriteTableSwitch(MethodNode method, TableSwitchInsnNode node) {
-        int seed = nonZeroRandom();
-        List<SwitchCase> cases = new ArrayList<>();
-        for (int i = 0; i < node.labels.size(); i++) {
-            cases.add(new SwitchCase((node.min + i) ^ seed, node.labels.get(i)));
-        }
-        cases.sort(Comparator.comparingInt(c -> c.key));
-
-        int[] keys = cases.stream().mapToInt(c -> c.key).toArray();
-        LabelNode[] labels = cases.stream().map(c -> c.label).toArray(LabelNode[]::new);
-        InsnList prefix = new InsnList();
-        prefix.add(new LdcInsnNode(seed));
-        prefix.add(new InsnNode(Opcodes.IXOR));
-        method.instructions.insertBefore(node, prefix);
-        method.instructions.set(node, new LookupSwitchInsnNode(node.dflt, keys, labels));
-        return true;
-    }
-
-    private boolean rewriteLookupSwitch(MethodNode method, LookupSwitchInsnNode node) {
-        int seed = nonZeroRandom();
-        List<SwitchCase> cases = new ArrayList<>();
-        for (int i = 0; i < node.keys.size(); i++) {
-            cases.add(new SwitchCase(node.keys.get(i) ^ seed, node.labels.get(i)));
-        }
-        cases.sort(Comparator.comparingInt(c -> c.key));
-
-        int[] keys = cases.stream().mapToInt(c -> c.key).toArray();
-        LabelNode[] labels = cases.stream().map(c -> c.label).toArray(LabelNode[]::new);
-        InsnList prefix = new InsnList();
-        prefix.add(new LdcInsnNode(seed));
-        prefix.add(new InsnNode(Opcodes.IXOR));
-        method.instructions.insertBefore(node, prefix);
-        method.instructions.set(node, new LookupSwitchInsnNode(node.dflt, keys, labels));
-        return true;
-    }
-
-    private int nonZeroRandom() {
-        int value;
-        do {
-            value = RANDOM.nextInt();
-        } while (value == 0);
-        return value;
-    }
-
-    private int getIntOption(TransformerConfig config, String key, int defaultValue) {
-        Object value = config.getOptions().get(key);
-        if (value instanceof Number n) return n.intValue();
-        if (value != null) {
-            try {
-                return Integer.parseInt(value.toString());
-            } catch (NumberFormatException ignored) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
-
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private record SwitchCase(int key, LabelNode label) {
-    }
+    private int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
 }

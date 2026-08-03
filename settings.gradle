@@ -16,6 +16,7 @@ rootProject.name = 'Frostfuscator'
 
 include 'frost-api'
 include 'frost-graph'
+include 'frost-ir'
 include 'frost-runtime'
 include 'frost-core'
 include 'frost-cli'

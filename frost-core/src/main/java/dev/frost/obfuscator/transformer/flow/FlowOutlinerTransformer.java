@@ -5,6 +5,8 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.obfuscator.transformer.phase5.SsaExpressionOutliningPass;
 import dev.frost.obfuscator.util.AccessHelper;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -44,6 +46,14 @@ public class FlowOutlinerTransformer extends Transformer {
         int maxPerClass = Math.max(0, getIntOption(config, "max-per-class", 16));
         LongAdder outlinedCount = new LongAdder();
         LongAdder retainedCount = new LongAdder();
+        LongAdder ssaOutlinedCount = new LongAdder();
+        LongAdder asmFallbackCount = new LongAdder();
+        LongAdder ssaFallbackCount = new LongAdder();
+        int minimumSlice = Math.max(3, getIntOption(config, "ssa-min-slice-instructions", 5));
+        int maximumSlice = Math.max(minimumSlice,
+                getIntOption(config, "ssa-max-slice-instructions", 64));
+        int maximumCaptureSlots = Math.max(1, getIntOption(config, "ssa-max-capture-slots", 16));
+        IrMethodPassAdapter irAdapter = new IrMethodPassAdapter();
 
         pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())
@@ -55,14 +65,34 @@ public class FlowOutlinerTransformer extends Transformer {
             List<MethodNode> additions = new ArrayList<>();
             for (MethodNode method : new ArrayList<>(classNode.methods)) {
                 if (changed >= maxPerClass) break;
-                if (!canOutline(method) || RANDOM.nextInt(100) >= probability) continue;
+                if ((!canSsaOutline(method) && !canOutline(method))
+                        || RANDOM.nextInt(100) >= probability) continue;
 
                 try {
                     String outlinedName = uniqueMethodName(classNode, additions);
+                    if (canSsaOutline(method)) {
+                        SsaExpressionOutliningPass pass = new SsaExpressionOutliningPass(
+                                classNode.name, outlinedName, minimumSlice, maximumSlice, maximumCaptureSlots);
+                        IrMethodPassAdapter.Result result = irAdapter.run(classNode.name, method, pass,
+                                stableSeed(classNode.name, method));
+                        if (result.changed()) {
+                            int methodIndex = classNode.methods.indexOf(method);
+                            if (methodIndex >= 0) classNode.methods.set(methodIndex, result.output().orElseThrow());
+                            additions.add(pass.buildHelper());
+                            changed++;
+                            ssaOutlinedCount.increment();
+                            continue;
+                        }
+                        if (result.status() != IrMethodPassAdapter.Status.UNCHANGED) {
+                            ssaFallbackCount.increment();
+                        }
+                    }
+                    if (!canOutline(method)) continue;
                     MethodNode outlined = cloneAsOutlined(method, outlinedName);
                     replaceWithDelegate(classNode.name, method, outlinedName);
                     additions.add(outlined);
                     changed++;
+                    asmFallbackCount.increment();
                 } catch (RuntimeException exception) {
                     retainedCount.increment();
                     detail("Retained method {}{} in {} because its instruction metadata could not be outlined",
@@ -77,7 +107,12 @@ public class FlowOutlinerTransformer extends Transformer {
                 detail("Outlined {} method bodies in {}", changed, classNode.name);
             }
         });
-        if (context != null) context.stats().add("outlinedMethods", outlinedCount.sum());
+        if (context != null) {
+            context.stats().add("outlinedMethods", outlinedCount.sum());
+            context.stats().add("ssaOutlinedSlices", ssaOutlinedCount.sum());
+            context.stats().add("flowOutlinerAsmFallbackMethods", asmFallbackCount.sum());
+            context.stats().add("flowOutlinerSsaFallbackMethods", ssaFallbackCount.sum());
+        }
         if (retainedCount.sum() > 0) {
             log("Safely retained {} method(s) with incompatible instruction metadata", retainedCount.sum());
         }
@@ -91,6 +126,25 @@ public class FlowOutlinerTransformer extends Transformer {
         if ((method.access & Opcodes.ACC_SYNTHETIC) != 0) return false;
         if (method.instructions == null || method.instructions.size() < 8) return false;
         return method.tryCatchBlocks == null || method.tryCatchBlocks.isEmpty();
+    }
+
+    private boolean canSsaOutline(MethodNode method) {
+        if (method == null || method.name == null || method.desc == null) return false;
+        if (AccessHelper.isInitializer(method)) return false;
+        if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC
+                | Opcodes.ACC_SYNCHRONIZED | Opcodes.ACC_BRIDGE)) != 0) return false;
+        if (method.instructions == null || method.instructions.size() < 8) return false;
+        return method.tryCatchBlocks == null || method.tryCatchBlocks.isEmpty();
+    }
+
+    private long stableSeed(String owner, MethodNode method) {
+        long hash = 0xcbf29ce484222325L;
+        String identity = owner + '.' + method.name + method.desc;
+        for (int index = 0; index < identity.length(); index++) {
+            hash ^= identity.charAt(index);
+            hash *= 0x100000001b3L;
+        }
+        return hash;
     }
 
     private MethodNode cloneAsOutlined(MethodNode original, String name) {

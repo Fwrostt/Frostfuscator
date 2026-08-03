@@ -5,6 +5,8 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.obfuscator.transformer.phase5.SsaThreadInterleavingPass;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -71,6 +73,9 @@ public final class ThreadInterleavedFlowTransformer extends Transformer {
         context.stats().add("threadInterleavedExpressions", counts.expressions.sum());
         context.stats().add("threadInterleavedWorkers", counts.workers.sum());
         context.stats().add("threadInterleavedRejectedMethods", counts.rejectedMethods.sum());
+        context.stats().add("threadInterleavedSsaExpressions", counts.ssaExpressions.sum());
+        context.stats().add("threadInterleavedAsmFallbackExpressions", counts.asmFallbackExpressions.sum());
+        context.stats().add("threadInterleavedSsaFallbackMethods", counts.ssaFallbackMethods.sum());
     }
 
     @Override
@@ -85,6 +90,7 @@ public final class ThreadInterleavedFlowTransformer extends Transformer {
         Set<String> reservedNames = java.util.concurrent.ConcurrentHashMap.newKeySet();
         reservedNames.addAll(pool.getClassMap().keySet());
         Counts counts = new Counts();
+        IrMethodPassAdapter irAdapter = new IrMethodPassAdapter();
 
         pool.forEachClass(owner -> {
             if (!eligibleClass(owner, config, pool)) return;
@@ -99,6 +105,36 @@ public final class ThreadInterleavedFlowTransformer extends Transformer {
                     counts.rejectedMethods.increment();
                     methodIndex++;
                     continue;
+                }
+
+                if (changedInClass < options.maximumPerClass && options.maximumPerMethod > 0) {
+                    String leftName = uniqueWorkerName(owner.name, methodIndex, 0, 0,
+                            random, reservedNames);
+                    String rightName = uniqueWorkerName(owner.name, methodIndex, 0, 1,
+                            random, reservedNames);
+                    SsaThreadInterleavingPass ssaPass = new SsaThreadInterleavingPass(
+                            owner.version, leftName, rightName, options.probability,
+                            options.minimumBranchInstructions, options.minimumExpressionInstructions,
+                            options.maximumExpressionInstructions, options.maximumCaptureSlots);
+                    IrMethodPassAdapter.Result ssa = irAdapter.run(owner.name, method, ssaPass,
+                            runSeed ^ owner.name.hashCode() ^ method.name.hashCode() ^ method.desc.hashCode());
+                    if (ssa.changed() && ssa.output().orElseThrow().instructions.size()
+                            <= options.maximumOutputInstructions) {
+                        int liveIndex = owner.methods.indexOf(method);
+                        if (liveIndex >= 0) owner.methods.set(liveIndex, ssa.output().orElseThrow());
+                        additions.addAll(ssaPass.workers());
+                        changedInClass++;
+                        counts.expressions.increment();
+                        counts.workers.add(2L);
+                        counts.ssaExpressions.increment();
+                        methodIndex++;
+                        continue;
+                    }
+                    reservedNames.remove(leftName);
+                    reservedNames.remove(rightName);
+                    if (ssa.status() != IrMethodPassAdapter.Status.UNCHANGED) {
+                        counts.ssaFallbackMethods.increment();
+                    }
                 }
 
                 List<Candidate> candidates = candidates(method, options);
@@ -133,6 +169,7 @@ public final class ThreadInterleavedFlowTransformer extends Transformer {
                     changedInClass++;
                     counts.expressions.increment();
                     counts.workers.add(2L);
+                    counts.asmFallbackExpressions.increment();
                 }
                 methodIndex++;
             }
@@ -722,6 +759,9 @@ public final class ThreadInterleavedFlowTransformer extends Transformer {
         private final LongAdder expressions = new LongAdder();
         private final LongAdder workers = new LongAdder();
         private final LongAdder rejectedMethods = new LongAdder();
+        private final LongAdder ssaExpressions = new LongAdder();
+        private final LongAdder asmFallbackExpressions = new LongAdder();
+        private final LongAdder ssaFallbackMethods = new LongAdder();
     }
 
     private record Options(int probability, int maximumPerMethod, int maximumPerClass,

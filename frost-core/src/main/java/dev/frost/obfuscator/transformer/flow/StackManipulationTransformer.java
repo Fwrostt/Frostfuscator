@@ -2,12 +2,16 @@ package dev.frost.obfuscator.transformer.flow;
 
 import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
+import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.obfuscator.transformer.phase5.SsaCopyWeavingPass;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.security.SecureRandom;
+import java.util.concurrent.atomic.LongAdder;
 
 public class StackManipulationTransformer extends Transformer {
 
@@ -25,8 +29,21 @@ public class StackManipulationTransformer extends Transformer {
 
     @Override
     public void transform(ClassPool pool, MappingCollector mappings, TransformerConfig config) {
+        transformInternal(pool, config, null);
+    }
+
+    @Override
+    public void transform(Context context) {
+        transformInternal(context.pool(), context.config(), context);
+    }
+
+    private void transformInternal(ClassPool pool, TransformerConfig config, Context context) {
         int probability = clamp(getIntOption(config, "probability", 8), 0, 100);
         int maxPerMethod = Math.max(0, getIntOption(config, "max-per-method", 16));
+        LongAdder ssaCopies = new LongAdder();
+        LongAdder asmSequences = new LongAdder();
+        LongAdder ssaFallbacks = new LongAdder();
+        IrMethodPassAdapter irAdapter = new IrMethodPassAdapter();
 
         pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
@@ -34,9 +51,25 @@ public class StackManipulationTransformer extends Transformer {
             }
 
             int changed = 0;
-            for (MethodNode method : classNode.methods) {
+            boolean framesDirty = false;
+            for (int methodIndex = 0; methodIndex < classNode.methods.size(); methodIndex++) {
+                MethodNode method = classNode.methods.get(methodIndex);
                 if (method.instructions == null || method.instructions.size() == 0) continue;
                 if ((method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+
+                SsaCopyWeavingPass pass = new SsaCopyWeavingPass(
+                        "phase5.stack-register-weaving", probability, maxPerMethod);
+                IrMethodPassAdapter.Result result = irAdapter.run(classNode.name, method, pass,
+                        RANDOM.nextLong() ^ classNode.name.hashCode() ^ method.name.hashCode());
+                if (result.changed()) {
+                    classNode.methods.set(methodIndex, result.output().orElseThrow());
+                    int copies = Math.toIntExact(result.metric("copies"));
+                    changed += copies;
+                    ssaCopies.add(copies);
+                    framesDirty = true;
+                    continue;
+                }
+                if (result.status() != IrMethodPassAdapter.Status.UNCHANGED) ssaFallbacks.increment();
 
                 int inserted = 0;
                 AbstractInsnNode insn = method.instructions.getFirst();
@@ -49,13 +82,20 @@ public class StackManipulationTransformer extends Transformer {
                     insn = next;
                 }
                 changed += inserted;
+                asmSequences.add(inserted);
             }
 
             if (changed > 0) {
-                pool.markDirty(classNode.name);
+                if (framesDirty) pool.markFramesDirty(classNode.name);
+                else pool.markDirty(classNode.name);
                 detail("Inserted {} stack manipulation sequences in {}", changed, classNode.name);
             }
         });
+        if (context != null) {
+            context.stats().add("stackManipulationSsaRegisterCopies", ssaCopies.sum());
+            context.stats().add("stackManipulationAsmFallbackSequences", asmSequences.sum());
+            context.stats().add("stackManipulationSsaFallbackMethods", ssaFallbacks.sum());
+        }
     }
 
     private boolean isSafeAnchor(AbstractInsnNode insn) {

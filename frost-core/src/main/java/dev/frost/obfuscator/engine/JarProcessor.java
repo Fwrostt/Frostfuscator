@@ -47,6 +47,7 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 public class JarProcessor {
+    private static final long MAX_POST_WRITE_VERIFIER_FRAME_CELLS = 1_000_000L;
 
     private static final Object RUNTIME_CACHE_LOCK = new Object();
     private static volatile Map<String, ClassNode> runtimeClassCache;
@@ -989,6 +990,13 @@ public class JarProcessor {
                         for (MethodNode mn : verifyNode.methods) {
                             if (mn.instructions == null || mn.instructions.size() == 0) continue;
                             if ((mn.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+                            long frameWidth = Math.max(1, mn.maxLocals) + (long) Math.max(1, mn.maxStack);
+                            long frameCells = mn.instructions.size() * frameWidth;
+                            if (frameCells > MAX_POST_WRITE_VERIFIER_FRAME_CELLS) {
+                                throw new IllegalStateException("verification budget exceeded by "
+                                        + mn.name + mn.desc + " (" + mn.instructions.size()
+                                        + " instructions, " + frameWidth + " frame slots)");
+                            }
                             org.objectweb.asm.tree.analysis.Analyzer<org.objectweb.asm.tree.analysis.BasicValue> analyzer =
                                     new org.objectweb.asm.tree.analysis.Analyzer<>(new org.objectweb.asm.tree.analysis.BasicVerifier());
                             analyzer.analyze(verifyNode.name, mn);

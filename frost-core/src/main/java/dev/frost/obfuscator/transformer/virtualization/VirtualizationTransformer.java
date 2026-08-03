@@ -5,6 +5,8 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.obfuscator.transformer.phase5.SsaCopyWeavingPass;
 import dev.frost.obfuscator.virtualisation.*;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -53,6 +55,13 @@ public class VirtualizationTransformer extends Transformer {
 
         LongAdder virtualizedCount = new LongAdder();
         LongAdder skippedUnsupported = new LongAdder();
+        LongAdder ssaEncodedCount = new LongAdder();
+        LongAdder asmFallbackCount = new LongAdder();
+        LongAdder ssaPreparationFailures = new LongAdder();
+        IrMethodPassAdapter irAdapter = new IrMethodPassAdapter();
+        int ssaCopyProbability = Math.max(0, Math.min(100,
+                config.getOptionInt("ssa-register-weave-probability", 50)));
+        int ssaMaximumCopies = Math.max(0, config.getOptionInt("ssa-max-register-copies", 6));
 
         pool.forEachClass(cn -> {
             if (isExcluded(cn.name, config, pool.getGlobalExclusions())) {
@@ -73,7 +82,21 @@ public class VirtualizationTransformer extends Transformer {
                 }
 
                 try {
-                    BytecodeTranslator translator = new BytecodeTranslator(mn, opcodeTable);
+                    MethodNode translationSource = mn;
+                    boolean ssaEncoded = false;
+                    SsaCopyWeavingPass preparation = new SsaCopyWeavingPass(
+                            "phase5.virtualization-register-layout", ssaCopyProbability, ssaMaximumCopies);
+                    IrMethodPassAdapter.Result prepared = irAdapter.run(cn.name, mn, preparation,
+                            runSeed ^ cn.name.hashCode() ^ mn.name.hashCode() ^ mn.desc.hashCode());
+                    if (prepared.changed()
+                            && VirtualizationEligibility.isEligible(cn, prepared.output().orElseThrow(), options)) {
+                        translationSource = prepared.output().orElseThrow();
+                        ssaEncoded = true;
+                    } else if (prepared.status() != IrMethodPassAdapter.Status.UNCHANGED) {
+                        ssaPreparationFailures.increment();
+                    }
+
+                    BytecodeTranslator translator = new BytecodeTranslator(translationSource, opcodeTable);
                     BytecodeTranslator.TranslatedMethod tm = translator.translate();
 
                     String bytecodeFieldName = "$frost$vm$bytecode_" + methodIndex;
@@ -100,6 +123,8 @@ public class VirtualizationTransformer extends Transformer {
                     rebuildAsStub(cn, mn, bytecodeFieldName, constPoolFieldName, tm);
 
                     virtualizedCount.increment();
+                    if (ssaEncoded) ssaEncodedCount.increment();
+                    else asmFallbackCount.increment();
                     methodIndex++;
                     pool.markDirty(cn.name);
                 } catch (Exception e) {
@@ -142,6 +167,9 @@ public class VirtualizationTransformer extends Transformer {
 
         context.stats().add("virtualizedMethods", virtualizedCount.sum());
         context.stats().add("virtualizationSkippedUnsupported", skippedUnsupported.sum());
+        context.stats().add("virtualizationSsaEncodedMethods", ssaEncodedCount.sum());
+        context.stats().add("virtualizationAsmFallbackMethods", asmFallbackCount.sum());
+        context.stats().add("virtualizationSsaPreparationFailures", ssaPreparationFailures.sum());
         log("Virtualized {} methods ({} unsupported/skipped by safety gate).", virtualizedCount.sum(), skippedUnsupported.sum());
     }
 

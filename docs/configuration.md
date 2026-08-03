@@ -125,6 +125,7 @@ transformers:
     max-per-method: 48
     max-per-class: 192
     max-method-instructions: 6000
+    max-ir-instructions: 768
     max-output-method-instructions: 12000
     include-synthetic: false
     seed: 0

@@ -218,6 +218,7 @@ dependencies {
 
 | Module | Description |
 | :--- | :--- |
+| [**`frost-ir`**](frost-ir) | Typed SSA compiler infrastructure, analyses, and verification-safe JVM bridge. |
 | [**`frost-core`**](frost-core) | Core ASM obfuscation engine and transformers. |
 | [**`frost-api`**](frost-api) | Standalone API for plugin developers and custom event hooks. |
 | [**`frost-gui`**](frost-gui) | Raycast-inspired JavaFX desktop GUI with dark OLED themes. |

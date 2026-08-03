@@ -8,6 +8,7 @@ import dev.frost.obfuscator.transformer.funsies.DecompilerZipTiesTransformer;
 import dev.frost.obfuscator.transformer.funsies.TrollStackTracesTransformer;
 import dev.frost.obfuscator.transformer.optimization.AggressiveInliningTransformer;
 import dev.frost.obfuscator.transformer.optimization.DeadCodeEliminationTransformer;
+import dev.frost.obfuscator.transformer.optimization.BytecodeOptimizerTransformer;
 import dev.frost.obfuscator.transformer.protection.AntiAttachTransformer;
 import dev.frost.obfuscator.transformer.protection.ArchiveExtractionCanaryTransformer;
 import dev.frost.obfuscator.transformer.protection.RuntimeSelfChecksumTransformer;
@@ -37,7 +38,7 @@ class NewPassesTest {
     Path tempDir;
 
     @Test
-    void inlinesTinyPrivateStaticMethod() {
+    void inlinesTinyPrivateStaticMethod() throws Exception {
         ClassNode node = classNode("example/Inline");
         MethodNode helper = method(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, "answer", "()I",
                 new InsnNode(Opcodes.ICONST_5), new InsnNode(Opcodes.IRETURN));
@@ -51,7 +52,36 @@ class NewPassesTest {
         new AggressiveInliningTransformer().transform(context);
 
         assertFalse(node.methods.contains(helper));
-        assertEquals(Opcodes.ICONST_5, caller.instructions.getFirst().getOpcode());
+        MethodNode transformed = node.methods.stream().filter(method -> method.name.equals("call")).findFirst().orElseThrow();
+        assertFalse(containsCall(transformed, node.name, "answer"));
+        assertTrue(context.pool().requiresFrameComputation(node.name));
+        assertEquals(5, load(node).getMethod("call").invoke(null));
+    }
+
+    @Test
+    void inlinesBranchingSsaGraphWithArguments() throws Exception {
+        ClassNode node = classNode("example/InlineGraph");
+        LabelNode onFalse = new LabelNode();
+        MethodNode helper = method(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, "choose", "(II)I",
+                new VarInsnNode(Opcodes.ILOAD, 0), new JumpInsnNode(Opcodes.IFEQ, onFalse),
+                new VarInsnNode(Opcodes.ILOAD, 0), new VarInsnNode(Opcodes.ILOAD, 1),
+                new InsnNode(Opcodes.IADD), new InsnNode(Opcodes.IRETURN), onFalse,
+                new VarInsnNode(Opcodes.ILOAD, 1), new InsnNode(Opcodes.ICONST_1),
+                new InsnNode(Opcodes.ISUB), new InsnNode(Opcodes.IRETURN));
+        MethodNode caller = method(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "call", "(II)I",
+                new VarInsnNode(Opcodes.ILOAD, 0), new VarInsnNode(Opcodes.ILOAD, 1),
+                new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, "choose", "(II)I", false),
+                new InsnNode(Opcodes.ICONST_2), new InsnNode(Opcodes.IMUL), new InsnNode(Opcodes.IRETURN));
+        node.methods.add(helper);
+        node.methods.add(caller);
+
+        new AggressiveInliningTransformer().transform(context(node, new TransformerConfig()));
+
+        MethodNode transformed = node.methods.stream().filter(method -> method.name.equals("call")).findFirst().orElseThrow();
+        assertFalse(containsCall(transformed, node.name, "choose"));
+        Class<?> type = load(node);
+        assertEquals(14, type.getMethod("call", int.class, int.class).invoke(null, 3, 4));
+        assertEquals(6, type.getMethod("call", int.class, int.class).invoke(null, 0, 4));
     }
 
     @Test
@@ -73,6 +103,50 @@ class NewPassesTest {
         assertTrue(node.methods.contains(live));
         assertFalse(node.methods.contains(dead));
         assertTrue(node.methods.contains(api));
+    }
+
+    @Test
+    void deadCodeEliminationRunsSsaMarkSweepBeforeMemberSweep() throws Exception {
+        ClassNode node = classNode("example/LocalDeadCode");
+        MethodNode compute = method(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "compute", "()I",
+                new InsnNode(Opcodes.ICONST_1), new InsnNode(Opcodes.ICONST_2),
+                new InsnNode(Opcodes.IADD), new InsnNode(Opcodes.POP),
+                new IntInsnNode(Opcodes.BIPUSH, 7), new InsnNode(Opcodes.IRETURN));
+        node.methods.add(compute);
+        Context context = context(node, new TransformerConfig());
+
+        new DeadCodeEliminationTransformer().transform(context);
+
+        MethodNode transformed = node.methods.stream().filter(method -> method.name.equals("compute"))
+                .findFirst().orElseThrow();
+        assertTrue(java.util.stream.Stream.of(transformed.instructions.toArray())
+                .noneMatch(instruction -> instruction.getOpcode() == Opcodes.IADD));
+        assertEquals(7, load(node).getMethod("compute").invoke(null));
+    }
+
+    @Test
+    void bytecodeOptimizerRunsThroughFrostIrAndPublishesVerifiedReplacement() throws Exception {
+        ClassNode node = classNode("example/IrOptimized");
+        MethodNode compute = method(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "compute", "()I",
+                new InsnNode(Opcodes.NOP), new InsnNode(Opcodes.ICONST_1),
+                new InsnNode(Opcodes.ICONST_2), new InsnNode(Opcodes.IADD), new InsnNode(Opcodes.IRETURN));
+        node.methods.add(compute);
+        Context context = context(node, new TransformerConfig());
+
+        new BytecodeOptimizerTransformer().transform(context);
+
+        MethodNode optimized = node.methods.stream().filter(method -> method.name.equals("compute"))
+                .findFirst().orElseThrow();
+        assertTrue(java.util.stream.Stream.of(optimized.instructions.toArray())
+                .noneMatch(instruction -> instruction.getOpcode() == Opcodes.NOP));
+        assertTrue(context.pool().requiresFrameComputation(node.name));
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        node.accept(writer);
+        byte[] bytes = writer.toByteArray();
+        Class<?> type = new ClassLoader(getClass().getClassLoader()) {
+            Class<?> define() { return defineClass("example.IrOptimized", bytes, 0, bytes.length); }
+        }.define();
+        assertEquals(3, type.getMethod("compute").invoke(null));
     }
 
     @Test
@@ -264,6 +338,15 @@ class NewPassesTest {
             }
         }
         return false;
+    }
+
+    private Class<?> load(ClassNode node) {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        node.accept(writer);
+        byte[] bytes = writer.toByteArray();
+        return new ClassLoader(getClass().getClassLoader()) {
+            Class<?> define() { return defineClass(node.name.replace('/', '.'), bytes, 0, bytes.length); }
+        }.define();
     }
 
     private void withResources(Map<String, byte[]> resources, ThrowingRunnable action) throws Exception {

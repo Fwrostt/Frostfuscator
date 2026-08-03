@@ -5,6 +5,8 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.obfuscator.transformer.phase5.StringKeyDataFlowPass;
 import dev.frost.obfuscator.util.AccessHelper;
 import dev.frost.obfuscator.util.ASMHelper;
 import org.objectweb.asm.ConstantDynamic;
@@ -64,6 +66,8 @@ public class StringEncryptionTransformer extends Transformer {
         String mode = config.getOption("mode", "medium").toLowerCase();
         LongAdder encrypted = new LongAdder();
         LongAdder materialized = new LongAdder();
+        LongAdder ssaWovenKeys = new LongAdder();
+        LongAdder ssaFallbackMethods = new LongAdder();
 
         pool.forEachClass(classNode -> {
             if (!shouldProcess(classNode.name, config, pool.getGlobalExclusions(), pool.getGlobalInclusions())) {
@@ -86,16 +90,23 @@ public class StringEncryptionTransformer extends Transformer {
                 return;
             }
 
-            switch (mode) {
+            String generatedDecryptMethod = switch (mode) {
                 case "lite" -> applyLite(classNode, contexts);
                 case "medium" -> applyMedium(classNode, contexts);
                 case "heavy" -> applyHeavy(classNode, contexts);
                 case "condy" -> applyCondy(classNode, contexts);
-                case "polymorphic" -> applyPolymorphic(classNode, contexts);
+                case "polymorphic" -> { applyPolymorphic(classNode, contexts); yield null; }
                 default -> applyMedium(classNode, contexts);
-            }
+            };
 
-            pool.markDirty(classNode.name);
+            int maximumWovenSites = Math.max(0, getIntOption(config, "ssa-max-woven-sites", 64));
+            SsaWeaveCounts weaveCounts = weaveDecryptionKeys(classNode, maximumWovenSites,
+                    generatedDecryptMethod == null ? Set.of() : Set.of(generatedDecryptMethod));
+            ssaWovenKeys.add(weaveCounts.wovenKeys);
+            ssaFallbackMethods.add(weaveCounts.fallbackMethods);
+
+            if (weaveCounts.wovenKeys > 0) pool.markFramesDirty(classNode.name);
+            else pool.markDirty(classNode.name);
             encrypted.add(contexts.size());
             detail("Encrypted {} strings in {} (mode: {}, materialized fields: {})",
                     contexts.size(), classNode.name, mode, materializedConstants);
@@ -103,8 +114,50 @@ public class StringEncryptionTransformer extends Transformer {
         if (context != null) {
             context.stats().add("encryptedStrings", encrypted.sum());
             context.stats().add("materializedStringFields", materialized.sum());
+            context.stats().add("stringEncryptionSsaWovenKeys", ssaWovenKeys.sum());
+            context.stats().add("stringEncryptionSsaFallbackMethods", ssaFallbackMethods.sum());
         }
     }
+
+    private SsaWeaveCounts weaveDecryptionKeys(ClassNode classNode, int maximumSites,
+                                               Set<String> decryptMethods) {
+        if (maximumSites == 0) return new SsaWeaveCounts(0, 0);
+        if (decryptMethods.isEmpty()) return new SsaWeaveCounts(0, 0);
+
+        IrMethodPassAdapter adapter = new IrMethodPassAdapter();
+        long woven = 0;
+        long fallbacks = 0;
+        int remaining = maximumSites;
+        for (int index = 0; index < classNode.methods.size() && remaining > 0; index++) {
+            MethodNode method = classNode.methods.get(index);
+            if (method.instructions == null || method.instructions.size() == 0
+                    || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+            StringKeyDataFlowPass pass = new StringKeyDataFlowPass(classNode.name, decryptMethods, remaining);
+            IrMethodPassAdapter.Result result = adapter.run(classNode.name, method, pass,
+                    stableSeed(classNode.name, method));
+            if (result.changed()) {
+                classNode.methods.set(index, result.output().orElseThrow());
+                long count = result.metric("wovenKeys");
+                woven += count;
+                remaining -= Math.toIntExact(count);
+            } else if (result.status() != IrMethodPassAdapter.Status.UNCHANGED) {
+                fallbacks++;
+            }
+        }
+        return new SsaWeaveCounts(woven, fallbacks);
+    }
+
+    private long stableSeed(String owner, MethodNode method) {
+        long hash = 0xcbf29ce484222325L;
+        String identity = owner + '.' + method.name + method.desc;
+        for (int index = 0; index < identity.length(); index++) {
+            hash ^= identity.charAt(index);
+            hash *= 0x100000001b3L;
+        }
+        return hash;
+    }
+
+    private record SsaWeaveCounts(long wovenKeys, long fallbackMethods) {}
 
     private int materializeStringConstantFields(ClassNode classNode) {
         int changed = 0;
@@ -175,7 +228,7 @@ public class StringEncryptionTransformer extends Transformer {
 
     // region Lite mode
 
-    private void applyLite(ClassNode classNode, List<StringContext> contexts) {
+    private String applyLite(ClassNode classNode, List<StringContext> contexts) {
         int classKey = randomKey();
         String decryptName = randomMethodName(classNode);
         addLiteDecryptMethod(classNode, decryptName, classKey, true);
@@ -188,6 +241,7 @@ public class StringEncryptionTransformer extends Transformer {
                     "([BI)Ljava/lang/String;", false));
             replace(ctx, replacement);
         }
+        return decryptName;
     }
 
     private void addLiteDecryptMethod(ClassNode classNode, String name, int key, boolean antiTamper) {
@@ -274,7 +328,7 @@ public class StringEncryptionTransformer extends Transformer {
 
     // region Medium mode
 
-    private void applyMedium(ClassNode classNode, List<StringContext> contexts) {
+    private String applyMedium(ClassNode classNode, List<StringContext> contexts) {
         int classKey = randomKey();
         String decryptName = randomMethodName(classNode);
         addMediumDecryptMethod(classNode, decryptName, classKey);
@@ -292,6 +346,7 @@ public class StringEncryptionTransformer extends Transformer {
                     "([III)Ljava/lang/String;", false));
             replace(ctx, replacement);
         }
+        return decryptName;
     }
 
     private int[] encryptMedium(byte[] data, int classKey, int stringKey, int variant) {
@@ -401,7 +456,7 @@ public class StringEncryptionTransformer extends Transformer {
 
     // region Condy mode (Java 11+ dynamic constants)
 
-    private void applyCondy(ClassNode classNode, List<StringContext> contexts) {
+    private String applyCondy(ClassNode classNode, List<StringContext> contexts) {
         classNode.version = Math.max(classNode.version, Opcodes.V11);
         String bsmName = randomMethodName(classNode);
         String decryptName = randomMethodName(classNode);
@@ -422,6 +477,7 @@ public class StringEncryptionTransformer extends Transformer {
             replacement.add(new LdcInsnNode(dynamic));
             replace(ctx, replacement);
         }
+        return decryptName;
     }
 
     private void addCondyBootstrapMethod(ClassNode classNode, String name, String decryptName) {
@@ -443,7 +499,7 @@ public class StringEncryptionTransformer extends Transformer {
 
     // region Heavy mode (invokedynamic)
 
-    private void applyHeavy(ClassNode classNode, List<StringContext> contexts) {
+    private String applyHeavy(ClassNode classNode, List<StringContext> contexts) {
         classNode.version = Math.max(classNode.version, Opcodes.V1_7);
         String bsmName = randomMethodName(classNode);
         String decryptName = randomMethodName(classNode);
@@ -461,6 +517,7 @@ public class StringEncryptionTransformer extends Transformer {
             replacement.add(new InvokeDynamicInsnNode(randomIdentifier(), "()Ljava/lang/String;", bootstrap, encrypted, key));
             replace(ctx, replacement);
         }
+        return decryptName;
     }
 
     private String encryptIndy(String value, int key) {

@@ -5,6 +5,12 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.flow.ssa.SsaFlowExceptionPass;
+import dev.frost.obfuscator.transformer.flow.ssa.SsaFlowFlatteningPass;
+import dev.frost.obfuscator.transformer.flow.ssa.SsaFlowObfuscationPass;
+import dev.frost.obfuscator.transformer.flow.ssa.SsaFlowSwitchPass;
+import dev.frost.obfuscator.transformer.flow.ssa.SsaOpaquePredicatePass;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.util.AccessHelper;
 import dev.frost.obfuscator.util.ASMHelper;
 import org.objectweb.asm.Label;
@@ -103,6 +109,7 @@ public class FlowObfuscationTransformer extends Transformer {
                 maximumOutputInstructions
         );
         boolean includeSynthetic = getBooleanOption(config, "include-synthetic", false);
+        IrMethodPassAdapter irAdapter = new IrMethodPassAdapter();
 
         pool.forEachClass(classNode -> {
             ACTIVE_RANDOM.set(new Random(runSeed ^ classNode.name.hashCode()));
@@ -115,7 +122,7 @@ public class FlowObfuscationTransformer extends Transformer {
                 return;
             }
 
-            PredicateClassContext predicateContext = ensurePredicateContext(classNode, predicatePolicy);
+            PredicateClassContext predicateContext = predicateContext(classNode.name);
             boolean changed = false;
             for (MethodNode method : new ArrayList<>(classNode.methods)) {
                 if (method.instructions == null || method.instructions.size() == 0) continue;
@@ -126,65 +133,66 @@ public class FlowObfuscationTransformer extends Transformer {
 
                 int methodIndex = classNode.methods.indexOf(method);
                 MethodNode originalMethod = copyMethod(method);
-                FlowMetrics methodMetrics = new FlowMetrics();
-                ACTIVE_METRICS.set(methodMetrics);
                 try {
-                    PredicateBudget predicateBudget = new PredicateBudget(predicatePolicy.costBudget());
-                    LoopProfile loopProfile = loopProfile(method);
-                    // Flatten before exception guards add synthetic handlers.
-                    // The old ordering caused flattening to silently skip every
-                    // method whenever exception-guards was enabled.
-                    if (heavy && flatten && random().nextInt(100) < flattenPolicy.probability()) {
-                        flattenMethod(
-                                predicateContext,
-                                method,
-                                flattenPolicy,
-                                loopProfile
-                        );
+                    long methodSeed = runSeed ^ classNode.name.hashCode() ^ method.name.hashCode() ^ method.desc.hashCode();
+                    boolean flattenMethod = heavy && flatten && !AccessHelper.isInitializer(method)
+                            && random().nextInt(100) < flattenPolicy.probability();
+                    SsaFlowObfuscationPass pass = new SsaFlowObfuscationPass(
+                            flattenMethod,
+                            exceptionGuards && !AccessHelper.isInitializer(method),
+                            heavy,
+                            new SsaFlowFlatteningPass(
+                                    flattenPolicy.minimumBlocks(),
+                                    flattenPolicy.maximumBlocks(),
+                                    flattenPolicy.maximumExceptionHandlers(),
+                                    flattenPolicy.fakeStates()
+                            ),
+                            new SsaFlowExceptionPass(100, 1, predicateContext.keyB()),
+                            new SsaFlowSwitchPass(50),
+                            new SsaOpaquePredicatePass(
+                                    lite || medium || heavy,
+                                    heavy,
+                                    predicateRate,
+                                    maxPredicatesPerMethod,
+                                    predicateContext.keyA(),
+                                    config.getOption("predicate-families", "arithmetic,bitwise,reversible"),
+                                    config.getOption("predicate-sources", "volatile,thread,environment,time"),
+                                    predicatePolicy.camouflageRate()
+                            )
+                    );
+                    var irResult = irAdapter.run(classNode.name, method, pass, methodSeed);
+                    if (irResult.status() == IrMethodPassAdapter.Status.UNSUPPORTED
+                            || irResult.status() == IrMethodPassAdapter.Status.PASS_FAILED
+                            || irResult.status() == IrMethodPassAdapter.Status.LOWERING_FAILED) {
+                        metrics.skippedMethods.increment();
+                        detail("Kept original bytecode for {}.{} after SSA flow fallback: {}",
+                                classNode.name, method.name, irResult.message());
+                        continue;
                     }
-                    if (!AccessHelper.isInitializer(method)) {
-                        if (exceptionGuards) {
-                            exceptionGuard(
-                                    classNode.name,
-                                    predicateContext,
-                                    method,
-                                    predicatePolicy,
-                                    predicateBudget,
-                                    loopProfile,
-                                    maximumOutputInstructions
-                            );
-                        }
-                        if (stackNoise) stackNoise(method);
+
+                    MethodNode transformed = irResult.output().orElse(method);
+                    boolean methodChanged = irResult.changed();
+                    if (irResult.changed()) {
+                        metrics.predicates.add(irResult.metric("predicates"));
+                        metrics.flattenedMethods.add(irResult.metric("flattenedMethods"));
+                        metrics.fakeStates.add(irResult.metric("fakeStates"));
                     }
-                    if (lite || medium || heavy) {
-                        opaqueGoto(
-                                classNode.name,
-                                predicateContext,
-                                method,
-                                predicatePolicy,
-                                predicateBudget,
-                                loopProfile,
-                                maximumOutputInstructions
-                        );
+                    if (!AccessHelper.isInitializer(transformed) && stackNoise) {
+                        stackNoise(transformed);
+                        methodChanged = true;
                     }
-                    if (medium) numberObfuscation(method);
-                    if (heavy) {
-                        conditionalToSwitch(method);
-                        scatteredPredicates(
-                                classNode.name,
-                                predicateContext,
-                                method,
-                                predicateRate,
-                                maxPredicatesPerMethod,
-                                predicatePolicy,
-                                predicateBudget,
-                                loopProfile,
-                                maximumOutputInstructions
-                        );
+                    if (medium) {
+                        numberObfuscation(transformed);
+                        methodChanged = true;
                     }
-                    analyzeWithHeadroom(classNode.name, method, true);
-                    metrics.add(methodMetrics);
-                    changed = true;
+                    if (transformed.instructions.size() > maximumOutputInstructions) {
+                        throw new IllegalStateException("SSA flow output exceeded configured instruction limit");
+                    }
+                    analyzeWithHeadroom(classNode.name, transformed, true);
+                    if (methodChanged) {
+                        classNode.methods.set(methodIndex, transformed);
+                        changed = true;
+                    }
                 } catch (Exception e) {
                     if (methodIndex >= 0) classNode.methods.set(methodIndex, originalMethod);
                     metrics.skippedMethods.increment();
@@ -428,6 +436,20 @@ public class FlowObfuscationTransformer extends Transformer {
     // endregion
 
     // region Stateful opaque guards and stack-neutral noise
+
+    private PredicateClassContext predicateContext(String owner) {
+        int keyA;
+        Set<Integer> usedKeys = ACTIVE_CLASS_KEYS.get();
+        do {
+            keyA = nonZeroRandomInt() ^ owner.hashCode();
+        } while (keyA == 0 || usedKeys != null && !usedKeys.add(keyA));
+        int keyB;
+        do {
+            keyB = nonZeroRandomInt();
+        } while (keyB == keyA);
+        int modulus = List.of(3, 5, 7, 11, 13, 17, 19).get(random().nextInt(7));
+        return new PredicateClassContext(owner, null, null, null, keyA, keyB, modulus);
+    }
 
     private PredicateClassContext ensurePredicateContext(ClassNode classNode, PredicatePolicy policy) {
         String stateField = policy.volatileState() ? uniqueFieldName(classNode) : null;

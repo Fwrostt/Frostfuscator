@@ -4,7 +4,12 @@ import dev.frost.obfuscator.engine.ClassPool;
 import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
 import dev.frost.obfuscator.util.AccessHelper;
+import dev.frost.ir.bytecode.JvmBootstrapAttributes;
+import dev.frost.ir.model.CoreOps;
+import dev.frost.ir.model.Operation;
+import dev.frost.ir.pass.TypedInvocationRewritePass;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -41,33 +46,52 @@ public class InvokeDynamicTransformer extends Transformer {
             }
 
             String bootstrapName = uniqueMethodName(classNode);
-            boolean changed = false;
+            int changed = 0;
             Handle bootstrap = new Handle(Opcodes.H_INVOKESTATIC, classNode.name, bootstrapName,
                     "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ILjava/lang/Class;Ljava/lang/String;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;",
                     false);
 
-            for (MethodNode method : classNode.methods) {
+            IrMethodPassAdapter adapter = new IrMethodPassAdapter();
+            for (MethodNode method : java.util.List.copyOf(classNode.methods)) {
                 if (method.instructions == null || AccessHelper.isInitializer(method)) continue;
-                AbstractInsnNode insn = method.instructions.getFirst();
-                while (insn != null) {
-                    AbstractInsnNode next = insn.getNext();
-                    if (insn instanceof MethodInsnNode call && canWrap(pool, applicationMethods, classNode.name, call)
-                            && RANDOM.nextInt(100) < probability) {
-                        method.instructions.set(call, new InvokeDynamicInsnNode(randomIdentifier(), indyDescriptor(call), bootstrap,
-                                call.getOpcode(), Type.getObjectType(call.owner), call.name, Type.getMethodType(call.desc)));
-                        changed = true;
-                    }
-                    insn = next;
+                var pass = new TypedInvocationRewritePass((candidate, ignored) -> {
+                    if (!candidate.instruction().operation().code().equals(CoreOps.INVOKE)
+                            || RANDOM.nextInt(100) >= probability) return java.util.Optional.empty();
+                    int opcode = invokeOpcode(candidate.invokeKind());
+                    if (opcode < 0) return java.util.Optional.empty();
+                    MethodInsnNode call = new MethodInsnNode(opcode, candidate.owner(), candidate.name(),
+                            candidate.descriptor(), candidate.interfaceOwner());
+                    if (!canWrap(pool, applicationMethods, classNode.name, call)) return java.util.Optional.empty();
+                    return java.util.Optional.of(new Operation(CoreOps.INVOKE_DYNAMIC,
+                            JvmBootstrapAttributes.dynamicCallSite(randomIdentifier(), indyDescriptor(call), bootstrap,
+                                    opcode, Type.getObjectType(call.owner), call.name,
+                                    Type.getMethodType(call.desc))));
+                });
+                var result = adapter.run(classNode.name, method, pass, RANDOM.nextLong());
+                if (result.changed()) {
+                    MethodNode output = result.output().orElseThrow();
+                    IrMethodPassAdapter.removeUnreferencedEntryLabel(output);
+                    IrMethodPassAdapter.publishBody(method, output);
+                    changed += Math.toIntExact(result.metric("rewritten"));
                 }
             }
 
-            if (changed) {
+            if (changed > 0) {
                 classNode.version = Math.max(classNode.version, Opcodes.V1_7);
                 classNode.methods.add(buildBootstrap(bootstrapName, mutableCallSites));
-                pool.markDirty(classNode.name);
-                detail("Wrapped method calls with invokedynamic in {}", classNode.name);
+                pool.markFramesDirty(classNode.name);
+                detail("Wrapped {} method calls with invokedynamic in {}", changed, classNode.name);
             }
         });
+    }
+
+    private int invokeOpcode(String kind) {
+        return switch (kind) {
+            case "INVOKESTATIC" -> Opcodes.INVOKESTATIC;
+            case "INVOKEVIRTUAL" -> Opcodes.INVOKEVIRTUAL;
+            case "INVOKEINTERFACE" -> Opcodes.INVOKEINTERFACE;
+            default -> -1;
+        };
     }
 
     private boolean canWrap(ClassPool pool, Map<String, OwnerMethods> applicationMethods,

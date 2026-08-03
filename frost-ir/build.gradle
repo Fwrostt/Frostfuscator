@@ -1,0 +1,17 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Frost-IR typed SSA compiler infrastructure and JVM bytecode bridge.'
+
+dependencies {
+    api "org.ow2.asm:asm:${rootProject.ext.asmVersion}"
+    api "org.ow2.asm:asm-tree:${rootProject.ext.asmVersion}"
+
+    implementation "org.ow2.asm:asm-analysis:${rootProject.ext.asmVersion}"
+    implementation "org.ow2.asm:asm-commons:${rootProject.ext.asmVersion}"
+    implementation "org.ow2.asm:asm-util:${rootProject.ext.asmVersion}"
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
+}

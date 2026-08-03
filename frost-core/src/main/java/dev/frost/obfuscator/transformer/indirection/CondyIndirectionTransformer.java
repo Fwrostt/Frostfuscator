@@ -5,6 +5,8 @@ import dev.frost.obfuscator.remapper.MappingCollector;
 import dev.frost.obfuscator.transformer.Context;
 import dev.frost.obfuscator.transformer.Transformer;
 import dev.frost.obfuscator.transformer.TransformerConfig;
+import dev.frost.obfuscator.transformer.ir.IrMethodPassAdapter;
+import dev.frost.ir.pass.ConstantDynamicIndirectionPass;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ConstantDynamic;
 import org.objectweb.asm.Handle;
@@ -105,8 +107,13 @@ public final class CondyIndirectionTransformer extends Transformer {
             for (MethodNode method : new ArrayList<>(classNode.methods)) {
                 if (method.instructions == null || method.instructions.size() == 0) continue;
                 boolean initializer = method.name.equals("<init>") || method.name.equals("<clinit>");
-                for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null; ) {
-                    AbstractInsnNode next = instruction.getNext();
+                Map<Long, ConstantDynamic> irConstants = new LinkedHashMap<>();
+                Map<Long, ConstantDynamicIndirectionPass.MemberReplacement> irMembers = new LinkedHashMap<>();
+                int plannedMethodHandles = 0;
+                int plannedVarHandles = 0;
+                AbstractInsnNode[] original = method.instructions.toArray();
+                for (int sourceIndex = 0; sourceIndex < original.length; sourceIndex++) {
+                    AbstractInsnNode instruction = original[sourceIndex];
                     int protectedArguments = bootstrapArguments
                             ? protectBootstrapArguments(classNode.name, instruction, carrier, probability,
                             constants, classLiterals, methodHandles) : 0;
@@ -118,20 +125,36 @@ public final class CondyIndirectionTransformer extends Transformer {
                             classLiterals, methodHandles);
                     if (!(instruction instanceof LdcInsnNode ldc && ldc.cst instanceof ConstantDynamic)
                             && constant != null && selected(probability)) {
-                        ConstantDynamic dynamic = encryptedCondy(classNode.name, constant, carrier);
-                        method.instructions.set(instruction, new LdcInsnNode(dynamic));
-                        counts.constants.increment();
-                        modified = true;
+                        irConstants.put((long) sourceIndex,
+                                encryptedCondy(classNode.name, constant, carrier));
                     } else if (!initializer && methodHandles && instruction instanceof MethodInsnNode call
-                            && selected(probability) && replaceMethodCall(classNode, method, call, carrier)) {
-                        counts.methodHandles.increment();
-                        modified = true;
+                            && selected(probability)) {
+                        var replacement = methodReplacement(classNode, call, carrier);
+                        if (replacement != null) {
+                            irMembers.put((long) sourceIndex, replacement);
+                            plannedMethodHandles++;
+                        }
                     } else if (!initializer && varHandles && instruction instanceof FieldInsnNode field
-                            && selected(probability) && replaceFieldAccess(pool, classNode, method, field, carrier)) {
-                        counts.varHandles.increment();
+                            && selected(probability)) {
+                        var replacement = fieldReplacement(pool, classNode, field, carrier);
+                        if (replacement != null) {
+                            irMembers.put((long) sourceIndex, replacement);
+                            plannedVarHandles++;
+                        }
+                    }
+                }
+                if (!irConstants.isEmpty() || !irMembers.isEmpty()) {
+                    var result = new IrMethodPassAdapter().run(classNode.name, method,
+                            new ConstantDynamicIndirectionPass(irConstants, irMembers), RANDOM.nextLong());
+                    if (result.changed()) {
+                        MethodNode output = result.output().orElseThrow();
+                        IrMethodPassAdapter.removeUnreferencedEntryLabel(output);
+                        IrMethodPassAdapter.publishBody(method, output);
+                        counts.constants.add(result.metric("constants"));
+                        counts.methodHandles.add(plannedMethodHandles);
+                        counts.varHandles.add(plannedVarHandles);
                         modified = true;
                     }
-                    instruction = next;
                 }
             }
 
@@ -150,9 +173,9 @@ public final class CondyIndirectionTransformer extends Transformer {
         return counts;
     }
 
-    private boolean replaceMethodCall(ClassNode caller, MethodNode method,
-                                      MethodInsnNode call, Carrier carrier) {
-        if (call.name.equals("<init>") || call.name.equals("<clinit>")) return false;
+    private ConstantDynamicIndirectionPass.MemberReplacement methodReplacement(
+            ClassNode caller, MethodInsnNode call, Carrier carrier) {
+        if (call.name.equals("<init>") || call.name.equals("<clinit>")) return null;
         int handleTag = switch (call.getOpcode()) {
             case Opcodes.INVOKESTATIC -> Opcodes.H_INVOKESTATIC;
             case Opcodes.INVOKEVIRTUAL -> Opcodes.H_INVOKEVIRTUAL;
@@ -160,84 +183,36 @@ public final class CondyIndirectionTransformer extends Transformer {
             case Opcodes.INVOKESPECIAL -> Opcodes.H_INVOKESPECIAL;
             default -> -1;
         };
-        if (handleTag < 0) return false;
-
+        if (handleTag < 0) return null;
         Type methodType = Type.getMethodType(call.desc);
         Type[] arguments = methodType.getArgumentTypes();
         boolean isStatic = call.getOpcode() == Opcodes.INVOKESTATIC;
         Type receiverType = call.getOpcode() == Opcodes.INVOKESPECIAL
                 ? Type.getObjectType(caller.name) : ownerType(call.owner);
-        int cursor = method.maxLocals;
-        int receiverLocal = -1;
-        if (!isStatic) receiverLocal = cursor++;
-        int[] argumentLocals = new int[arguments.length];
-        for (int index = 0; index < arguments.length; index++) {
-            argumentLocals[index] = cursor;
-            cursor += arguments[index].getSize();
-        }
-        method.maxLocals = Math.max(method.maxLocals, cursor);
-
-        InsnList replacement = new InsnList();
-        for (int index = arguments.length - 1; index >= 0; index--) {
-            replacement.add(new VarInsnNode(arguments[index].getOpcode(Opcodes.ISTORE), argumentLocals[index]));
-        }
-        if (!isStatic) replacement.add(new VarInsnNode(Opcodes.ASTORE, receiverLocal));
-
-        Handle target = new Handle(handleTag, call.owner, call.name, call.desc, call.itf);
-        replacement.add(new LdcInsnNode(encryptedHandleCondy(caller.name, target, carrier)));
-        if (!isStatic) replacement.add(new VarInsnNode(Opcodes.ALOAD, receiverLocal));
-        for (int index = 0; index < arguments.length; index++) {
-            replacement.add(new VarInsnNode(arguments[index].getOpcode(Opcodes.ILOAD), argumentLocals[index]));
-        }
         Type[] invocationArguments = isStatic ? arguments : prepend(receiverType, arguments);
-        replacement.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
-                "java/lang/invoke/MethodHandle", "invokeExact",
-                Type.getMethodDescriptor(methodType.getReturnType(), invocationArguments), false));
-        method.instructions.insertBefore(call, replacement);
-        method.instructions.remove(call);
-        return true;
+        Handle target = new Handle(handleTag, call.owner, call.name, call.desc, call.itf);
+        return new ConstantDynamicIndirectionPass.MemberReplacement(
+                encryptedHandleCondy(caller.name, target, carrier), "java/lang/invoke/MethodHandle",
+                "invokeExact", Type.getMethodDescriptor(methodType.getReturnType(), invocationArguments));
     }
 
-    private boolean replaceFieldAccess(ClassPool pool, ClassNode caller, MethodNode method,
-                                       FieldInsnNode field, Carrier carrier) {
+    private ConstantDynamicIndirectionPass.MemberReplacement fieldReplacement(
+            ClassPool pool, ClassNode caller, FieldInsnNode field, Carrier carrier) {
         int opcode = field.getOpcode();
         boolean isStatic = opcode == Opcodes.GETSTATIC || opcode == Opcodes.PUTSTATIC;
         boolean write = opcode == Opcodes.PUTSTATIC || opcode == Opcodes.PUTFIELD;
-        if (!isStatic && opcode != Opcodes.GETFIELD && opcode != Opcodes.PUTFIELD) return false;
-        if (write && isFinalField(pool, field.owner, field.name, field.desc)) return false;
-
+        if (!isStatic && opcode != Opcodes.GETFIELD && opcode != Opcodes.PUTFIELD) return null;
+        if (write && isFinalField(pool, field.owner, field.name, field.desc)) return null;
         Type fieldType = Type.getType(field.desc);
         Type receiverType = ownerType(field.owner);
-        InsnList replacement = new InsnList();
-        int cursor = method.maxLocals;
-        int receiverLocal = -1;
-        int valueLocal = -1;
-        if (write) {
-            valueLocal = cursor;
-            cursor += fieldType.getSize();
-            replacement.add(new VarInsnNode(fieldType.getOpcode(Opcodes.ISTORE), valueLocal));
-        }
-        if (!isStatic) {
-            receiverLocal = cursor++;
-            replacement.add(new VarInsnNode(Opcodes.ASTORE, receiverLocal));
-        }
-        method.maxLocals = Math.max(method.maxLocals, cursor);
-
         String metadata = metadata(field.owner, field.name, field.desc, isStatic ? "1" : "0");
-        ConstantValue target = new ConstantValue(KIND_VAR_HANDLE, VAR_HANDLE_DESC, metadata);
-        replacement.add(new LdcInsnNode(encryptedCondy(caller.name, target, carrier)));
-        if (!isStatic) replacement.add(new VarInsnNode(Opcodes.ALOAD, receiverLocal));
-        if (write) replacement.add(new VarInsnNode(fieldType.getOpcode(Opcodes.ILOAD), valueLocal));
-
-        Type[] parameters;
-        if (isStatic) parameters = write ? new Type[]{fieldType} : new Type[0];
-        else parameters = write ? new Type[]{receiverType, fieldType} : new Type[]{receiverType};
-        replacement.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
-                "java/lang/invoke/VarHandle", write ? "set" : "get",
-                Type.getMethodDescriptor(write ? Type.VOID_TYPE : fieldType, parameters), false));
-        method.instructions.insertBefore(field, replacement);
-        method.instructions.remove(field);
-        return true;
+        ConstantDynamic dynamic = encryptedCondy(caller.name,
+                new ConstantValue(KIND_VAR_HANDLE, VAR_HANDLE_DESC, metadata), carrier);
+        Type[] parameters = isStatic ? (write ? new Type[]{fieldType} : new Type[0])
+                : (write ? new Type[]{receiverType, fieldType} : new Type[]{receiverType});
+        return new ConstantDynamicIndirectionPass.MemberReplacement(dynamic, "java/lang/invoke/VarHandle",
+                write ? "set" : "get",
+                Type.getMethodDescriptor(write ? Type.VOID_TYPE : fieldType, parameters));
     }
 
     private ConstantDynamic encryptedHandleCondy(String caller, Handle handle, Carrier carrier) {
