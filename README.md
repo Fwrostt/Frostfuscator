@@ -4,7 +4,7 @@
 
 **A fun & capable Java bytecode obfuscator built with ASM**
 
-*Originally built for protecting Minecraft plugins and mods, Frostfuscator works with any Java application — featuring bytecode transformations, native FrostJNI stubs, a Raycast-inspired desktop GUI, and interactive graph analytics.*
+*Originally built for protecting Minecraft plugins and mods, Frostfuscator works with any Java application — featuring typed SSA-backed bytecode transformations, native FrostJNI stubs, a Raycast-inspired desktop GUI, and interactive graph analytics.*
 
 [![Java 21+](https://img.shields.io/badge/Java-21%2B-0073EC?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![ASM Engine](https://img.shields.io/badge/Bytecode-ASM%209.7-00B4D8?style=for-the-badge&logo=java&logoColor=white)](https://asm.ow2.io/)
@@ -24,7 +24,7 @@
 
 **Frostfuscator** is a feature-packed Java bytecode obfuscator and analysis tool built on OW2 ASM. What started as a fun project for protecting Minecraft mods and plugins has grown into a solid, versatile protection suite for any JVM application (Java, Kotlin, Scala).
 
-It combines class & member renaming, string encryption, control-flow mutation, **FrostJNI native stub compilation**, an **OLED dark desktop GUI**, and an **interactive graph visualizer** to make reverse-engineering much harder while staying easy to use.
+It combines class & member renaming, string encryption, control-flow mutation, a **verification-safe typed SSA pipeline**, **FrostJNI native stub compilation**, an **OLED dark desktop GUI**, and an **interactive graph visualizer** to make reverse-engineering much harder while staying easy to use.
 
 > [!NOTE]
 > **Requirements**: Java **21 or newer**. If you want to compile native stubs using **FrostJNI**, you'll also need a standard C/C++ compiler (`clang` or `gcc`/`mingw`) installed.
@@ -41,6 +41,14 @@ It combines class & member renaming, string encryption, control-flow mutation, *
 * **Anti-Reverse Engineering**: Anti-debug checks, JavaAgent/ByteBuddy detectors, and decompiler parser crashers (targeting Jadx, CFR, Procyon, Fernflower).
 * **FrostJNI Native Stubbing**: Convert selected Java methods into compiled native C++ shared libraries (`.dll`, `.so`, `.dylib`).
 * **Noise & Watermarking**: Class/method salting, line-number spoofing, member stuffing, and synthetic metadata.
+
+### 🧊 Frost-IR & Typed SSA Engine
+
+* **Verification-Safe Transformation**: Lifts supported JVM methods into typed SSA, runs bounded transformations, reconstructs frames and exception metadata, verifies the result, and only then replaces the original bytecode.
+* **Compiler-Grade Analyses**: Dominance, loops, liveness, sparse conditional constant propagation, global value numbering, symbolic expressions, MemorySSA, alias, escape, nullness, and integer-range analysis.
+* **IR-Backed Protection Passes**: Optimization, control-flow, encryption, indirection, method-salting, and virtualization paths share one ownership-safe CFG and use-def model instead of editing fragile stack patterns independently.
+* **Safe Fallbacks**: Unsupported or unverifiable methods keep their original ASM bytecode rather than receiving a partial rewrite.
+* **Deterministic Tooling**: Stable snapshots, text and DOT output, versioned JSON/binary serialization, validation diagnostics, and plugin extension contracts support repeatable pipelines.
 
 ### 🔌 Modular Plugin API (`frost-api`)
 * **Clean & Standalone**: Standalone `frost-api` module with a priority-aware `EventBus` (`PreObfuscationEvent`, `ClassTransformEvent`, `PostObfuscationEvent`).
@@ -84,6 +92,8 @@ flowchart TD
     class G native;
     class J output;
 ```
+
+IR-capable passes lift one method at a time from ASM into Frost-IR's typed SSA/CFG model. Analyses and transformations run against that model, then transactional lowering rebuilds JVM bytecode, frames, exception tables, debug metadata, and bootstrap data. The transformed method is published only after validation succeeds; otherwise Frostfuscator preserves the original method.
 
 ---
 
@@ -219,7 +229,7 @@ dependencies {
 | Module | Description |
 | :--- | :--- |
 | [**`frost-ir`**](frost-ir) | Typed SSA compiler infrastructure, analyses, and verification-safe JVM bridge. |
-| [**`frost-core`**](frost-core) | Core ASM obfuscation engine and transformers. |
+| [**`frost-core`**](frost-core) | Obfuscation engine, IR adapters, transformer orchestration, configuration, and tests. |
 | [**`frost-api`**](frost-api) | Standalone API for plugin developers and custom event hooks. |
 | [**`frost-gui`**](frost-gui) | Raycast-inspired JavaFX desktop GUI with dark OLED themes. |
 | [**`frost-graph`**](frost-graph) | Interactive graph visualization engine (Cytoscape, Mermaid, DOT). |
@@ -241,6 +251,7 @@ Detailed docs are available in the [`docs/`](docs/) directory:
 | 🛡️ [**Transformer Catalog**](docs/transformers.md) | Overview of available transformers |
 | 🔌 [**Plugin API Manual**](docs/plugins.md) | Writing custom plugins and transformers |
 | 📊 [**Graph Analysis**](docs/graphs.md) | Using Cytoscape, Mermaid, and DOT graph exports |
+| 🧊 [**Frost-IR Architecture**](docs/frost-ir.md) | Typed SSA model, analyses, pass pipeline, bytecode bridge, and capability gates |
 | 🚀 [**JitPack Integration**](docs/jitpack.md) | Adding `frost-api` via Maven / Gradle |
 
 ---
